@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { getBallAirTime } from '../ai/possession';
 
-const TRAIL_MAX_POINTS = 6;
+const TRAIL_MAX_POINTS = 7;
 const TRAIL_MIN_SPEED = 100;
 const BALL_RADIUS = 12;
 
@@ -18,7 +18,7 @@ export class Ball extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
 
-    this.shadow = scene.add.ellipse(0, 10, 20, 8, 0x000000, 0.25);
+    this.shadow = scene.add.ellipse(1, 11, 22, 9, 0x000000, 0.32);
     this.ballGraphics = scene.add.graphics();
     this.hitCircle = scene.add.circle(0, 0, BALL_RADIUS, 0xffffff, 0.01);
 
@@ -41,33 +41,45 @@ export class Ball extends Phaser.GameObjects.Container {
   private drawBallPattern(): void {
     const g = this.ballGraphics;
     g.clear();
+
+    g.fillStyle(0xd8d8d8, 1);
+    g.fillCircle(1.5, 1.5, BALL_RADIUS);
+
     g.fillStyle(0xffffff, 1);
     g.fillCircle(0, 0, BALL_RADIUS);
 
-    g.fillStyle(0x222222, 1);
+    g.fillStyle(0xf4f4f4, 0.9);
+    g.fillCircle(-3.5, -3.5, 4);
+
+    g.fillStyle(0x1a1a1a, 1);
     const spots = [
-      { x: 0, y: -5, r: 3.5 },
-      { x: 5, y: 2, r: 3 },
-      { x: -5, y: 2, r: 3 },
-      { x: 0, y: 6, r: 2.5 },
+      { x: 0, y: -5.5, r: 3.6 },
+      { x: 5.2, y: 1.5, r: 3.1 },
+      { x: -5.2, y: 1.5, r: 3.1 },
+      { x: 0, y: 6.2, r: 2.6 },
+      { x: 3.2, y: -3.2, r: 1.8 },
     ];
     for (const spot of spots) {
       g.fillCircle(spot.x, spot.y, spot.r);
     }
 
-    g.lineStyle(1, 0xcccccc, 0.6);
-    g.strokeCircle(0, 0, BALL_RADIUS - 1);
+    g.lineStyle(1.5, 0xb0b0b0, 0.75);
+    g.strokeCircle(0, 0, BALL_RADIUS - 0.5);
+    g.lineStyle(1, 0xffffff, 0.35);
+    g.strokeCircle(-2, -2, BALL_RADIUS - 3);
   }
 
   updateTrail(time = 0): void {
     const airTime = getBallAirTime();
     const inAir = time > 0 && time < airTime;
-    const airLift = inAir ? Math.min((airTime - time) / 700, 1) * 18 : 0;
-    const airScale = inAir ? 0.7 + (1 - (airTime - time) / 700) * 0.3 : 1;
+    const airLift = inAir ? Math.min((airTime - time) / 700, 1) * 20 : 0;
+    const airScale = inAir ? 0.72 + (1 - (airTime - time) / 700) * 0.28 : 1;
 
-    this.shadow.setPosition(0, 10 + airLift * 0.4);
-    this.shadow.setScale(airScale, airScale * 0.85);
+    this.shadow.setPosition(1.5, 11 + airLift * 0.45);
+    this.shadow.setScale(airScale * 1.05, airScale * 0.82);
+    this.shadow.setAlpha(inAir ? 0.2 : 0.32);
     this.ballGraphics.setPosition(0, -airLift);
+    this.ballGraphics.setScale(airScale + (inAir ? 0.04 : 0), airScale);
     this.hitCircle.setPosition(0, -airLift);
 
     const speed = Math.sqrt(this.body.velocity.x ** 2 + this.body.velocity.y ** 2);
@@ -87,12 +99,12 @@ export class Ball extends Phaser.GameObjects.Container {
     if (this.trailPoints.length < 2) return;
 
     for (let i = 1; i < this.trailPoints.length; i++) {
-      const alpha = (i / this.trailPoints.length) * 0.35;
+      const alpha = (i / this.trailPoints.length) * 0.4;
       this.trailGraphics.fillStyle(0xffffff, alpha);
       const pt = this.trailPoints[i];
       const localX = pt.x - this.x;
       const localY = pt.y - this.y;
-      const size = 3 + i;
+      const size = 2.5 + i * 0.9;
       this.trailGraphics.fillCircle(localX, localY, size);
     }
   }
@@ -105,9 +117,9 @@ export class Ball extends Phaser.GameObjects.Container {
   flashKick(): void {
     this.scene.tweens.add({
       targets: this.ballGraphics,
-      scaleX: 1.2,
-      scaleY: 1.2,
-      duration: 60,
+      scaleX: 1.25,
+      scaleY: 0.85,
+      duration: 55,
       yoyo: true,
     });
   }
@@ -117,8 +129,9 @@ export class Ball extends Phaser.GameObjects.Container {
     this.setScale(1);
     this.body.setVelocity(0, 0);
     this.clearTrail();
-    this.shadow.setPosition(0, 10);
+    this.shadow.setPosition(1.5, 11);
     this.ballGraphics.setPosition(0, 0);
+    this.ballGraphics.setScale(1);
     this.hitCircle.setPosition(0, 0);
   }
 

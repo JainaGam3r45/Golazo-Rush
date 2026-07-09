@@ -3,23 +3,29 @@ import type { Ball } from '../entities/Ball';
 import type { FieldPlayer } from '../entities/FieldPlayer';
 import { KICK_RANGE, KICK_OFFSET } from '../entities/FieldPlayer';
 import { PITCH_HEIGHT, PITCH_WIDTH } from '../config/pitch';
+import {
+  isNearBoundary,
+  pushTowardPlayableCenter,
+} from '../rules/playableBounds';
 
 export type TouchSide = 'home' | 'away' | null;
 export type BallState = 'free' | 'controlled' | 'kicked' | 'contested';
 
 const BALL_IDLE_SPEED = 45;
-const CONTEST_RADIUS = 40;
 const CONTROL_LERP = 0.25;
 const CONTROL_VELOCITY_BLEND = 0.15;
 const KICKED_DURATION_MS = 350;
 const CONTESTED_MAX_MS = 600;
 const CONTROL_COOLDOWN_MS = 500;
 
-const JAM_SAMPLE_INTERVAL_MS = 200;
-const JAM_WINDOW_MS = 2500;
-const JAM_DISTANCE_PX = 18;
-const JAM_PLAYER_RADIUS = 50;
-const JAM_PUSH_FORCE = 180;
+const JAM_SAMPLE_INTERVAL_MS = 180;
+const JAM_WINDOW_MS = 1500;
+const JAM_DISTANCE_PX = 14;
+const JAM_PLAYER_RADIUS = 52;
+const JAM_PUSH_FORCE = 200;
+const JAM_BALL_PUSH = 300;
+const JAM_COOLDOWN_MS = 900;
+const PLAYER_SEP_FORCE = 160;
 
 let lastTouchSide: TouchSide = null;
 let lastTouchAt = 0;
@@ -30,6 +36,7 @@ let kickedUntil = 0;
 let contestedUntil = 0;
 let controlCooldownUntil = 0;
 let airTimeUntil = 0;
+let jamCooldownUntil = 0;
 
 type PositionSample = { x: number; y: number; time: number };
 const jamSamples: PositionSample[] = [];
@@ -74,6 +81,7 @@ export function resetBallControl(): void {
   controlCooldownUntil = 0;
   airTimeUntil = 0;
   jamSamples.length = 0;
+  jamCooldownUntil = 0;
 }
 
 export function isBallIdle(ball: {
@@ -148,14 +156,6 @@ function findNearestCandidates(
   return { nearest, homeNearest, awayNearest };
 }
 
-function countPlayersNearBall(ball: Ball, players: FieldPlayer[], radius: number): number {
-  let count = 0;
-  for (const player of players) {
-    if (player.distanceTo(ball.x, ball.y) < radius) count++;
-  }
-  return count;
-}
-
 function applyDribbleControl(ball: Ball, player: FieldPlayer): void {
   const facing = getPlayerFacing(player);
   const offset = player.width / 2 + KICK_OFFSET + 2;
@@ -173,6 +173,32 @@ function applyDribbleControl(ball: Ball, player: FieldPlayer): void {
   );
 }
 
+function separateNearbyPlayers(ball: Ball, players: FieldPlayer[]): void {
+  const nearby = players.filter((p) => p.distanceTo(ball.x, ball.y) < JAM_PLAYER_RADIUS);
+  for (let i = 0; i < nearby.length; i++) {
+    for (let j = i + 1; j < nearby.length; j++) {
+      const a = nearby[i];
+      const b = nearby[j];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (dist > 40) continue;
+      const force = ((40 - dist) / 40) * PLAYER_SEP_FORCE;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      a.body.setVelocity(a.body.velocity.x + nx * force, a.body.velocity.y + ny * force);
+      b.body.setVelocity(b.body.velocity.x - nx * force, b.body.velocity.y - ny * force);
+    }
+  }
+
+  for (const player of nearby) {
+    const px = player.x - ball.x;
+    const py = player.y - ball.y;
+    const dist = Math.sqrt(px * px + py * py) || 1;
+    player.body.setVelocity((px / dist) * JAM_PUSH_FORCE, (py / dist) * JAM_PUSH_FORCE);
+  }
+}
+
 function resolveControlState(
   ball: Ball,
   players: FieldPlayer[],
@@ -183,8 +209,12 @@ function resolveControlState(
   }
 
   if (ballState === 'contested' && time >= contestedUntil) {
+    separateNearbyPlayers(ball, players);
+    const bounce = pushTowardPlayableCenter(ball.x, ball.y);
+    ball.body.setVelocity(bounce.x * 160, bounce.y * 160);
     ballState = 'free';
     controller = null;
+    controlCooldownUntil = time + CONTROL_COOLDOWN_MS;
   }
 
   if (ballState === 'controlled' && controller) {
@@ -240,6 +270,8 @@ function sampleBallJam(ball: Ball, time: number): void {
 }
 
 function resolveBallJam(ball: Ball, players: FieldPlayer[], time: number): void {
+  if (time < jamCooldownUntil) return;
+
   sampleBallJam(ball, time);
   if (jamSamples.length < 2) return;
 
@@ -261,27 +293,30 @@ function resolveBallJam(ball: Ball, players: FieldPlayer[], time: number): void 
     };
   }
 
-  for (const player of nearby) {
-    const px = player.x - ball.x;
-    const py = player.y - ball.y;
-    const dist = Math.sqrt(px * px + py * py) || 1;
-    player.body.setVelocity((px / dist) * JAM_PUSH_FORCE, (py / dist) * JAM_PUSH_FORCE);
+  separateNearbyPlayers(ball, players);
+
+  let pushX: number;
+  let pushY: number;
+
+  if (isNearBoundary(ball.x, ball.y)) {
+    const toward = pushTowardPlayableCenter(ball.x, ball.y);
+    pushX = toward.x;
+    pushY = toward.y;
+  } else {
+    pushX = lastSignificantDir.x;
+    pushY = lastSignificantDir.y;
+    if (Math.abs(pushX) < 0.1 && Math.abs(pushY) < 0.1) {
+      const toward = pushTowardPlayableCenter(ball.x, ball.y);
+      pushX = toward.x;
+      pushY = toward.y;
+    }
   }
 
-  let pushX = lastSignificantDir.x;
-  let pushY = lastSignificantDir.y;
-  if (Math.abs(pushX) < 0.1 && Math.abs(pushY) < 0.1) {
-    pushX = PITCH_WIDTH / 2 - ball.x;
-    pushY = PITCH_HEIGHT / 2 - ball.y;
-    const len = Math.sqrt(pushX * pushX + pushY * pushY) || 1;
-    pushX /= len;
-    pushY /= len;
-  }
-
-  ball.body.setVelocity(pushX * 280, pushY * 280);
+  ball.body.setVelocity(pushX * JAM_BALL_PUSH, pushY * JAM_BALL_PUSH);
   ballState = 'free';
   controller = null;
   controlCooldownUntil = time + CONTROL_COOLDOWN_MS;
+  jamCooldownUntil = time + JAM_COOLDOWN_MS;
   jamSamples.length = 0;
 }
 

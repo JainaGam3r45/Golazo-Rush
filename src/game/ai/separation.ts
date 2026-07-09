@@ -1,9 +1,9 @@
 import type { BotPlayer } from '../entities/BotPlayer';
 
-const SEPARATION_RADIUS = 36;
-const SEPARATION_FORCE = 28;
-const OPPONENT_SEP_RADIUS = 28;
-const OPPONENT_SEP_FORCE = 14;
+const SEPARATION_RADIUS = 40;
+const SEPARATION_FORCE = 34;
+const OPPONENT_SEP_RADIUS = 32;
+const OPPONENT_SEP_FORCE = 18;
 
 const SLOT_SPEED_VARIANCE = [1.0, 0.96, 1.04, 0.98];
 const SLOT_BALL_OFFSETS = [

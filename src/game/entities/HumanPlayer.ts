@@ -81,12 +81,12 @@ export class HumanPlayer extends FieldPlayer {
     }
 
     this.youLabel = scene.add
-      .text(x, y - 28, 'Tú', {
+      .text(x, y - 30, 'Tú', {
         fontFamily: 'Bebas Neue, sans-serif',
-        fontSize: '20px',
+        fontSize: '22px',
         color: '#39ff14',
         stroke: '#0a0f0a',
-        strokeThickness: 4,
+        strokeThickness: 5,
       })
       .setOrigin(0.5)
       .setDepth(4);
@@ -132,7 +132,7 @@ export class HumanPlayer extends FieldPlayer {
     }
 
     if (this.youLabel) {
-      this.youLabel.setPosition(this.x, this.y - 28);
+      this.youLabel.setPosition(this.x, this.y - 30);
     }
 
     this.sprintLines.clear();

@@ -17,18 +17,28 @@ export class PlayerVisual {
   private readonly bodyShape: Phaser.GameObjects.Graphics;
   private readonly numberText: Phaser.GameObjects.Text;
   private readonly accentRing?: Phaser.GameObjects.Arc;
+  private readonly controlPulse?: Phaser.GameObjects.Arc;
   private readonly gloveLeft?: Phaser.GameObjects.Arc;
   private readonly gloveRight?: Phaser.GameObjects.Arc;
+  private readonly gkBadge?: Phaser.GameObjects.Arc;
   private readonly kind: PlayerVisualOptions['kind'];
   private readonly baseWidth: number;
   private readonly baseHeight: number;
+  private pulsePhase = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, options: PlayerVisualOptions) {
     this.kind = options.kind;
     this.baseWidth = options.width;
     this.baseHeight = options.height;
 
-    this.shadow = scene.add.ellipse(0, options.height * 0.38, options.width * 0.95, options.height * 0.32, 0x000000, 0.28);
+    this.shadow = scene.add.ellipse(
+      0,
+      options.height * 0.42,
+      options.width * 1.05,
+      options.height * 0.38,
+      0x000000,
+      0.34,
+    );
     this.bodyShape = scene.add.graphics();
     this.numberText = scene.add
       .text(0, 0, options.slot >= 0 ? String(options.slot + 1) : 'GK', {
@@ -42,15 +52,18 @@ export class PlayerVisual {
     const children: Phaser.GameObjects.GameObject[] = [this.shadow, this.bodyShape, this.numberText];
 
     if (options.kind === 'human') {
+      this.controlPulse = scene.add.circle(0, 0, options.width * 0.95, ACCENT_COLOR, 0);
+      this.controlPulse.setStrokeStyle(2, ACCENT_COLOR, 0.35);
       this.accentRing = scene.add.circle(0, 0, options.width * 0.72, ACCENT_COLOR, 0);
-      this.accentRing.setStrokeStyle(2, ACCENT_COLOR, 0.85);
-      children.unshift(this.accentRing);
+      this.accentRing.setStrokeStyle(2.5, ACCENT_COLOR, 0.95);
+      children.unshift(this.controlPulse, this.accentRing);
     }
 
     if (options.kind === 'goalkeeper') {
-      this.gloveLeft = scene.add.circle(-options.width * 0.28, options.height * 0.1, 5, 0xfff4d6, 0.95);
-      this.gloveRight = scene.add.circle(options.width * 0.28, options.height * 0.1, 5, 0xfff4d6, 0.95);
-      children.push(this.gloveLeft, this.gloveRight);
+      this.gkBadge = scene.add.circle(0, -options.height * 0.42, 5, 0xffe08a, 0.95);
+      this.gloveLeft = scene.add.circle(-options.width * 0.32, options.height * 0.12, 6, 0xfff4d6, 0.98);
+      this.gloveRight = scene.add.circle(options.width * 0.32, options.height * 0.12, 6, 0xfff4d6, 0.98);
+      children.push(this.gloveLeft, this.gloveRight, this.gkBadge);
     }
 
     this.container = scene.add.container(x, y, children);
@@ -66,6 +79,9 @@ export class PlayerVisual {
     const darker = PlayerVisual.darken(teamColor, 50);
     const lighter = PlayerVisual.lighten(teamColor, 30);
 
+    g.fillStyle(0x000000, 0.18);
+    g.fillEllipse(1, h * 0.12, w * 0.92, h * 0.55);
+
     g.fillStyle(darker, 1);
     g.fillRoundedRect(-w / 2, -h / 2 + 2, w, h - 2, 4);
 
@@ -73,12 +89,18 @@ export class PlayerVisual {
     g.fillRoundedRect(-w / 2 + 2, -h / 2, w - 4, h * 0.55, 3);
 
     const stripeW = w * 0.18;
-    g.fillStyle(0xffffff, kind === 'opponent' ? 0.35 : 0.55);
+    g.fillStyle(0xffffff, kind === 'opponent' ? 0.35 : kind === 'goalkeeper' ? 0.7 : 0.55);
     g.fillRect(-stripeW / 2, -h / 2 + 3, stripeW, h - 6);
 
-    const strokeColor = kind === 'human' ? ACCENT_COLOR : kind === 'opponent' ? 0xffffff : 0xdddddd;
-    const strokeAlpha = kind === 'human' ? 1 : kind === 'opponent' ? 0.75 : 0.5;
-    g.lineStyle(kind === 'human' ? 2.5 : 1.5, strokeColor, strokeAlpha);
+    if (kind === 'goalkeeper') {
+      g.fillStyle(0xffe08a, 0.35);
+      g.fillRoundedRect(-w / 2 + 3, -h / 2 + 4, w - 6, 5, 2);
+    }
+
+    const strokeColor =
+      kind === 'human' ? ACCENT_COLOR : kind === 'goalkeeper' ? 0xffe08a : kind === 'opponent' ? 0xffffff : 0xdddddd;
+    const strokeAlpha = kind === 'human' ? 1 : kind === 'goalkeeper' ? 0.9 : kind === 'opponent' ? 0.75 : 0.5;
+    g.lineStyle(kind === 'human' ? 2.5 : kind === 'goalkeeper' ? 2 : 1.5, strokeColor, strokeAlpha);
     g.strokeRoundedRect(-w / 2, -h / 2, w, h, 4);
   }
 
@@ -101,17 +123,25 @@ export class PlayerVisual {
     this.container.setDepth(depth);
 
     const speed = Math.sqrt(vx * vx + vy * vy);
-    const stretch = 1 + Math.min(speed / 400, 0.05);
-    const squash = 1 - Math.min(speed / 500, 0.04);
-    this.container.setScale(1, stretch * squash);
+    const stretch = 1 + Math.min(speed / 380, 0.07);
+    const squash = 1 - Math.min(speed / 480, 0.05);
+    this.container.setScale(1 * airScale, stretch * squash * airScale);
 
     if (speed > 12) {
       this.container.setRotation(Math.atan2(vy, vx) + Math.PI / 2);
     }
 
-    const shadowScale = 0.85 + (1 - airScale) * 0.2;
-    this.shadow.setScale(shadowScale, shadowScale * 0.9);
-    this.shadow.setAlpha(0.18 + airScale * 0.12);
+    const shadowScale = 0.9 + (1 - airScale) * 0.25;
+    this.shadow.setScale(shadowScale, shadowScale * 0.88);
+    this.shadow.setAlpha(0.22 + airScale * 0.14);
+    this.shadow.setPosition(1.5, this.baseHeight * 0.42 + (1 - airScale) * 3);
+
+    if (this.controlPulse) {
+      this.pulsePhase += 0.08;
+      const pulse = 1 + Math.sin(this.pulsePhase) * 0.08;
+      this.controlPulse.setScale(pulse);
+      this.controlPulse.setStrokeStyle(2, ACCENT_COLOR, 0.25 + Math.sin(this.pulsePhase) * 0.12);
+    }
   }
 
   destroy(): void {

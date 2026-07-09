@@ -18,12 +18,13 @@ export const ENABLE_SIMPLE_PASS = true;
 const BOT_SPEED = 187;
 const PRESSURE_DISTANCE = 50;
 const DEF_FORWARD_LIMIT = 0.55;
-const BOT_PASS_COOLDOWN_MS = 800;
+const BOT_PASS_COOLDOWN_MS = 1400;
+const OWN_HALF_CLEAR_PRESSURE = 58;
 
 const botPassCooldown = new WeakMap<BotPlayer, number>();
 
 export type KickCallback = (side: 'home' | 'away', x: number, y: number) => void;
-export type PassCallback = (side: 'home' | 'away', x: number, y: number) => void;
+export type PassCallback = (side: 'home' | 'away', x: number, y: number, longPass?: boolean) => void;
 
 type BotRole = 'presser' | 'supporter' | 'holder';
 
@@ -33,6 +34,14 @@ function getGoalX(side: 'home' | 'away'): number {
 
 function getOpponentGoalX(side: 'home' | 'away'): number {
   return getGoalX(side === 'home' ? 'away' : 'home');
+}
+
+function getOwnGoalX(side: 'home' | 'away'): number {
+  return side === 'home' ? 0 : PITCH_WIDTH;
+}
+
+function isInOwnHalf(x: number, side: 'home' | 'away'): boolean {
+  return side === 'home' ? x < PITCH_WIDTH / 2 : x > PITCH_WIDTH / 2;
 }
 
 function getBallTargetPoint(ball: Ball): { x: number; y: number } {
@@ -180,6 +189,33 @@ function countNearbyOpponents(
   return count;
 }
 
+function tryDefensiveClear(
+  bot: BotPlayer,
+  ball: Ball,
+  side: 'home' | 'away',
+  time: number,
+  onKick?: KickCallback,
+  onPass?: PassCallback,
+): boolean {
+  const forward = side === 'home' ? 1 : -1;
+  const clearY = bot.y + (Math.random() - 0.5) * 100;
+  const clearTarget = {
+    x: bot.x + forward * 260,
+    y: Math.min(PITCH_HEIGHT - 80, Math.max(80, clearY)),
+  };
+
+  if (executePass(bot, ball, clearTarget, 'long', time)) {
+    onPass?.(side, bot.x, bot.y, true);
+    return true;
+  }
+
+  if (bot.kickBall(ball, true, time, 1.15)) {
+    onKick?.(side, bot.x, bot.y);
+    return true;
+  }
+  return false;
+}
+
 function tryBotPass(
   bot: BotPlayer,
   ball: Ball,
@@ -195,6 +231,10 @@ function tryBotPass(
 
   const target = findPassTarget(teammates, bot, opponents, 'short');
   if (!target) return false;
+
+  const ownGoalX = getOwnGoalX(side);
+  const towardOwn = Math.abs(target.x - ownGoalX) < Math.abs(bot.x - ownGoalX) - 20;
+  if (towardOwn && isInOwnHalf(bot.x, side)) return false;
 
   if (executePass(bot, ball, target, 'short', time)) {
     botPassCooldown.set(bot, time);
@@ -221,21 +261,33 @@ function handleBotWithBall(
   const aligned = Math.abs(bot.y - goalY) < 120;
   const pressured = countNearbyOpponents(bot, opponents, PRESSURE_DISTANCE) > 0;
   const hasControl = isBallControlledBy(bot);
+  const inDanger = isInOwnHalf(bot.x, side) && Math.abs(bot.x - getOwnGoalX(side)) < 280;
 
-  if (pressured && hasControl) {
-    if (tryBotPass(bot, ball, teammates, opponents, side, time, onPass)) return;
-    if (bot.kickBall(ball, false, time, 1.1)) {
-      onKick?.(side, bot.x, bot.y);
-    }
-    return;
+  if (!hasControl) return;
+
+  if (inDanger && countNearbyOpponents(bot, opponents, OWN_HALF_CLEAR_PRESSURE) > 0) {
+    if (tryDefensiveClear(bot, ball, side, time, onKick, onPass)) return;
   }
 
-  if (distToGoal < formation.shootDistance && aligned && hasControl) {
+  if (distToGoal < formation.shootDistance && aligned) {
     if (bot.kickBall(ball, false, time)) {
       onKick?.(side, bot.x, bot.y);
     }
     return;
   }
+
+  if (pressured) {
+    if (inDanger) {
+      if (tryDefensiveClear(bot, ball, side, time, onKick, onPass)) return;
+    }
+    if (tryBotPass(bot, ball, teammates, opponents, side, time, onPass)) return;
+    if (bot.kickBall(ball, false, time, 1.05)) {
+      onKick?.(side, bot.x, bot.y);
+    }
+    return;
+  }
+
+  if (tryBotPass(bot, ball, teammates, opponents, side, time, onPass)) return;
 
   bot.moveToward(goalX, goalY, BOT_SPEED * formation.pressWeight * getSpeedVariance(bot.slot));
 }

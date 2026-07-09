@@ -91,8 +91,14 @@ export function tryTackle(
 
   const isFromBehind = fromBehindAngle > Phaser.Math.DegToRad(FOUL_ANGLE_DEG);
   const isTooFast = tacklerSpeed > FOUL_SPEED_THRESHOLD;
+  const lateTackle =
+    getBallState() === 'kicked' ||
+    (getBallController() !== victim && !isBallIdle(ball) && tackler.distanceTo(ball.x, ball.y) > TACKLE_RANGE * 0.7);
   const isClean =
-    approachAngle <= Phaser.Math.DegToRad(CLEAN_ANGLE_DEG) && !isFromBehind && !isTooFast;
+    approachAngle <= Phaser.Math.DegToRad(CLEAN_ANGLE_DEG) &&
+    !isFromBehind &&
+    !isTooFast &&
+    !lateTackle;
 
   if (!isClean) {
     return { type: 'foul', victim, fouledSide: victim.side };
