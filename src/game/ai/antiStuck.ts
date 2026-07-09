@@ -4,12 +4,15 @@ const SAMPLE_INTERVAL_MS = 500;
 const STUCK_WINDOW_MS = 2500;
 const STUCK_DISTANCE_PX = 12;
 const RECOVERY_OFFSET_PX = 70;
+const ALT_TARGET_BLOCK_MS = 2000;
 
 type StuckSample = { x: number; y: number; time: number };
+type AltTarget = { x: number; y: number; until: number };
 
 const samples = new WeakMap<BotPlayer, StuckSample[]>();
 const recoveryUntil = new WeakMap<BotPlayer, number>();
 const recoveryOffset = new WeakMap<BotPlayer, number>();
+const lastAltTarget = new WeakMap<BotPlayer, AltTarget>();
 
 function getSlotOffset(slot: number): number {
   return slot % 2 === 0 ? RECOVERY_OFFSET_PX : -RECOVERY_OFFSET_PX;
@@ -19,6 +22,7 @@ export function resetAntiStuck(bot: BotPlayer): void {
   samples.delete(bot);
   recoveryUntil.delete(bot);
   recoveryOffset.delete(bot);
+  lastAltTarget.delete(bot);
 }
 
 export function sampleBotPosition(bot: BotPlayer, time: number): void {
@@ -47,6 +51,18 @@ function isStuck(bot: BotPlayer, time: number): boolean {
   return Math.sqrt(dx * dx + dy * dy) < STUCK_DISTANCE_PX;
 }
 
+function pickAltTarget(targetX: number, targetY: number, bot: BotPlayer, time: number): { x: number; y: number } {
+  const prev = lastAltTarget.get(bot);
+  if (prev && time < prev.until) {
+    const sameSpot = Math.abs(prev.x - targetX) < 8 && Math.abs(prev.y - targetY) < 8;
+    if (sameSpot) {
+      const offset = getSlotOffset(bot.slot + 1);
+      return { x: targetX + offset, y: targetY + offset * 0.4 };
+    }
+  }
+  return { x: targetX, y: targetY };
+}
+
 export function applyAntiStuck(
   bot: BotPlayer,
   targetX: number,
@@ -58,7 +74,8 @@ export function applyAntiStuck(
   const recovering = recoveryUntil.get(bot);
   if (recovering && time < recovering) {
     const offset = recoveryOffset.get(bot) ?? 0;
-    return { x: targetX + offset, y: targetY };
+    const alt = pickAltTarget(targetX + offset, targetY, bot, time);
+    return alt;
   }
 
   if (isStuck(bot, time)) {
@@ -66,7 +83,11 @@ export function applyAntiStuck(
     recoveryOffset.set(bot, offset);
     recoveryUntil.set(bot, time + 1200);
     samples.set(bot, []);
-    return { x: targetX + offset, y: targetY };
+
+    const altX = targetX + offset;
+    const altY = targetY + offset * 0.35;
+    lastAltTarget.set(bot, { x: altX, y: altY, until: time + ALT_TARGET_BLOCK_MS });
+    return { x: altX, y: altY };
   }
 
   return { x: targetX, y: targetY };

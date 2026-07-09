@@ -2,6 +2,8 @@ import type { BotPlayer } from '../entities/BotPlayer';
 
 const SEPARATION_RADIUS = 36;
 const SEPARATION_FORCE = 28;
+const OPPONENT_SEP_RADIUS = 28;
+const OPPONENT_SEP_FORCE = 14;
 
 const SLOT_SPEED_VARIANCE = [1.0, 0.96, 1.04, 0.98];
 const SLOT_BALL_OFFSETS = [
@@ -24,6 +26,7 @@ export function applySeparation(
   teammates: BotPlayer[],
   targetX: number,
   targetY: number,
+  opponents: BotPlayer[] = [],
 ): { x: number; y: number } {
   let pushX = 0;
   let pushY = 0;
@@ -37,6 +40,17 @@ export function applySeparation(
       const strength = (SEPARATION_RADIUS - dist) / SEPARATION_RADIUS;
       pushX += (dx / dist) * SEPARATION_FORCE * strength;
       pushY += (dy / dist) * SEPARATION_FORCE * strength;
+    }
+  }
+
+  for (const opp of opponents) {
+    const dx = bot.x - opp.x;
+    const dy = bot.y - opp.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0 && dist < OPPONENT_SEP_RADIUS) {
+      const strength = (OPPONENT_SEP_RADIUS - dist) / OPPONENT_SEP_RADIUS;
+      pushX += (dx / dist) * OPPONENT_SEP_FORCE * strength;
+      pushY += (dy / dist) * OPPONENT_SEP_FORCE * strength;
     }
   }
 
