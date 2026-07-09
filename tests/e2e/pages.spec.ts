@@ -68,21 +68,25 @@ test.describe('Play', () => {
 });
 
 test.describe('Auth pages', () => {
-  test('login page loads with form', async ({ page }) => {
+  test('login page loads with form and OAuth buttons', async ({ page }) => {
     await page.goto('/login');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
     await expect(page.locator('[data-login-form] input[name="email"]')).toBeVisible();
     await expect(page.locator('[data-login-form] input[name="password"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Entrar con Google' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Entrar con Discord' })).toBeVisible();
   });
 
-  test('register page loads with form', async ({ page }) => {
+  test('register page loads with form and OAuth buttons', async ({ page }) => {
     await page.goto('/register');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Crear cuenta' })).toBeVisible();
     await expect(page.locator('[data-register-form] input[name="name"]')).toBeVisible();
     await expect(page.locator('[data-register-form] input[name="email"]')).toBeVisible();
     await expect(page.locator('[data-register-form] input[name="password"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continuar con Google' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continuar con Discord' })).toBeVisible();
   });
 
   test('account page does not break without session', async ({ page }) => {
