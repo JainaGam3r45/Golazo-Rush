@@ -8,6 +8,12 @@ export type OAuthProvider = 'google' | 'discord';
 
 export const OAUTH_PROVIDERS: OAuthProvider[] = ['google', 'discord'];
 
+const INVALID_PROVIDER_MESSAGE = 'No se pudo iniciar sesión con ese proveedor.';
+
+export function isOAuthProvider(value: string | undefined | null): value is OAuthProvider {
+  return value === 'google' || value === 'discord';
+}
+
 export function getOAuthRedirectUrl(): string {
   return `${window.location.origin}/auth/callback`;
 }
@@ -29,12 +35,17 @@ function mapOAuthError(error: { message?: string; statusCode?: number }): string
 export async function signInWithOAuthProvider(
   provider: OAuthProvider,
 ): Promise<{ error: string | null }> {
+  if (!isOAuthProvider(provider)) {
+    return { error: INVALID_PROVIDER_MESSAGE };
+  }
+
   if (!isInsForgeConfigured || !insforge) {
     return { error: mapAuthError(null, false) };
   }
 
   try {
-    const { error } = await insforge.auth.signInWithOAuth(provider, {
+    const { error } = await insforge.auth.signInWithOAuth({
+      provider,
       redirectTo: getOAuthRedirectUrl(),
     });
 
@@ -117,12 +128,19 @@ export function wireOAuthButtons(containerSelector: string, errorSelector: strin
 
   buttons.forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const provider = btn.dataset.oauth as OAuthProvider | undefined;
-      if (!provider) return;
+      const provider = btn.dataset.oauth;
 
       if (errorEl) {
         errorEl.hidden = true;
         errorEl.textContent = '';
+      }
+
+      if (!isOAuthProvider(provider)) {
+        if (errorEl) {
+          errorEl.textContent = INVALID_PROVIDER_MESSAGE;
+          errorEl.hidden = false;
+        }
+        return;
       }
 
       buttons.forEach((b) => {
