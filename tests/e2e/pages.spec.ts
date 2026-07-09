@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Home', () => {
   test('shows hero title, play link, ranking nav, and team flags', async ({ page }) => {
@@ -8,13 +8,14 @@ test.describe('Home', () => {
     await expect(page.getByRole('link', { name: 'Jugar ahora' })).toBeVisible();
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Ranking' })).toBeVisible();
 
-    const flags = page.locator('.country-flag');
+    const flags = page.locator('.country-flag__img');
     expect(await flags.count()).toBeGreaterThanOrEqual(3);
+    await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
   });
 });
 
 test.describe('Ranking', () => {
-  test('shows global ranking with team cards and flags', async ({ page }) => {
+  test('shows global ranking with team cards and real flag images', async ({ page }) => {
     await page.goto('/ranking');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Ranking mundial' })).toBeVisible();
@@ -26,8 +27,9 @@ test.describe('Ranking', () => {
     await expect(page.getByText('Brasil')).toBeVisible();
     await expect(page.getByText('Argentina')).toBeVisible();
 
-    const flags = page.locator('.team-card .country-flag');
+    const flags = page.locator('.team-card .country-flag__img');
     expect(await flags.count()).toBeGreaterThanOrEqual(3);
+    await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
   });
 });
 
@@ -37,6 +39,14 @@ test.describe('Play', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: 'Partido' })).toBeVisible();
     await expect(page.locator('#game-container canvas')).toHaveCount(0);
+  });
+
+  test('team selector shows real flag images', async ({ page }) => {
+    await page.goto('/play');
+
+    await expect(page.locator('[data-team-selector]')).toBeVisible();
+    const brFlag = page.locator('[data-team-selector] img[src*="/flags/br.svg"]');
+    await expect(brFlag).toBeVisible();
   });
 
   test('full flow: select team, preview, play, canvas visible', async ({ page }) => {
@@ -56,3 +66,32 @@ test.describe('Play', () => {
     await expect(gameContainer.locator('canvas')).toBeVisible({ timeout: 10_000 });
   });
 });
+
+test.describe('Auth pages', () => {
+  test('login page loads with form', async ({ page }) => {
+    await page.goto('/login');
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
+    await expect(page.locator('[data-login-form] input[name="email"]')).toBeVisible();
+    await expect(page.locator('[data-login-form] input[name="password"]')).toBeVisible();
+  });
+
+  test('register page loads with form', async ({ page }) => {
+    await page.goto('/register');
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Crear cuenta' })).toBeVisible();
+    await expect(page.locator('[data-register-form] input[name="name"]')).toBeVisible();
+    await expect(page.locator('[data-register-form] input[name="email"]')).toBeVisible();
+    await expect(page.locator('[data-register-form] input[name="password"]')).toBeVisible();
+  });
+
+  test('account page does not break without session', async ({ page }) => {
+    await page.goto('/cuenta');
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Mi cuenta' })).toBeVisible();
+    await expect(page.locator('[data-account-guest]')).toBeVisible();
+    await expect(page.locator('[data-account-guest]').getByRole('link', { name: 'Entrar' })).toBeVisible();
+    await expect(page.locator('[data-account-guest]').getByRole('link', { name: 'Crear cuenta' })).toBeVisible();
+  });
+});
+
