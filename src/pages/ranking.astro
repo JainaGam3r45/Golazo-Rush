@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TeamCard from '../components/TeamCard.astro';
+import { getGlobalRankings } from '../lib/data/rankings';
+import { getTeams } from '../lib/data/teams';
+
+const [globalRankings, teams] = await Promise.all([getGlobalRankings(), getTeams()]);
+const teamMap = Object.fromEntries(teams.map((team) => [team.id, team]));
+const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
+---
+
+<Layout title="Golazo Rush — Ranking">
+  <section class="ranking-header">
+    <h1 class="section-title">Ranking mundial</h1>
+    <p class="ranking-header__subtitle">Selecciones clasificadas por puntos, victorias y diferencia de goles.</p>
+  </section>
+
+  <div class="ranking-list" data-ranking-list>
+    {globalRankings.map((ranking) => (
+      <TeamCard ranking={ranking} team={teamMap[ranking.teamId]} />
+    ))}
+  </div>
+</Layout>
+
+<script define:vars={{ teamNames }}>
+  import { CHANNELS } from '../lib/realtime/channels';
+  import { subscribe, onEvent, isRealtimeAvailable } from '../lib/realtime/client';
+  import { updateRankingRow, setTeamNames } from '../lib/realtime/handlers';
+
+  async function wireRankingRealtime() {
+    if (!isRealtimeAvailable()) return;
+
+    setTeamNames(teamNames);
+    const result = await subscribe(CHANNELS.RANKING);
+    if (!result.ok) return;
+
+    onEvent('ranking_updated', (payload) => {
+      updateRankingRow(payload);
+    });
+  }
+
+  wireRankingRealtime();
+</script>
+
+<style>
+  .ranking-header {
+    margin-bottom: 2rem;
+  }
+
+  .ranking-header__subtitle {
+    margin: -0.5rem 0 0;
+    color: var(--text-muted);
+  }
+
+  .ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+</style>

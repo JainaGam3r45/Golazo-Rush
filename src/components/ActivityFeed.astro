@@ -1,0 +1,108 @@
+---
+import CountryFlag from './CountryFlag.astro';
+import { getRecentActivity } from '../lib/data/activity';
+import { getTeams } from '../lib/data/teams';
+
+const [recentActivity, teams] = await Promise.all([getRecentActivity(), getTeams()]);
+const getTeamById = (id: string) => teams.find((team) => team.id === id);
+const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
+
+function eventLabel(type: string): string {
+  if (type === 'goal') return 'marcó un gol contra';
+  if (type === 'win') return 'venció a';
+  return 'empató con';
+}
+---
+
+<ul class="activity-feed" data-activity-feed>
+  {
+    recentActivity.map((event) => {
+      const team = getTeamById(event.teamId);
+      const opponent = getTeamById(event.opponentId);
+      return (
+        <li class="activity-feed__item" data-event-id={event.id}>
+          <span class="activity-feed__time">{event.timestamp}</span>
+          <p class="activity-feed__text">
+            <span class="activity-feed__team">
+              {team && <CountryFlag teamId={team.id} team={team} size="sm" />}
+              <strong>{team?.name ?? event.teamId}</strong>
+            </span>
+            {' '}{eventLabel(event.type)}{' '}
+            <span class="activity-feed__team">
+              {opponent && <CountryFlag teamId={opponent.id} team={opponent} size="sm" />}
+              <strong>{opponent?.name ?? event.opponentId}</strong>
+            </span>
+            {event.type === 'goal' && <span class="activity-feed__minute"> ({event.minute}')</span>}
+          </p>
+        </li>
+      );
+    })
+  }
+</ul>
+
+<script define:vars={{ teamNames }}>
+  import { CHANNELS } from '../lib/realtime/channels';
+  import { subscribe, onEvent, isRealtimeAvailable } from '../lib/realtime/client';
+  import { prependActivityEvent, setTeamNames } from '../lib/realtime/handlers';
+
+  async function wireActivityFeed() {
+    if (!isRealtimeAvailable()) return;
+
+    setTeamNames(teamNames);
+    const result = await subscribe(CHANNELS.ACTIVITY);
+    if (!result.ok) return;
+
+    onEvent('live_event_created', (payload) => {
+      prependActivityEvent(payload);
+    });
+  }
+
+  wireActivityFeed();
+</script>
+
+<style>
+  .activity-feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .activity-feed__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  .activity-feed__time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .activity-feed__text {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+
+  .activity-feed__team {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .activity-feed__text strong {
+    color: var(--accent);
+  }
+
+  .activity-feed__minute {
+    color: var(--text-muted);
+  }
+</style>

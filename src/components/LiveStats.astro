@@ -1,0 +1,56 @@
+---
+import type { HomeStat } from '../lib/data/stats';
+
+interface Props {
+  stats: HomeStat[];
+}
+
+const { stats } = Astro.props;
+const onlineIndex = stats.findIndex((stat) => stat.label === 'Jugadores en línea');
+---
+
+<div class="grid-stats">
+  {
+    stats.map((stat, index) => (
+      <div
+        class="stat-card card"
+        data-stat-label={stat.label}
+        data-stat-live={index === onlineIndex ? 'online' : undefined}
+      >
+        <p class="stat-card__value" data-stat-value>
+          {stat.value}
+        </p>
+        <p class="stat-card__label">{stat.label}</p>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .grid-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 1rem;
+  }
+
+  .stat-card {
+    text-align: center;
+    padding: 1.5rem 1rem;
+  }
+
+  .stat-card__value {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 2.25rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+
+  .stat-card__label {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+</style>

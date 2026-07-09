@@ -1,0 +1,71 @@
+---
+const navItems = [
+  { href: '/', label: 'Inicio' },
+  { href: '/play', label: 'Jugar' },
+  { href: '/ranking', label: 'Ranking' },
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<nav class="site-nav">
+  <a href="/" class="site-nav__brand">Golazo Rush</a>
+  <ul class="site-nav__links">
+    {
+      navItems.map((item) => (
+        <li>
+          <a
+            href={item.href}
+            class:list={['site-nav__link', { 'site-nav__link--active': currentPath === item.href }]}
+          >
+            {item.label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<style>
+  .site-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .site-nav__brand {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .site-nav__brand:hover {
+    color: var(--text);
+  }
+
+  .site-nav__links {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .site-nav__link {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .site-nav__link:hover,
+  .site-nav__link--active {
+    color: var(--accent);
+  }
+</style>

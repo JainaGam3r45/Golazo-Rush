@@ -1,0 +1,33 @@
+---
+import type { Team } from '../lib/mock/teams';
+import { getTeamFlagEmoji } from '../lib/teams/flags';
+
+interface Props {
+  teamId: string;
+  team?: Team;
+  size?: 'sm' | 'md' | 'lg';
+}
+
+const { teamId, team, size = 'md' } = Astro.props;
+const flagEmoji = getTeamFlagEmoji(teamId);
+const label = team?.name ?? teamId;
+---
+
+<span
+  class:list={['country-flag', `country-flag--${size}`]}
+  data-team-id={teamId}
+  aria-label={label}
+>
+  {
+    team && (
+      <span
+        class:list={['country-flag__stripes', `country-flag__stripes--${team.flagStyle}`]}
+        aria-hidden="true"
+      >
+        <span class="country-flag__primary" style={`background: ${team.primary}`} />
+        <span class="country-flag__secondary" style={`background: ${team.secondary}`} />
+      </span>
+    )
+  }
+  <span class="country-flag__emoji" aria-hidden="true">{flagEmoji}</span>
+</span>

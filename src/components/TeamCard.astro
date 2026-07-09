@@ -1,0 +1,104 @@
+---
+import CountryFlag from './CountryFlag.astro';
+import type { TeamRanking } from '../lib/mock/rankings';
+import type { Team } from '../lib/mock/teams';
+
+interface Props {
+  ranking: TeamRanking;
+  team?: Team;
+  compact?: boolean;
+}
+
+const { ranking, team, compact = false } = Astro.props;
+const goalDiff = ranking.goalsFor - ranking.goalsAgainst;
+const goalDiffLabel = goalDiff >= 0 ? `+${goalDiff}` : String(goalDiff);
+---
+
+<article
+  class:list={['team-card', 'card', { 'team-card--compact': compact }]}
+  data-team-id={ranking.teamId}
+  data-rank={ranking.rank}
+>
+  <span class="team-card__rank" data-rank>#{ranking.rank}</span>
+
+  {team && <CountryFlag teamId={team.id} team={team} size="md" />}
+
+  <div class="team-card__info">
+    <h3 class="team-card__name">{team?.name ?? ranking.teamId}</h3>
+    {
+      !compact && (
+        <p class="team-card__record" data-record>
+          {ranking.wins}G · {ranking.draws}E · {ranking.losses}P
+        </p>
+      )
+    }
+  </div>
+
+  <div class="team-card__stats">
+    <span class="team-card__points" data-points>{ranking.points} pts</span>
+    {
+      !compact && (
+        <span class="team-card__gd" data-goal-diff>
+          {ranking.goalsFor}:{ranking.goalsAgainst} ({goalDiffLabel})
+        </span>
+      )
+    }
+  </div>
+</article>
+
+<style>
+  .team-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .team-card--compact {
+    padding: 0.75rem 1rem;
+  }
+
+  .team-card__rank {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    min-width: 2.5rem;
+  }
+
+  .team-card__info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .team-card__name {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .team-card__record {
+    margin: 0.15rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+
+  .team-card__stats {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .team-card__points {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+
+  .team-card__gd {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+</style>

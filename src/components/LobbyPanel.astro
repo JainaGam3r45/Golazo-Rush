@@ -1,0 +1,101 @@
+---
+interface Props {
+  compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+---
+
+<aside class:list={['lobby-panel', 'card', { 'lobby-panel--compact': compact }]}>
+  <h3 class="lobby-panel__title">Lobby en vivo</h3>
+
+  <div class="lobby-panel__section">
+    <p class="lobby-panel__subtitle">Jugadores conectados</p>
+    <ul class="lobby-panel__players" data-lobby-presence></ul>
+  </div>
+
+  <div class="lobby-panel__section">
+    <p class="lobby-panel__subtitle">Partidas disponibles</p>
+    <ul class="lobby-panel__matches" data-lobby-matches>
+      <li class="lobby-panel__empty" data-lobby-empty>Esperando partidas…</li>
+    </ul>
+  </div>
+</aside>
+
+<style>
+  .lobby-panel {
+    padding: 1.25rem;
+  }
+
+  .lobby-panel--compact {
+    padding: 1rem;
+  }
+
+  .lobby-panel__title {
+    margin: 0 0 1rem;
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+
+  .lobby-panel__section {
+    margin-bottom: 1.25rem;
+  }
+
+  .lobby-panel__section:last-child {
+    margin-bottom: 0;
+  }
+
+  .lobby-panel__subtitle {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .lobby-panel__players,
+  .lobby-panel__matches {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .lobby-panel__player,
+  .lobby-panel__match,
+  .lobby-panel__empty {
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  .lobby-panel__match {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .lobby-panel__match-status {
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .lobby-panel__player--more {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .lobby-panel__empty {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+</style>
