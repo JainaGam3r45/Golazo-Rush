@@ -20,7 +20,7 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@insforge/sdk": "^0.0.26",
+    "@insforge/sdk": "^1.4.3",
     "astro": "^7.0.7",
     "phaser": "^3.90.0"
   },

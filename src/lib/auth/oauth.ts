@@ -26,7 +26,11 @@ function mapOAuthError(error: { message?: string; statusCode?: number }): string
   }
 
   if (message.includes('redirect')) {
-    return 'No se pudo iniciar la sesión. Inténtalo de nuevo.';
+    return 'La URL de retorno no está autorizada. Contacta al administrador.';
+  }
+
+  if (message.includes('code_challenge') || message.includes('pkce')) {
+    return 'No se pudo iniciar la sesión. Actualiza la página e inténtalo de nuevo.';
   }
 
   return mapAuthError(error, true);

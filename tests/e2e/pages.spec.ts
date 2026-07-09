@@ -186,6 +186,8 @@ test.describe('Auth pages', () => {
     for (const url of oauthRequests) {
       expect(url).not.toContain('/oauth/undefined');
       expect(url).toMatch(/\/api\/auth\/oauth\/(google|discord)/);
+      expect(url).toContain('code_challenge=');
+      expect(url).toContain('redirect_uri=');
     }
   });
 
