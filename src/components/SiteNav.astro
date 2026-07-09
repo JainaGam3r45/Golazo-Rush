@@ -24,8 +24,8 @@ const currentPath = Astro.url.pathname;
           </li>
         ))
       }
+      <li class="site-nav__auth" data-auth-nav aria-live="polite"></li>
     </ul>
-    <div class="site-nav__auth" data-auth-nav aria-live="polite"></div>
   </div>
 </nav>
 
@@ -41,7 +41,7 @@ const currentPath = Astro.url.pathname;
     if (!user) {
       const link = document.createElement('a');
       link.href = '/login';
-      link.className = 'site-nav__auth-link';
+      link.className = 'site-nav__link';
       link.textContent = 'Entrar';
       container.append(link);
       return;
@@ -49,7 +49,7 @@ const currentPath = Astro.url.pathname;
 
     const accountLink = document.createElement('a');
     accountLink.href = '/cuenta';
-    accountLink.className = 'site-nav__auth-link';
+    accountLink.className = 'site-nav__link';
     accountLink.textContent = displayName ?? user.name ?? 'Mi cuenta';
     container.append(accountLink);
 
@@ -137,6 +137,7 @@ const currentPath = Astro.url.pathname;
     align-items: center;
     gap: 0.75rem;
     min-width: 5rem;
+    list-style: none;
   }
 
   @media (max-width: 640px) {
