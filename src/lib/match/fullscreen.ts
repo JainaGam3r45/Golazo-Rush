@@ -1,4 +1,4 @@
-import { refreshGameScale } from '../../game/main';
+import { refreshGameScale } from './gameBridge';
 
 export function isFullscreenSupported(): boolean {
   if (typeof document === 'undefined') return false;

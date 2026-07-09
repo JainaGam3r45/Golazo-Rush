@@ -135,6 +135,13 @@ export class MatchScene extends Phaser.Scene {
       this.setup.playerSide === 'away' ? this.setup.formationId : this.setup.opponentFormationId;
   }
 
+  shutdown(): void {
+    this.clockTimer?.remove();
+    this.clockTimer = null;
+    this.time.removeAllEvents();
+    this.tweens.killAll();
+  }
+
   create(): void {
     this.drawPitch();
     this.drawGoals();

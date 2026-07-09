@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { createGameConfig } from './config/gameConfig';
 import type { MatchSetup } from '../lib/match/setup';
+import { registerGameScaleRefresh } from '../lib/match/gameBridge';
+import { resetPossession } from './ai/possession';
+import { stopMatchAudio } from './audio/matchAudio';
 
 let game: Phaser.Game | null = null;
 
@@ -18,19 +21,28 @@ export function startGame(parentId: string, setup: MatchSetup): Phaser.Game | nu
 
   parent.innerHTML = '';
   game = new Phaser.Game(createGameConfig(parentId, setup));
+  registerGameScaleRefresh(refreshGameScale);
   return game;
 }
 
 export function destroyGame(): void {
+  registerGameScaleRefresh(null);
+
   if (game) {
-    game.destroy(true);
+    // removeCanvas=true, noReturn=false — noReturn would clear Phaser globals
+    // and prevent creating another Game without a full page reload.
+    game.destroy(true, false);
     game = null;
   }
 
   const container = document.getElementById('game-container');
   if (container) {
+    container.querySelectorAll('canvas').forEach((canvas) => canvas.remove());
     container.innerHTML = '';
   }
+
+  resetPossession();
+  stopMatchAudio();
 }
 
 export function isGameRunning(): boolean {

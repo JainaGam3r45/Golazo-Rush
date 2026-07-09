@@ -39,6 +39,7 @@ export class HumanPlayer extends FieldPlayer {
   private lastPassAt = 0;
   private lastLongKickAt = 0;
   private lastTackleAt = 0;
+  private sprintTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -174,8 +175,10 @@ export class HumanPlayer extends FieldPlayer {
     if (this.keys?.SHIFT.isDown && moving && canSprint && !this.sprinting) {
       this.sprinting = true;
       this.sprintCooldownUntil = time + SPRINT_COOLDOWN_MS;
-      this.scene.time.delayedCall(SPRINT_DURATION_MS, () => {
+      this.sprintTimer?.remove();
+      this.sprintTimer = this.scene.time.delayedCall(SPRINT_DURATION_MS, () => {
         this.sprinting = false;
+        this.sprintTimer = null;
       });
     }
 
@@ -231,6 +234,8 @@ export class HumanPlayer extends FieldPlayer {
   }
 
   destroy(fromScene?: boolean): void {
+    this.sprintTimer?.remove();
+    this.sprintTimer = null;
     this.youLabel?.destroy();
     this.youLabel = null;
     this.chargeRing.destroy();

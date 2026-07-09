@@ -2,6 +2,7 @@ import { DEFAULT_VOLUME, isSoundMuted } from '../../lib/storage/soundPreference'
 
 let audioCtx: AudioContext | null = null;
 let ambientNode: AudioBufferSourceNode | null = null;
+let ambientFilter: BiquadFilterNode | null = null;
 let ambientGain: GainNode | null = null;
 let unlocked = false;
 
@@ -39,10 +40,23 @@ export function stopMatchAudio(): void {
     ambientNode.disconnect();
     ambientNode = null;
   }
+  if (ambientFilter) {
+    ambientFilter.disconnect();
+    ambientFilter = null;
+  }
   if (ambientGain) {
     ambientGain.disconnect();
     ambientGain = null;
   }
+}
+
+export function disposeMatchAudio(): void {
+  stopMatchAudio();
+  if (audioCtx) {
+    void audioCtx.close();
+    audioCtx = null;
+  }
+  unlocked = false;
 }
 
 function createPinkNoiseBuffer(ctx: AudioContext, duration: number): AudioBuffer {
@@ -80,15 +94,15 @@ function startAmbient(): void {
   source.buffer = buffer;
   source.loop = true;
 
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 400;
+  ambientFilter = ctx.createBiquadFilter();
+  ambientFilter.type = 'lowpass';
+  ambientFilter.frequency.value = 400;
 
   ambientGain = ctx.createGain();
   ambientGain.gain.value = effectiveGain(0.06);
 
-  source.connect(filter);
-  filter.connect(ambientGain);
+  source.connect(ambientFilter);
+  ambientFilter.connect(ambientGain);
   ambientGain.connect(ctx.destination);
   source.start();
   ambientNode = source;
