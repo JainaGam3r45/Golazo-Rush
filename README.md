@@ -37,6 +37,23 @@ PUBLIC_INSFORGE_ANON_KEY=<anon key>
 
 Obtén la anon key con `npx @insforge/cli secrets get ANON_KEY`. Copia `.env.example` a `.env.local` y no commitees secretos.
 
+### Despliegue en Vercel
+
+Configura estas variables en el proyecto de Vercel (**Settings → Environment Variables**) para **Production** y **Preview**:
+
+| Variable | Descripción |
+|----------|-------------|
+| `PUBLIC_INSFORGE_BASE_URL` | URL del proyecto InsForge (`oss_host` en `.insforge/project.json`) |
+| `PUBLIC_INSFORGE_ANON_KEY` | Anon key (`npx @insforge/cli secrets get ANON_KEY`) |
+
+Las páginas leen InsForge en **build time** (sitio estático). Configura las variables para **Production**, **Preview** y el paso de **Build** en Vercel. Sin ellas, la app usa datos mock; con ellas pero sin partidos en la DB, verás ceros y estados vacíos en lugar de datos falsos.
+
+Aplica las migraciones antes del primer despliegue con datos reales:
+
+```bash
+npx @insforge/cli db migrations up --all
+```
+
 ## Realtime (opcional)
 
 Con InsForge configurado, el cliente se suscribe a:
