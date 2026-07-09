@@ -95,7 +95,7 @@ const { teams } = Astro.props;
     persistFormationPreference,
     resolveFormationPreference,
   } from '../lib/profile/formationPreference';
-  import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
+  import { getAuthState, subscribeAuth } from '../lib/auth/session';
   import { updateCountryFlagElement } from '../lib/teams/flagDom';
 
   function wireMatchPreview() {
@@ -140,7 +140,10 @@ const { teams } = Astro.props;
     }
 
     function updateAuthUi() {
-      const loggedIn = Boolean(getAuthState().user);
+      const auth = getAuthState();
+      if (auth.loading) return;
+
+      const loggedIn = Boolean(auth.user);
       isLoggedIn = loggedIn;
       if (formationSelector) formationSelector.hidden = !loggedIn;
       if (formationGuest) formationGuest.hidden = loggedIn;
@@ -226,11 +229,6 @@ const { teams } = Astro.props;
     });
 
     subscribeAuth(() => {
-      updateAuthUi();
-      void loadFormationPreference();
-    });
-
-    void hydrateSession().then(() => {
       updateAuthUi();
       void loadFormationPreference();
     });

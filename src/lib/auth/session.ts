@@ -15,6 +15,8 @@ export type AuthState = {
 
 let state: AuthState = { user: null, loading: true };
 const listeners = new Set<AuthListener>();
+let hydratePromise: Promise<SessionUser | null> | null = null;
+let sessionResolved = false;
 
 function notify() {
   for (const listener of listeners) {
@@ -43,24 +45,39 @@ export function subscribeAuth(listener: AuthListener): () => void {
 export async function hydrateSession(): Promise<SessionUser | null> {
   if (!isInsForgeConfigured || !insforge) {
     state = { user: null, loading: false };
+    sessionResolved = true;
     notify();
     return null;
   }
 
-  state = { ...state, loading: true };
-  notify();
-
-  try {
-    const { data, error } = await insforge.auth.getCurrentUser();
-    const user = !error && data?.user ? mapUser(data.user) : null;
-    state = { user, loading: false };
-    notify();
-    return user;
-  } catch {
-    state = { user: null, loading: false };
-    notify();
-    return null;
+  if (hydratePromise) {
+    return hydratePromise;
   }
+
+  if (!sessionResolved) {
+    state = { ...state, loading: true };
+    notify();
+  }
+
+  hydratePromise = (async () => {
+    try {
+      const { data, error } = await insforge!.auth.getCurrentUser();
+      const user = !error && data?.user ? mapUser(data.user) : null;
+      state = { user, loading: false };
+      sessionResolved = true;
+      notify();
+      return user;
+    } catch {
+      state = { user: null, loading: false };
+      sessionResolved = true;
+      notify();
+      return null;
+    } finally {
+      hydratePromise = null;
+    }
+  })();
+
+  return hydratePromise;
 }
 
 export async function signOut(): Promise<void> {
@@ -72,5 +89,6 @@ export async function signOut(): Promise<void> {
     }
   }
   state = { user: null, loading: false };
+  sessionResolved = true;
   notify();
 }

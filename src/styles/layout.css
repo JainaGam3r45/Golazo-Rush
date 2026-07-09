@@ -110,6 +110,15 @@
   color: var(--accent);
 }
 
+.site-nav__auth-loading {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
 .container {
   width: min(1100px, 100% - 2rem);
   margin-inline: auto;

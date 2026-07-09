@@ -48,7 +48,14 @@ const currentPath = Astro.url.pathname;
   function renderAuthNav(container: HTMLElement, loading: boolean, user: import('../lib/auth/session').SessionUser | null, displayName?: string) {
     container.innerHTML = '';
 
-    if (loading) return;
+    if (loading) {
+      const placeholder = document.createElement('span');
+      placeholder.className = 'site-nav__auth-loading';
+      placeholder.textContent = 'Entrar';
+      placeholder.setAttribute('aria-hidden', 'true');
+      container.append(placeholder);
+      return;
+    }
 
     const pathname = container.dataset.currentPath ?? window.location.pathname;
 
@@ -83,12 +90,21 @@ const currentPath = Astro.url.pathname;
     if (!container) return;
 
     subscribeAuth(async (state) => {
-      let displayName: string | undefined;
-      if (state.user) {
-        const profile = await fetchProfile(state.user.id);
-        displayName = profile?.display_name ?? state.user.name ?? undefined;
+      if (state.loading) {
+        renderAuthNav(container, true, null);
+        return;
       }
-      renderAuthNav(container, state.loading, state.user, displayName);
+
+      if (!state.user) {
+        renderAuthNav(container, false, null);
+        return;
+      }
+
+      renderAuthNav(container, false, state.user, state.user.name ?? 'Mi cuenta');
+
+      const profile = await fetchProfile(state.user.id);
+      const displayName = profile?.display_name ?? state.user.name ?? undefined;
+      renderAuthNav(container, false, state.user, displayName);
     });
 
     await hydrateSession();
