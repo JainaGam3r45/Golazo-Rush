@@ -116,6 +116,8 @@ test.describe('Auth pages', () => {
     await expect(page.locator('[data-login-form] input[name="password"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entrar con Google' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entrar con Discord' })).toBeVisible();
+    await expect(page.locator('button[data-oauth="google"]')).toHaveAttribute('data-oauth', 'google');
+    await expect(page.locator('button[data-oauth="discord"]')).toHaveAttribute('data-oauth', 'discord');
   });
 
   test('register page loads with form and OAuth buttons', async ({ page }) => {
@@ -127,6 +129,32 @@ test.describe('Auth pages', () => {
     await expect(page.locator('[data-register-form] input[name="password"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continuar con Google' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continuar con Discord' })).toBeVisible();
+    await expect(page.locator('button[data-oauth="google"]')).toHaveAttribute('data-oauth', 'google');
+    await expect(page.locator('button[data-oauth="discord"]')).toHaveAttribute('data-oauth', 'discord');
+  });
+
+  test('OAuth buttons never request /oauth/undefined', async ({ page }) => {
+    const oauthRequests: string[] = [];
+
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.includes('/api/auth/oauth/')) {
+        oauthRequests.push(url);
+      }
+    });
+
+    await page.goto('/login');
+    await page.locator('button[data-oauth="google"]').click();
+    await page.waitForTimeout(400);
+
+    await page.goto('/register');
+    await page.locator('button[data-oauth="discord"]').click();
+    await page.waitForTimeout(400);
+
+    for (const url of oauthRequests) {
+      expect(url).not.toContain('/oauth/undefined');
+      expect(url).toMatch(/\/api\/auth\/oauth\/(google|discord)/);
+    }
   });
 
   test('account page does not break without session', async ({ page }) => {
