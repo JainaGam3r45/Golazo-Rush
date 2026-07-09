@@ -17,7 +17,7 @@ const initialClock = formatMatchClock(180);
   <section class="play-header">
     <h1 class="section-title">Partido</h1>
     <p class="play-header__hint">
-      Elige tu selección, configura el partido y usa WASD para moverte. Shift para sprint, Espacio para patear (mantén para cargar).
+      Elige tu selección, configura el partido y usa WASD para moverte. Shift sprint, Espacio tiro (mantén para cargar), E pase corto, Q despeje, F entrada.
     </p>
     <p class="play-session" data-play-session hidden></p>
   </section>
@@ -41,6 +41,9 @@ const initialClock = formatMatchClock(180);
         <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
       </div>
       <div class="match-hud__controls">
+        <p class="match-hud__controls-hint" data-controls-hint>
+          WASD mover · Shift sprint · Espacio tiro · E pase · Q despeje · F entrada
+        </p>
         <button type="button" class="match-hud__btn" data-fullscreen aria-label="Pantalla completa">
           Pantalla completa
         </button>

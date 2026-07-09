@@ -187,3 +187,90 @@ export function playWhistle(): void {
   osc.start(now);
   osc.stop(now + 0.3);
 }
+
+export function playPass(): void {
+  const ctx = getContext();
+  if (!ctx || !unlocked) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(420, now);
+  osc.frequency.exponentialRampToValueAtTime(280, now + 0.1);
+  gain.gain.setValueAtTime(effectiveGain(0.25), now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.12);
+}
+
+export function playLongKick(): void {
+  const ctx = getContext();
+  if (!ctx || !unlocked) return;
+
+  const now = ctx.currentTime;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(effectiveGain(0.4), now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  gain.connect(ctx.destination);
+
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 220;
+  source.connect(filter);
+  filter.connect(gain);
+  source.start(now);
+  source.stop(now + 0.15);
+}
+
+export function playTackle(): void {
+  const ctx = getContext();
+  if (!ctx || !unlocked) return;
+
+  const now = ctx.currentTime;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(effectiveGain(0.35), now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  gain.connect(ctx.destination);
+
+  const osc = ctx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(90, now + 0.06);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.2, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.connect(oscGain);
+  oscGain.connect(gain);
+  osc.start(now);
+  osc.stop(now + 0.08);
+}
+
+export function playFoul(): void {
+  playWhistle();
+  const ctx = getContext();
+  if (!ctx || !unlocked) return;
+
+  const now = ctx.currentTime + 0.35;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(1600, now);
+  osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+  gain.gain.setValueAtTime(effectiveGain(0.3), now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.25);
+}

@@ -29,8 +29,25 @@ import {
 import { getFieldAnchors, getKickoffBallPosition } from '../config/spawnLayouts';
 import { updateTeamBots, type KickCallback } from '../ai/botBrain';
 import { updateGoalkeeper } from '../ai/goalkeeperBrain';
-import { registerTouch, resetPossession } from '../ai/possession';
-import { playGoal, playKick, playWhistle } from '../audio/matchAudio';
+import {
+  registerTouch,
+  resetPossession,
+  resetBallControl,
+  updateBallControl,
+  markBallKicked,
+} from '../ai/possession';
+import { resetAntiStuck } from '../ai/antiStuck';
+import { executePass, findPassTarget } from '../actions/passing';
+import { tryTackle } from '../actions/tackle';
+import {
+  playGoal,
+  playKick,
+  playWhistle,
+  playPass,
+  playLongKick,
+  playTackle,
+  playFoul,
+} from '../audio/matchAudio';
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16);
@@ -86,6 +103,7 @@ export class MatchScene extends Phaser.Scene {
   private homeScore = 0;
   private awayScore = 0;
   private goalCooldown = false;
+  private foulCooldown = false;
   private matchEnded = false;
   private matchStartedAt = 0;
   private matchDurationMs = 180_000;
@@ -105,9 +123,11 @@ export class MatchScene extends Phaser.Scene {
     this.homeScore = 0;
     this.awayScore = 0;
     this.goalCooldown = false;
+    this.foulCooldown = false;
     this.matchEnded = false;
     this.kickoffSide = 'home';
     resetPossession();
+    resetBallControl();
 
     this.homeFormationId =
       this.setup.playerSide === 'home' ? this.setup.formationId : this.setup.opponentFormationId;
@@ -221,29 +241,161 @@ export class MatchScene extends Phaser.Scene {
     }
   }
 
+  private getAllFieldPlayers(): FieldPlayer[] {
+    return [
+      this.human,
+      ...this.homeBots,
+      ...this.awayBots,
+      this.homeGk,
+      this.awayGk,
+    ];
+  }
+
+  private getTeammates(side: 'home' | 'away'): FieldPlayer[] {
+    const playerOnHome = this.setup.playerSide === 'home';
+    const isHome = side === 'home';
+    const teammates: FieldPlayer[] = isHome ? [...this.homeBots, this.homeGk] : [...this.awayBots, this.awayGk];
+    if ((playerOnHome && isHome) || (!playerOnHome && !isHome)) {
+      teammates.unshift(this.human);
+    }
+    return teammates;
+  }
+
+  private getOpponents(side: 'home' | 'away'): BotPlayer[] {
+    return side === 'home' ? this.awayBots : this.homeBots;
+  }
+
   private readonly onKick: KickCallback = (side, x, y) => {
     this.handleKick(side, x, y);
   };
 
-  private handleKick(side: 'home' | 'away', x: number, y: number): void {
+  private handleKick(side: 'home' | 'away', x: number, y: number, longKick = false): void {
     registerTouch(side, this.time.now);
-    playKick();
+    markBallKicked(this.time.now, longKick);
+    if (longKick) {
+      playLongKick();
+    } else {
+      playKick();
+    }
+    this.spawnKickParticles(x, y);
+    this.ball.flashKick();
+  }
+
+  private handlePass(side: 'home' | 'away', x: number, y: number, longPass: boolean): void {
+    registerTouch(side, this.time.now);
+    if (longPass) {
+      playLongKick();
+    } else {
+      playPass();
+    }
     this.spawnKickParticles(x, y);
     this.ball.flashKick();
   }
 
   private tryPlayerKick(player: FieldPlayer, charged: boolean, time: number): void {
-    if (player.kickBall(this.ball, charged, time)) {
-      this.handleKick(player.side, player.x, player.y);
+    const dir = player === this.human ? this.human.getKickDirection() : undefined;
+    if (player.kickBall(this.ball, charged, time, 1, dir)) {
+      this.handleKick(player.side, player.x, player.y, charged);
     }
   }
 
-  update(time: number): void {
-    if (this.matchEnded) return;
+  private tryHumanPass(mode: 'short' | 'long', time: number): void {
+    const side = this.human.side;
+    const teammates = this.getTeammates(side).filter((p) => p !== this.human);
+    const opponents = this.getOpponents(side);
 
-    const { kick, charged } = this.human.update(time);
-    if (kick) {
-      this.tryPlayerKick(this.human, charged, time);
+    if (mode === 'short') {
+      const target = findPassTarget(teammates, this.human, opponents, 'short');
+      if (!target) return;
+      if (executePass(this.human, this.ball, target, 'short', time)) {
+        this.handlePass(side, this.human.x, this.human.y, false);
+      }
+      return;
+    }
+
+    const target = findPassTarget(teammates, this.human, opponents, 'long');
+    const fallback = target ?? {
+      x: this.human.x + (side === 'home' ? 200 : -200),
+      y: this.human.y + (Math.random() - 0.5) * 60,
+    };
+    if (executePass(this.human, this.ball, fallback, 'long', time)) {
+      this.handlePass(side, this.human.x, this.human.y, true);
+    }
+  }
+
+  private tryHumanTackle(time: number): void {
+    const opponents = this.getOpponents(this.human.side);
+    const result = tryTackle(this.human, this.ball, opponents, time, this.human.getLastTackleAt());
+
+    if (result.type === 'miss') return;
+
+    this.human.markTackle(time);
+
+    if (result.type === 'success') {
+      playTackle();
+      registerTouch(this.human.side, time);
+      return;
+    }
+
+    this.handleFoul(result.fouledSide, result.victim.x, result.victim.y);
+  }
+
+  private handleFoul(fouledSide: 'home' | 'away', x: number, y: number): void {
+    if (this.foulCooldown || this.matchEnded) return;
+    this.foulCooldown = true;
+    this.freezeAll();
+    playFoul();
+
+    const text = this.add
+      .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 - 40, 'FALTA', {
+        fontFamily: 'Bebas Neue, sans-serif',
+        fontSize: '56px',
+        color: '#ff4444',
+        stroke: '#0a0f0a',
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setDepth(8);
+
+    this.time.delayedCall(GOAL_RESET_PAUSE_MS, () => {
+      text.destroy();
+      resetBallControl();
+
+      const towardCenter = fouledSide === 'home' ? 1 : -1;
+      this.ball.resetPosition(x + towardCenter * 80, y);
+
+      for (const player of this.getAllFieldPlayers()) {
+        if (player.side !== fouledSide) {
+          const dx = player.x - this.ball.x;
+          const dy = player.y - this.ball.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist < 60) {
+            player.setPosition(
+              this.ball.x + (dx / dist) * 70,
+              this.ball.y + (dy / dist) * 70,
+            );
+            player.stop();
+          }
+        }
+      }
+
+      this.foulCooldown = false;
+    });
+  }
+
+  update(time: number): void {
+    if (this.matchEnded || this.foulCooldown) return;
+
+    const allPlayers = this.getAllFieldPlayers();
+    updateBallControl(this.ball, allPlayers, time);
+
+    const action = this.human.update(time);
+    if (action?.type === 'kick') {
+      this.tryPlayerKick(this.human, action.charged, time);
+    } else if (action?.type === 'pass') {
+      this.tryHumanPass(action.mode, time);
+    } else if (action?.type === 'tackle') {
+      this.tryHumanTackle(time);
     }
 
     const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
@@ -258,6 +410,7 @@ export class MatchScene extends Phaser.Scene {
       time,
       this.awayBots,
       this.onKick,
+      (side, x, y) => this.handlePass(side, x, y, false),
     );
     updateTeamBots(
       this.awayBots,
@@ -268,18 +421,21 @@ export class MatchScene extends Phaser.Scene {
       time,
       this.homeBots,
       this.onKick,
+      (side, x, y) => this.handlePass(side, x, y, false),
     );
 
-    updateGoalkeeper(this.homeGk, this.ball, time, this.onKick);
-    updateGoalkeeper(this.awayGk, this.ball, time, this.onKick);
+    updateGoalkeeper(this.homeGk, this.ball, time, this.onKick, this.awayBots);
+    updateGoalkeeper(this.awayGk, this.ball, time, this.onKick, this.homeBots);
 
+    this.human.updateShadow();
     this.homeGk.updateShadow();
     this.awayGk.updateShadow();
     for (const bot of [...this.homeBots, ...this.awayBots]) {
       bot.updateShadow();
     }
 
-    this.ball.updateTrail();
+    this.ball.setDepth(this.ball.y + 0.5);
+    this.ball.updateTrail(time);
     this.checkGoal();
   }
 
@@ -519,6 +675,11 @@ export class MatchScene extends Phaser.Scene {
     this.goalCooldown = true;
     this.freezeAll();
     resetPossession();
+    resetBallControl();
+
+    for (const bot of [...this.homeBots, ...this.awayBots]) {
+      resetAntiStuck(bot);
+    }
 
     const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
     const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
