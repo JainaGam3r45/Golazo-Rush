@@ -1,0 +1,162 @@
+﻿---
+import Layout from '../layouts/Layout.astro';
+import CountryFlag from '../components/CountryFlag.astro';
+import { getTeams } from '../lib/data/teams';
+
+const teams = await getTeams();
+const teamsJson = JSON.stringify(teams);
+---
+
+<Layout title="Golazo Rush — Mi cuenta">
+  <section class="account-page" data-account-page data-teams={teamsJson}>
+    <h1 class="section-title">Mi cuenta</h1>
+
+    <div class="account-page__guest card" data-account-guest hidden>
+      <p>Inicia sesión para guardar tu selección y ver tu perfil.</p>
+      <div class="account-page__guest-actions">
+        <a href="/login" class="btn">Entrar</a>
+        <a href="/register" class="btn-outline">Crear cuenta</a>
+      </div>
+      <p class="account-page__guest-hint">
+        <a href="/play">Puedes jugar sin cuenta</a>
+      </p>
+    </div>
+
+    <div class="account-page__profile card" data-account-profile hidden>
+      <dl class="account-page__details">
+        <div>
+          <dt>Nombre</dt>
+          <dd data-account-name>—</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd data-account-email>—</dd>
+        </div>
+        <div>
+          <dt>Selección</dt>
+          <dd class="account-page__team" data-account-team>
+            <span data-account-team-flag></span>
+            <span data-account-team-name>—</span>
+          </dd>
+        </div>
+      </dl>
+
+      <h2 class="account-page__subtitle">Cambiar selección</h2>
+      <div class="account-page__team-grid" data-account-team-grid role="listbox" aria-label="Selecciones disponibles"></div>
+
+      <div class="account-page__actions">
+        <a href="/play" class="btn">Ir a jugar</a>
+        <button type="button" class="btn-outline" data-account-logout>Salir</button>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { getAuthState, hydrateSession, signOut } from '../lib/auth/session';
+  import { fetchProfile } from '../lib/profile/store';
+  import { persistSelectedTeam, resolveSelectedTeam } from '../lib/profile/teamSelection';
+  import { getTeamFlagAlt, getTeamFlagSrc } from '../lib/teams/flags';
+
+  function wireAccountPage() {
+    const page = document.querySelector<HTMLElement>('[data-account-page]');
+    const guest = document.querySelector<HTMLElement>('[data-account-guest]');
+    const profile = document.querySelector<HTMLElement>('[data-account-profile]');
+    const nameEl = document.querySelector<HTMLElement>('[data-account-name]');
+    const emailEl = document.querySelector<HTMLElement>('[data-account-email]');
+    const teamFlagEl = document.querySelector<HTMLElement>('[data-account-team-flag]');
+    const teamNameEl = document.querySelector<HTMLElement>('[data-account-team-name]');
+    const teamGrid = document.querySelector<HTMLElement>('[data-account-team-grid]');
+    const logoutBtn = document.querySelector<HTMLButtonElement>('[data-account-logout]');
+    if (!page || !guest || !profile || !teamGrid || !logoutBtn) return;
+
+    const teams = JSON.parse(page.dataset.teams ?? '[]');
+    let selectedTeamId = '';
+
+    function getTeam(id: string) {
+      return teams.find((t: { id: string }) => t.id === id);
+    }
+
+    function renderTeamGrid() {
+      teamGrid.innerHTML = '';
+      for (const team of teams) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'account-page__team-option';
+        btn.dataset.teamId = team.id;
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', team.id === selectedTeamId ? 'true' : 'false');
+        if (team.id === selectedTeamId) btn.classList.add('account-page__team-option--selected');
+
+        const img = document.createElement('img');
+        img.className = 'country-flag__img';
+        img.src = getTeamFlagSrc(team.id);
+        img.alt = getTeamFlagAlt(team.id, team.name);
+        img.width = 40;
+        img.height = 28;
+        img.loading = 'lazy';
+
+        const label = document.createElement('span');
+        label.textContent = team.name;
+
+        btn.append(img, label);
+        btn.addEventListener('click', async () => {
+          selectedTeamId = team.id;
+          await persistSelectedTeam(team.id);
+          renderTeamGrid();
+          renderSelectedTeam();
+        });
+        teamGrid.append(btn);
+      }
+    }
+
+    function renderSelectedTeam() {
+      const team = getTeam(selectedTeamId);
+      if (teamFlagEl) {
+        teamFlagEl.innerHTML = '';
+        if (team) {
+          const img = document.createElement('img');
+          img.className = 'country-flag__img';
+          img.src = getTeamFlagSrc(team.id);
+          img.alt = getTeamFlagAlt(team.id, team.name);
+          img.width = 40;
+          img.height = 28;
+          teamFlagEl.append(img);
+        }
+      }
+      if (teamNameEl) teamNameEl.textContent = team?.name ?? 'Sin selección';
+    }
+
+    async function renderProfile() {
+      await hydrateSession();
+      const { user } = getAuthState();
+
+      if (!user) {
+        guest.hidden = false;
+        profile.hidden = true;
+        return;
+      }
+
+      guest.hidden = true;
+      profile.hidden = false;
+
+      const dbProfile = await fetchProfile(user.id);
+      if (nameEl) nameEl.textContent = dbProfile?.display_name ?? user.name ?? 'Jugador';
+      if (emailEl) emailEl.textContent = user.email;
+
+      selectedTeamId = (await resolveSelectedTeam()) ?? '';
+      renderSelectedTeam();
+      renderTeamGrid();
+    }
+
+    logoutBtn.addEventListener('click', async () => {
+      await signOut();
+      window.location.href = '/';
+    });
+
+    void renderProfile();
+  }
+
+  wireAccountPage();
+</script>
+

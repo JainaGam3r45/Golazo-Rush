@@ -1,4 +1,4 @@
----
+﻿---
 const navItems = [
   { href: '/', label: 'Inicio' },
   { href: '/play', label: 'Jugar' },
@@ -10,21 +10,78 @@ const currentPath = Astro.url.pathname;
 
 <nav class="site-nav">
   <a href="/" class="site-nav__brand">Golazo Rush</a>
-  <ul class="site-nav__links">
-    {
-      navItems.map((item) => (
-        <li>
-          <a
-            href={item.href}
-            class:list={['site-nav__link', { 'site-nav__link--active': currentPath === item.href }]}
-          >
-            {item.label}
-          </a>
-        </li>
-      ))
-    }
-  </ul>
+  <div class="site-nav__right">
+    <ul class="site-nav__links">
+      {
+        navItems.map((item) => (
+          <li>
+            <a
+              href={item.href}
+              class:list={['site-nav__link', { 'site-nav__link--active': currentPath === item.href }]}
+            >
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="site-nav__auth" data-auth-nav aria-live="polite"></div>
+  </div>
 </nav>
+
+<script>
+  import { hydrateSession, signOut, subscribeAuth } from '../lib/auth/session';
+  import { fetchProfile } from '../lib/profile/store';
+
+  function renderAuthNav(container: HTMLElement, loading: boolean, user: import('../lib/auth/session').SessionUser | null, displayName?: string) {
+    container.innerHTML = '';
+
+    if (loading) return;
+
+    if (!user) {
+      const link = document.createElement('a');
+      link.href = '/login';
+      link.className = 'site-nav__auth-link';
+      link.textContent = 'Entrar';
+      container.append(link);
+      return;
+    }
+
+    const accountLink = document.createElement('a');
+    accountLink.href = '/cuenta';
+    accountLink.className = 'site-nav__auth-link';
+    accountLink.textContent = displayName ?? user.name ?? 'Mi cuenta';
+    container.append(accountLink);
+
+    const logoutBtn = document.createElement('button');
+    logoutBtn.type = 'button';
+    logoutBtn.className = 'site-nav__auth-logout';
+    logoutBtn.textContent = 'Salir';
+    logoutBtn.addEventListener('click', async () => {
+      await signOut();
+      window.location.href = '/';
+    });
+    container.append(logoutBtn);
+  }
+
+  async function wireAuthNav() {
+    const container = document.querySelector<HTMLElement>('[data-auth-nav]');
+    if (!container) return;
+
+    subscribeAuth(async (state) => {
+      let displayName: string | undefined;
+      if (state.user) {
+        const profile = await fetchProfile(state.user.id);
+        displayName = profile?.display_name ?? state.user.name ?? undefined;
+      }
+      renderAuthNav(container, state.loading, state.user, displayName);
+    });
+
+    await hydrateSession();
+  }
+
+  wireAuthNav();
+</script>
 
 <style>
   .site-nav {
@@ -48,6 +105,12 @@ const currentPath = Astro.url.pathname;
     color: var(--text);
   }
 
+  .site-nav__right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
   .site-nav__links {
     display: flex;
     gap: 1.5rem;
@@ -67,5 +130,52 @@ const currentPath = Astro.url.pathname;
   .site-nav__link:hover,
   .site-nav__link--active {
     color: var(--accent);
+  }
+
+  .site-nav__auth {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 5rem;
+  }
+
+  .site-nav__auth-link {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .site-nav__auth-link:hover {
+    color: var(--accent);
+  }
+
+  .site-nav__auth-logout {
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+  }
+
+  .site-nav__auth-logout:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 640px) {
+    .site-nav {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .site-nav__right {
+      flex-wrap: wrap;
+    }
   }
 </style>

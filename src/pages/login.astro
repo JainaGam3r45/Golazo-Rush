@@ -1,0 +1,96 @@
+﻿---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Golazo Rush — Entrar">
+  <section class="auth-page">
+    <h1 class="section-title">Entrar</h1>
+    <p class="auth-page__hint">Inicia sesión para guardar tu selección y progreso.</p>
+
+    <form class="auth-form card" data-login-form>
+      <p class="auth-form__error" data-auth-error hidden></p>
+
+      <label class="auth-form__field">
+        <span>Email</span>
+        <input type="email" name="email" required autocomplete="email" />
+      </label>
+
+      <label class="auth-form__field">
+        <span>Contraseña</span>
+        <input type="password" name="password" required autocomplete="current-password" minlength="6" />
+      </label>
+
+      <button type="submit" class="btn auth-form__submit" data-auth-submit>Entrar</button>
+    </form>
+
+    <p class="auth-page__footer">
+      ¿No tienes cuenta? <a href="/register">Crear cuenta</a>
+    </p>
+    <p class="auth-page__footer">
+      <a href="/play">Seguir jugando sin cuenta</a>
+    </p>
+  </section>
+</Layout>
+
+<script>
+  import { insforge, isInsForgeConfigured } from '../lib/insforge';
+  import { mapAuthError } from '../lib/auth/errors';
+  import { hydrateSession } from '../lib/auth/session';
+  import { fetchProfile, upsertProfile } from '../lib/profile/store';
+  import { getSelectedTeam } from '../lib/storage/selectedTeam';
+
+  function wireLoginForm() {
+    const form = document.querySelector<HTMLFormElement>('[data-login-form]');
+    const errorEl = document.querySelector<HTMLElement>('[data-auth-error]');
+    const submitBtn = document.querySelector<HTMLButtonElement>('[data-auth-submit]');
+    if (!form || !errorEl || !submitBtn) return;
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorEl.hidden = true;
+      errorEl.textContent = '';
+
+      if (!isInsForgeConfigured || !insforge) {
+        errorEl.textContent = mapAuthError(null, false);
+        errorEl.hidden = false;
+        return;
+      }
+
+      const formData = new FormData(form);
+      const email = String(formData.get('email') ?? '').trim();
+      const password = String(formData.get('password') ?? '');
+
+      submitBtn.disabled = true;
+
+      try {
+        const { data, error } = await insforge.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          errorEl.textContent = mapAuthError(error, true);
+          errorEl.hidden = false;
+          return;
+        }
+
+        const user = data?.user;
+        if (user) {
+          const localTeam = getSelectedTeam();
+          await upsertProfile(
+            { id: user.id, email: user.email ?? email, name: user.profile?.name ?? null },
+            { display_name: user.profile?.name ?? null, selected_team_id: localTeam },
+          );
+        }
+
+        await hydrateSession();
+        window.location.href = '/cuenta';
+      } catch {
+        errorEl.textContent = mapAuthError({ message: 'network' }, true);
+        errorEl.hidden = false;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  wireLoginForm();
+</script>
+

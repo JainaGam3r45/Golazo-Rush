@@ -1,0 +1,169 @@
+﻿---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Golazo Rush — Crear cuenta">
+  <section class="auth-page">
+    <h1 class="section-title">Crear cuenta</h1>
+    <p class="auth-page__hint">Regístrate para guardar tu selección favorita.</p>
+
+    <form class="auth-form card" data-register-form>
+      <p class="auth-form__error" data-auth-error hidden></p>
+      <p class="auth-form__info" data-auth-info hidden></p>
+
+      <div data-register-fields>
+        <label class="auth-form__field">
+          <span>Nombre visible</span>
+          <input type="text" name="name" required autocomplete="name" minlength="2" maxlength="40" />
+        </label>
+
+        <label class="auth-form__field">
+          <span>Email</span>
+          <input type="email" name="email" required autocomplete="email" />
+        </label>
+
+        <label class="auth-form__field">
+          <span>Contraseña</span>
+          <input type="password" name="password" required autocomplete="new-password" minlength="6" />
+        </label>
+
+        <button type="submit" class="btn auth-form__submit" data-auth-submit>Crear cuenta</button>
+      </div>
+
+      <div data-verify-fields hidden>
+        <p class="auth-form__verify-hint">Introduce el código de 6 dígitos que enviamos a tu email.</p>
+        <label class="auth-form__field">
+          <span>Código de verificación</span>
+          <input type="text" name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" />
+        </label>
+        <button type="button" class="btn auth-form__submit" data-verify-submit>Verificar email</button>
+      </div>
+    </form>
+
+    <p class="auth-page__footer">
+      ¿Ya tienes cuenta? <a href="/login">Entrar</a>
+    </p>
+    <p class="auth-page__footer">
+      <a href="/play">Seguir jugando sin cuenta</a>
+    </p>
+  </section>
+</Layout>
+
+<script>
+  import { insforge, isInsForgeConfigured } from '../lib/insforge';
+  import { mapAuthError } from '../lib/auth/errors';
+  import { hydrateSession } from '../lib/auth/session';
+  import { upsertProfile } from '../lib/profile/store';
+  import { getSelectedTeam } from '../lib/storage/selectedTeam';
+
+  let pendingEmail = '';
+
+  function wireRegisterForm() {
+    const form = document.querySelector<HTMLFormElement>('[data-register-form]');
+    const errorEl = document.querySelector<HTMLElement>('[data-auth-error]');
+    const infoEl = document.querySelector<HTMLElement>('[data-auth-info]');
+    const registerFields = document.querySelector<HTMLElement>('[data-register-fields]');
+    const verifyFields = document.querySelector<HTMLElement>('[data-verify-fields]');
+    const submitBtn = document.querySelector<HTMLButtonElement>('[data-auth-submit]');
+    const verifyBtn = document.querySelector<HTMLButtonElement>('[data-verify-submit]');
+    if (!form || !errorEl || !infoEl || !registerFields || !verifyFields || !submitBtn || !verifyBtn) return;
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorEl.hidden = true;
+      infoEl.hidden = true;
+
+      if (!isInsForgeConfigured || !insforge) {
+        errorEl.textContent = mapAuthError(null, false);
+        errorEl.hidden = false;
+        return;
+      }
+
+      const formData = new FormData(form);
+      const name = String(formData.get('name') ?? '').trim();
+      const email = String(formData.get('email') ?? '').trim();
+      const password = String(formData.get('password') ?? '');
+      pendingEmail = email;
+
+      submitBtn.disabled = true;
+
+      try {
+        const redirectTo = `${window.location.origin}/login`;
+        const { data, error } = await insforge.auth.signUp({ email, password, name, redirectTo });
+
+        if (error) {
+          errorEl.textContent = mapAuthError(error, true);
+          errorEl.hidden = false;
+          return;
+        }
+
+        if (data?.requireEmailVerification) {
+          registerFields.hidden = true;
+          verifyFields.hidden = false;
+          infoEl.textContent = 'Revisa tu email o introduce el código de verificación.';
+          infoEl.hidden = false;
+          return;
+        }
+
+        if (data?.user) {
+          const localTeam = getSelectedTeam();
+          await upsertProfile(
+            { id: data.user.id, email: data.user.email ?? email, name },
+            { display_name: name, selected_team_id: localTeam },
+          );
+        }
+
+        await hydrateSession();
+        window.location.href = '/cuenta';
+      } catch {
+        errorEl.textContent = mapAuthError({ message: 'network' }, true);
+        errorEl.hidden = false;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    verifyBtn.addEventListener('click', async () => {
+      errorEl.hidden = true;
+      if (!isInsForgeConfigured || !insforge || !pendingEmail) return;
+
+      const otp = String(new FormData(form).get('otp') ?? '').trim();
+      if (otp.length !== 6) {
+        errorEl.textContent = 'Introduce el código de 6 dígitos.';
+        errorEl.hidden = false;
+        return;
+      }
+
+      verifyBtn.disabled = true;
+
+      try {
+        const { data, error } = await insforge.auth.verifyEmail({ email: pendingEmail, otp });
+
+        if (error) {
+          errorEl.textContent = 'Código inválido o expirado. Inténtalo de nuevo.';
+          errorEl.hidden = false;
+          return;
+        }
+
+        if (data?.user) {
+          const name = data.user.profile?.name ?? null;
+          const localTeam = getSelectedTeam();
+          await upsertProfile(
+            { id: data.user.id, email: data.user.email ?? pendingEmail, name },
+            { display_name: name, selected_team_id: localTeam },
+          );
+        }
+
+        await hydrateSession();
+        window.location.href = '/cuenta';
+      } catch {
+        errorEl.textContent = mapAuthError({ message: 'network' }, true);
+        errorEl.hidden = false;
+      } finally {
+        verifyBtn.disabled = false;
+      }
+    });
+  }
+
+  wireRegisterForm();
+</script>
