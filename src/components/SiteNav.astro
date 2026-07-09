@@ -24,7 +24,7 @@ const currentPath = Astro.url.pathname;
           </li>
         ))
       }
-      <li class="site-nav__auth" data-auth-nav aria-live="polite"></li>
+      <li class="site-nav__auth" data-auth-nav data-current-path={currentPath} aria-live="polite"></li>
     </ul>
   </div>
 </nav>
@@ -33,15 +33,26 @@ const currentPath = Astro.url.pathname;
   import { hydrateSession, signOut, subscribeAuth } from '../lib/auth/session';
   import { fetchProfile } from '../lib/profile/store';
 
+  function normalizePath(path: string) {
+    if (path.length > 1 && path.endsWith('/')) return path.slice(0, -1);
+    return path;
+  }
+
+  function linkClasses(pathname: string, href: string) {
+    return normalizePath(pathname) === href ? 'site-nav__link site-nav__link--active' : 'site-nav__link';
+  }
+
   function renderAuthNav(container: HTMLElement, loading: boolean, user: import('../lib/auth/session').SessionUser | null, displayName?: string) {
     container.innerHTML = '';
 
     if (loading) return;
 
+    const pathname = container.dataset.currentPath ?? window.location.pathname;
+
     if (!user) {
       const link = document.createElement('a');
       link.href = '/login';
-      link.className = 'site-nav__link';
+      link.className = linkClasses(pathname, '/login');
       link.textContent = 'Entrar';
       container.append(link);
       return;
@@ -49,7 +60,7 @@ const currentPath = Astro.url.pathname;
 
     const accountLink = document.createElement('a');
     accountLink.href = '/cuenta';
-    accountLink.className = 'site-nav__link';
+    accountLink.className = linkClasses(pathname, '/cuenta');
     accountLink.textContent = displayName ?? user.name ?? 'Mi cuenta';
     container.append(accountLink);
 
@@ -82,73 +93,3 @@ const currentPath = Astro.url.pathname;
 
   wireAuthNav();
 </script>
-
-<style>
-  .site-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 0;
-    margin-bottom: 2rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .site-nav__brand {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    color: var(--accent);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .site-nav__brand:hover {
-    color: var(--text);
-  }
-
-  .site-nav__right {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-  }
-
-  .site-nav__links {
-    display: flex;
-    gap: 1.5rem;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .site-nav__link {
-    font-family: var(--font-display);
-    font-size: 1.125rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .site-nav__link:hover,
-  .site-nav__link--active {
-    color: var(--accent);
-  }
-
-  .site-nav__auth {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 5rem;
-    list-style: none;
-  }
-
-  @media (max-width: 640px) {
-    .site-nav {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
-
-    .site-nav__right {
-      flex-wrap: wrap;
-    }
-  }
-</style>
