@@ -54,6 +54,48 @@ a:hover {
   color: var(--text);
 }
 
+/* Nav-level text links (matches main site nav typography) */
+.nav-link,
+.site-nav__auth-link {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover,
+.site-nav__auth-link:hover,
+.site-nav__auth-link--active {
+  color: var(--accent);
+}
+
+.site-nav__auth-link {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-nav__auth-logout {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.site-nav__auth-logout:hover {
+  color: var(--accent);
+}
+
 img {
   max-width: 100%;
   display: block;
@@ -645,16 +687,6 @@ img {
 .auth-page__footer--guest {
   margin-top: 0.5rem;
   font-size: 0.875rem;
-}
-
-.auth-page__footer--guest a {
-  color: var(--text-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.auth-page__footer--guest a:hover {
-  color: var(--accent);
 }
 
 .auth-form.card {
