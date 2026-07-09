@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { Ball } from '../entities/Ball';
+import { Ball, setBallTrailCap } from '../entities/Ball';
 import { HumanPlayer } from '../entities/HumanPlayer';
 import { BotPlayer } from '../entities/BotPlayer';
 import { Goalkeeper } from '../entities/Goalkeeper';
@@ -8,6 +8,7 @@ import type { MatchSetup } from '../../lib/match/setup';
 import type { MatchEndedDetail, MatchNeedsPenaltiesDetail } from '../../lib/realtime/types';
 import { getFormation, type FormationId } from '../../lib/match/formations';
 import { formatMatchClock } from '../../lib/match/formatMatchClock';
+import { formatModeLabel, type MatchFormatId } from '../../lib/match/formats';
 import { teams as mockTeams } from '../../lib/mock/teams';
 import {
   CENTER_CIRCLE_RADIUS,
@@ -26,7 +27,7 @@ import {
   PITCH_MARGIN,
   PITCH_WIDTH,
 } from '../config/pitch';
-import { getFieldAnchors, getKickoffBallPosition } from '../config/spawnLayouts';
+import { getFieldAnchors, getKickoffBallPosition, playerVisualScale } from '../config/spawnLayouts';
 import { updateTeamBots, type KickCallback } from '../ai/botBrain';
 import { updateGoalkeeper } from '../ai/goalkeeperBrain';
 import {
@@ -49,13 +50,38 @@ import {
   playTackle,
   playFoul,
 } from '../audio/matchAudio';
-import { canStartStoppage, isPlaying, type MatchPhase } from '../rules/matchPhase';
+import {
+  canDetectOut,
+  canStartStoppage,
+  isPlaying,
+  isSetPiece,
+  type MatchPhase,
+} from '../rules/matchPhase';
 import {
   clampBallSoft,
   clampPlayer,
   isBallOut,
 } from '../rules/playableBounds';
-import { resolveSetPiece } from '../rules/setPieces';
+import {
+  cornerCrossTarget,
+  getCornerBoxSlots,
+  getGoalKickRivalHoldLine,
+  getGoalKickSupportSlots,
+  getTakerStandOffset,
+  getThrowInSupportSlots,
+  OUT_DETECT_AFTER_SET_PIECE_MS,
+  resolveSetPiece,
+  SET_PIECE_MAX_WAIT_MS,
+  getSetPiecePrepMs,
+  SET_PIECE_READY_AUTO_MS,
+  SET_PIECE_RIVAL_MIN_DIST,
+  SET_PIECE_SETTLE_SPEED,
+  setPieceHintText,
+  softCorrectSetPieceBall,
+  type SetPieceResolution,
+  type SetPieceSlot,
+  type SetPieceType,
+} from '../rules/setPieces';
 import {
   createPenaltyAward,
   isInsidePenaltyBox,
@@ -64,9 +90,24 @@ import {
 } from '../rules/penalty';
 
 const OUT_DETECT_COOLDOWN_MS = 500;
-const SET_PIECE_PAUSE_MS = 1100;
 const FOUL_PAUSE_MS = 1100;
 const PENALTY_STUB_PAUSE_MS = 1200;
+const SET_PIECE_TAKE_RANGE = 48;
+const SET_PIECE_HUMAN_NEAR = 70;
+
+type SetPieceStage = 'prep' | 'ready';
+
+type ActiveSetPiece = {
+  resolution: SetPieceResolution;
+  stage: SetPieceStage;
+  startedAt: number;
+  readyAt: number;
+  autoTakeAt: number;
+  maxWaitAt: number;
+  taker: FieldPlayer;
+  humanCanTake: boolean;
+  targets: Map<FieldPlayer, SetPieceSlot>;
+};
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16);
@@ -99,6 +140,20 @@ function updateTeamLabels(homeTeamId: string, awayTeamId: string): void {
   const awayLabel = document.getElementById('hud-away-name');
   if (homeLabel) homeLabel.textContent = getTeamName(homeTeamId);
   if (awayLabel) awayLabel.textContent = getTeamName(awayTeamId);
+}
+
+function updateModeLabel(formatId: MatchFormatId): void {
+  const modeEl = document.getElementById('match-mode');
+  if (modeEl) modeEl.textContent = formatModeLabel(formatId);
+}
+
+function emitHudStoppage(label: string, hint: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('golazo:match-stoppage', {
+      detail: { label, hint },
+    }),
+  );
 }
 
 function emitMatchEnded(detail: MatchEndedDetail): void {
@@ -136,7 +191,13 @@ export class MatchScene extends Phaser.Scene {
   private penaltyPhase: PenaltyPhase = 'idle';
   private pendingPenalty: PenaltyAward | null = null;
   private phaseOverlay: Phaser.GameObjects.Text | null = null;
+  private phaseHint: Phaser.GameObjects.Text | null = null;
   private resumeTimer: Phaser.Time.TimerEvent | null = null;
+  private activeSetPiece: ActiveSetPiece | null = null;
+  private formatId: MatchFormatId = '5v5';
+  private playerScale = 1;
+  private homeAiThrottle = 0;
+  private awayAiThrottle = 0;
 
   constructor() {
     super('MatchScene');
@@ -155,6 +216,7 @@ export class MatchScene extends Phaser.Scene {
     this.foulsAway = 0;
     this.penaltyPhase = 'idle';
     this.pendingPenalty = null;
+    this.activeSetPiece = null;
     this.clearPhaseOverlay();
     this.resumeTimer?.remove();
     this.resumeTimer = null;
@@ -165,6 +227,11 @@ export class MatchScene extends Phaser.Scene {
       this.setup.playerSide === 'home' ? this.setup.formationId : this.setup.opponentFormationId;
     this.awayFormationId =
       this.setup.playerSide === 'away' ? this.setup.formationId : this.setup.opponentFormationId;
+    this.formatId = this.setup.formatId ?? '5v5';
+    this.playerScale = playerVisualScale(this.formatId);
+    this.homeAiThrottle = 0;
+    this.awayAiThrottle = 0;
+    setBallTrailCap(this.formatId === '11v11' ? 3 : 5);
   }
 
   shutdown(): void {
@@ -172,6 +239,7 @@ export class MatchScene extends Phaser.Scene {
     this.clockTimer = null;
     this.resumeTimer?.remove();
     this.resumeTimer = null;
+    this.activeSetPiece = null;
     this.clearPhaseOverlay();
     this.time.removeAllEvents();
     this.tweens.killAll();
@@ -187,8 +255,10 @@ export class MatchScene extends Phaser.Scene {
     this.matchStartedAt = this.time.now;
 
     updateTeamLabels(this.setup.homeTeamId, this.setup.awayTeamId);
+    updateModeLabel(this.formatId);
     updateScoreOverlay(this.homeScore, this.awayScore);
     updateMatchClock(this.setup.durationSeconds);
+    emitHudStoppage('En juego', 'En juego: controla tu jugador y busca el gol.');
 
     this.clockTimer = this.time.addEvent({
       delay: 1000,
@@ -213,12 +283,13 @@ export class MatchScene extends Phaser.Scene {
     const homeColor = getTeamColor(this.setup.homeTeamId);
     const awayColor = getTeamColor(this.setup.awayTeamId);
     const playerOnHome = this.setup.playerSide === 'home';
+    const scale = this.playerScale;
 
     const kickoff = getKickoffBallPosition(this.kickoffSide);
     this.ball = new Ball(this, kickoff.x, kickoff.y);
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
 
     this.homeGk = new Goalkeeper(
       this,
@@ -227,6 +298,7 @@ export class MatchScene extends Phaser.Scene {
       homeColor,
       'home',
       playerOnHome ? 'teammate' : 'opponent',
+      scale,
     );
     this.awayGk = new Goalkeeper(
       this,
@@ -235,6 +307,7 @@ export class MatchScene extends Phaser.Scene {
       awayColor,
       'away',
       playerOnHome ? 'opponent' : 'teammate',
+      scale,
     );
     this.physics.add.collider(this.homeGk, this.ball);
     this.physics.add.collider(this.awayGk, this.ball);
@@ -245,7 +318,15 @@ export class MatchScene extends Phaser.Scene {
     for (let i = 0; i < homeAnchors.length; i++) {
       const anchor = homeAnchors[i];
       if (playerOnHome && i === 0) {
-        this.human = new HumanPlayer(this, anchor.x, anchor.y, homeColor, 'home', anchor.slot);
+        this.human = new HumanPlayer(
+          this,
+          anchor.x,
+          anchor.y,
+          homeColor,
+          'home',
+          anchor.slot,
+          scale,
+        );
         this.physics.add.collider(this.human, this.ball);
         continue;
       }
@@ -257,6 +338,7 @@ export class MatchScene extends Phaser.Scene {
         'home',
         anchor.slot,
         playerOnHome ? 'teammate' : 'opponent',
+        scale,
       );
       this.homeBots.push(bot);
       this.physics.add.collider(bot, this.ball);
@@ -265,7 +347,15 @@ export class MatchScene extends Phaser.Scene {
     for (let i = 0; i < awayAnchors.length; i++) {
       const anchor = awayAnchors[i];
       if (!playerOnHome && i === 0) {
-        this.human = new HumanPlayer(this, anchor.x, anchor.y, awayColor, 'away', anchor.slot);
+        this.human = new HumanPlayer(
+          this,
+          anchor.x,
+          anchor.y,
+          awayColor,
+          'away',
+          anchor.slot,
+          scale,
+        );
         this.physics.add.collider(this.human, this.ball);
         continue;
       }
@@ -277,6 +367,7 @@ export class MatchScene extends Phaser.Scene {
         'away',
         anchor.slot,
         playerOnHome ? 'opponent' : 'teammate',
+        scale,
       );
       this.awayBots.push(bot);
       this.physics.add.collider(bot, this.ball);
@@ -310,12 +401,14 @@ export class MatchScene extends Phaser.Scene {
   private clearPhaseOverlay(): void {
     this.phaseOverlay?.destroy();
     this.phaseOverlay = null;
+    this.phaseHint?.destroy();
+    this.phaseHint = null;
   }
 
-  private showPhaseOverlay(label: string, color = '#ffffff'): void {
+  private showPhaseOverlay(label: string, color = '#ffffff', hint?: string): void {
     this.clearPhaseOverlay();
     this.phaseOverlay = this.add
-      .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 - 40, label, {
+      .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 - 48, label, {
         fontFamily: 'Bebas Neue, sans-serif',
         fontSize: '56px',
         color,
@@ -324,6 +417,21 @@ export class MatchScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(8);
+
+    if (hint) {
+      this.phaseHint = this.add
+        .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 + 8, hint, {
+          fontFamily: 'Segoe UI, sans-serif',
+          fontSize: '16px',
+          color: '#d7ffe0',
+          stroke: '#0a0f0a',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(8);
+    }
+
+    emitHudStoppage(label, hint ?? label);
   }
 
   private enterPhase(next: MatchPhase): boolean {
@@ -335,15 +443,17 @@ export class MatchScene extends Phaser.Scene {
     return true;
   }
 
-  private resumePlaying(outCooldown = false): void {
+  private resumePlaying(outCooldown = false, cooldownMs = OUT_DETECT_COOLDOWN_MS): void {
     this.resumeTimer = null;
+    this.activeSetPiece = null;
     this.clearPhaseOverlay();
     this.phase = 'playing';
     this.penaltyPhase = 'idle';
     this.pendingPenalty = null;
     if (outCooldown) {
-      this.outDetectCooldownUntil = this.time.now + OUT_DETECT_COOLDOWN_MS;
+      this.outDetectCooldownUntil = this.time.now + cooldownMs;
     }
+    emitHudStoppage('En juego', 'En juego: controla tu jugador y busca el gol.');
   }
 
   private scheduleResume(delayMs: number, outCooldown = false, afterPlace?: () => void): void {
@@ -352,6 +462,429 @@ export class MatchScene extends Phaser.Scene {
       afterPlace?.();
       this.resumePlaying(outCooldown);
     });
+  }
+
+  private getOutfieldPlayers(side: 'home' | 'away'): FieldPlayer[] {
+    return this.getTeammates(side).filter((p) => p !== this.homeGk && p !== this.awayGk);
+  }
+
+  private pickNearestOutfield(side: 'home' | 'away', x: number, y: number): FieldPlayer | null {
+    const mates = this.getOutfieldPlayers(side);
+    let best: FieldPlayer | null = null;
+    let bestDist = Infinity;
+    for (const p of mates) {
+      const dist = p.distanceTo(x, y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  private assignSlots(
+    players: FieldPlayer[],
+    slots: SetPieceSlot[],
+    targets: Map<FieldPlayer, SetPieceSlot>,
+    skip?: FieldPlayer,
+  ): void {
+    const remaining = players.filter((p) => p !== skip);
+    const used = new Set<number>();
+    for (const player of remaining) {
+      let bestIdx = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < slots.length; i++) {
+        if (used.has(i)) continue;
+        const dist = player.distanceTo(slots[i].x, slots[i].y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx < 0) continue;
+      used.add(bestIdx);
+      targets.set(player, clampPlayer(slots[bestIdx].x, slots[bestIdx].y));
+    }
+  }
+
+  private buildSetPieceTargets(
+    resolution: SetPieceResolution,
+    taker: FieldPlayer,
+  ): Map<FieldPlayer, SetPieceSlot> {
+    const targets = new Map<FieldPlayer, SetPieceSlot>();
+    const stand = getTakerStandOffset(
+      resolution.type,
+      resolution.possessionSide,
+      resolution.ballX,
+      resolution.ballY,
+      resolution.impulseX,
+      resolution.impulseY,
+    );
+    targets.set(taker, clampPlayer(stand.x, stand.y));
+
+    const attackSide = resolution.possessionSide;
+    const defendSide: 'home' | 'away' = attackSide === 'home' ? 'away' : 'home';
+    const attackers = this.getOutfieldPlayers(attackSide);
+    const defenders = this.getOutfieldPlayers(defendSide);
+
+    if (resolution.type === 'corner') {
+      const slots = getCornerBoxSlots(resolution.focusEnd, this.formatId);
+      this.assignSlots(attackers, slots.attack, targets, taker);
+      this.assignSlots(defenders, slots.defend, targets);
+      const defendingGk = resolution.focusEnd === 'home' ? this.homeGk : this.awayGk;
+      targets.set(defendingGk, slots.gk);
+      const attackingGk = attackSide === 'home' ? this.homeGk : this.awayGk;
+      if (attackingGk !== taker) {
+        targets.set(attackingGk, {
+          x: attackSide === 'home' ? GOALKEEPER_HOME_X : GOALKEEPER_AWAY_X,
+          y: GOAL_CENTER_Y,
+        });
+      }
+    } else if (resolution.type === 'throwIn') {
+      this.assignSlots(
+        attackers,
+        getThrowInSupportSlots(resolution.ballX, resolution.ballY, attackSide, this.formatId),
+        targets,
+        taker,
+      );
+      for (const rival of defenders) {
+        const dx = rival.x - resolution.ballX;
+        const dy = rival.y - resolution.ballY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const min = SET_PIECE_RIVAL_MIN_DIST.throwIn;
+        if (dist < min + 20) {
+          targets.set(
+            rival,
+            clampPlayer(
+              resolution.ballX + (dx / dist) * (min + 24),
+              resolution.ballY + (dy / dist) * (min + 24),
+            ),
+          );
+        }
+      }
+      targets.set(this.homeGk, { x: GOALKEEPER_HOME_X, y: GOAL_CENTER_Y });
+      targets.set(this.awayGk, { x: GOALKEEPER_AWAY_X, y: GOAL_CENTER_Y });
+    } else {
+      this.assignSlots(attackers, getGoalKickSupportSlots(resolution.focusEnd, this.formatId), targets, taker);
+      const holdLine = getGoalKickRivalHoldLine(resolution.focusEnd);
+      for (const rival of defenders) {
+        let x = rival.x;
+        if (resolution.focusEnd === 'home' && x < holdLine) x = holdLine + 10;
+        if (resolution.focusEnd === 'away' && x > holdLine) x = holdLine - 10;
+        targets.set(rival, clampPlayer(x, rival.y));
+      }
+      const defendingGk = resolution.focusEnd === 'home' ? this.homeGk : this.awayGk;
+      if (defendingGk !== taker) {
+        targets.set(defendingGk, {
+          x: resolution.focusEnd === 'home' ? GOALKEEPER_HOME_X : GOALKEEPER_AWAY_X,
+          y: GOAL_CENTER_Y,
+        });
+      }
+      const attackingGk = attackSide === 'home' ? this.homeGk : this.awayGk;
+      targets.set(attackingGk, {
+        x: attackSide === 'home' ? GOALKEEPER_HOME_X : GOALKEEPER_AWAY_X,
+        y: GOAL_CENTER_Y,
+      });
+    }
+
+    return targets;
+  }
+
+  private pickSetPieceTaker(resolution: SetPieceResolution): FieldPlayer {
+    if (resolution.type === 'goalKick') {
+      return resolution.possessionSide === 'home' ? this.homeGk : this.awayGk;
+    }
+    return (
+      this.pickNearestOutfield(resolution.possessionSide, resolution.ballX, resolution.ballY) ??
+      this.getTeammates(resolution.possessionSide)[0] ??
+      this.human
+    );
+  }
+
+  private humanEligibleForSetPiece(taker: FieldPlayer, side: 'home' | 'away'): boolean {
+    if (this.human.side !== side) return false;
+    if (taker === this.human) return true;
+    return this.human.distanceTo(this.ball.x, this.ball.y) <= SET_PIECE_HUMAN_NEAR;
+  }
+
+  private pushRivalsFromBall(fouledSide: 'home' | 'away', minDist = 70): void {
+    for (const player of this.getAllFieldPlayers()) {
+      if (player.side === fouledSide) continue;
+      const dx = player.x - this.ball.x;
+      const dy = player.y - this.ball.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (dist < minDist) {
+        const pos = clampPlayer(
+          this.ball.x + (dx / dist) * minDist,
+          this.ball.y + (dy / dist) * minDist,
+        );
+        player.setPosition(pos.x, pos.y);
+        player.stop();
+      }
+    }
+  }
+
+  private enforceSetPieceSpacing(type: SetPieceType, possessionSide: 'home' | 'away'): void {
+    const minDist = SET_PIECE_RIVAL_MIN_DIST[type];
+    this.pushRivalsFromBall(possessionSide, minDist);
+
+    for (const player of this.getAllFieldPlayers()) {
+      if (player === this.activeSetPiece?.taker) continue;
+      const dx = player.x - this.ball.x;
+      const dy = player.y - this.ball.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const keep = player.side === possessionSide ? 28 : minDist;
+      if (dist < keep) {
+        const pos = clampPlayer(
+          this.ball.x + (dx / dist) * keep,
+          this.ball.y + (dy / dist) * keep,
+        );
+        player.setPosition(pos.x, pos.y);
+        player.stop();
+      }
+    }
+  }
+
+  private settleSetPiecePositions(active: ActiveSetPiece): void {
+    for (const [player, slot] of active.targets) {
+      if (
+        active.stage === 'ready' &&
+        active.humanCanTake &&
+        (player === this.human || player === active.taker)
+      ) {
+        continue;
+      }
+      const dist = player.distanceTo(slot.x, slot.y);
+      if (dist < 6) {
+        player.stop();
+        continue;
+      }
+      player.moveToward(slot.x, slot.y, SET_PIECE_SETTLE_SPEED);
+    }
+
+    for (const player of this.getAllFieldPlayers()) {
+      if (!active.targets.has(player)) player.stop();
+    }
+
+    this.enforceSetPieceSpacing(active.resolution.type, active.resolution.possessionSide);
+
+    const soft = softCorrectSetPieceBall(this.ball.x, this.ball.y);
+    if (Math.abs(soft.x - this.ball.x) > 0.5 || Math.abs(soft.y - this.ball.y) > 0.5) {
+      this.ball.setPosition(soft.x, soft.y);
+    }
+    this.ball.body.setVelocity(0, 0);
+  }
+
+  private enterSetPieceReady(active: ActiveSetPiece, time: number): void {
+    active.stage = 'ready';
+    active.readyAt = time;
+    active.autoTakeAt = time + SET_PIECE_READY_AUTO_MS[active.resolution.type];
+    transferBallControl(active.taker, time);
+
+    const stand = active.targets.get(active.taker);
+    if (stand) {
+      active.taker.setPosition(stand.x, stand.y);
+      active.taker.stop();
+    }
+
+    active.humanCanTake = this.humanEligibleForSetPiece(
+      active.taker,
+      active.resolution.possessionSide,
+    );
+
+    const hint = active.humanCanTake
+      ? setPieceHintText(active.resolution.type, 'ready')
+      : setPieceHintText(active.resolution.type, 'prep');
+    this.showPhaseOverlay(active.resolution.overlay, '#ffffff', hint);
+  }
+
+  private finishSetPieceTake(): void {
+    this.resumePlaying(true, OUT_DETECT_AFTER_SET_PIECE_MS);
+  }
+
+  private applySetPieceImpulse(
+    type: SetPieceType,
+    resolution: SetPieceResolution,
+    mode: 'short' | 'long' | 'cross',
+  ): void {
+    const taker = this.activeSetPiece?.taker;
+    if (!taker) return;
+
+    const stand = getTakerStandOffset(
+      type,
+      resolution.possessionSide,
+      resolution.ballX,
+      resolution.ballY,
+      resolution.impulseX,
+      resolution.impulseY,
+    );
+    if (taker.distanceTo(this.ball.x, this.ball.y) > SET_PIECE_TAKE_RANGE) {
+      const pos = clampPlayer(stand.x, stand.y);
+      taker.setPosition(pos.x, pos.y);
+      taker.stop();
+    }
+
+    if (mode === 'short') {
+      const mates = this.getTeammates(resolution.possessionSide).filter((p) => p !== taker);
+      const opponents = this.getOpponents(resolution.possessionSide);
+      const target =
+        findPassTarget(mates, taker, opponents, 'short') ??
+        mates.find((p) => p.distanceTo(taker.x, taker.y) > 30) ??
+        null;
+      if (target && executePass(taker, this.ball, target, 'short', this.time.now)) {
+        this.handlePass(resolution.possessionSide, taker.x, taker.y, false);
+        this.finishSetPieceTake();
+        return;
+      }
+    }
+
+    if (type === 'corner' && (mode === 'cross' || mode === 'long')) {
+      const nearTop = resolution.ballY < PITCH_HEIGHT / 2;
+      const target = cornerCrossTarget(resolution.focusEnd, nearTop);
+      const force = mode === 'long' ? 1.15 : 1;
+      if (executePass(taker, this.ball, target, 'long', this.time.now)) {
+        this.ball.body.setVelocity(
+          this.ball.body.velocity.x * force,
+          this.ball.body.velocity.y * force,
+        );
+        this.handlePass(resolution.possessionSide, taker.x, taker.y, true);
+        this.finishSetPieceTake();
+        return;
+      }
+    }
+
+    if (type === 'goalKick' && mode === 'long') {
+      const forward = resolution.possessionSide === 'home' ? 1 : -1;
+      const target = {
+        x: resolution.ballX + forward * 320,
+        y: GOAL_CENTER_Y + (Math.random() - 0.5) * 80,
+      };
+      if (executePass(taker, this.ball, target, 'long', this.time.now)) {
+        this.handlePass(resolution.possessionSide, taker.x, taker.y, true);
+        this.finishSetPieceTake();
+        return;
+      }
+    }
+
+    if (type === 'throwIn' && mode === 'long') {
+      const mates = this.getTeammates(resolution.possessionSide).filter((p) => p !== taker);
+      const opponents = this.getOpponents(resolution.possessionSide);
+      const target =
+        findPassTarget(mates, taker, opponents, 'long') ??
+        {
+          x: resolution.ballX + resolution.impulseX * 4,
+          y: resolution.ballY + resolution.impulseY * 3,
+        };
+      if (executePass(taker, this.ball, target, 'long', this.time.now)) {
+        this.handlePass(resolution.possessionSide, taker.x, taker.y, true);
+        this.finishSetPieceTake();
+        return;
+      }
+    }
+
+    const dirLen =
+      Math.sqrt(resolution.impulseX * resolution.impulseX + resolution.impulseY * resolution.impulseY) ||
+      1;
+    const charged = mode !== 'short';
+    const kicked = taker.kickBall(
+      this.ball,
+      charged,
+      this.time.now,
+      charged ? 1.1 : 0.85,
+      {
+        x: resolution.impulseX / dirLen,
+        y: resolution.impulseY / dirLen,
+      },
+    );
+
+    if (!kicked) {
+      // Guaranteed release so the phase cannot soft-lock.
+      const force = charged ? 420 : 280;
+      this.ball.body.setVelocity(
+        (resolution.impulseX / dirLen) * force,
+        (resolution.impulseY / dirLen) * force,
+      );
+      markBallKicked(this.time.now, charged);
+      registerTouch(resolution.possessionSide, this.time.now);
+      if (charged) playLongKick();
+      else playKick();
+    } else {
+      this.handleKick(resolution.possessionSide, taker.x, taker.y, charged);
+    }
+
+    this.finishSetPieceTake();
+  }
+
+  private tryHumanSetPieceTake(action: { type: 'kick'; charged: boolean } | { type: 'pass'; mode: 'short' | 'long' }): void {
+    const active = this.activeSetPiece;
+    if (!active || active.stage !== 'ready' || !active.humanCanTake) return;
+
+    const nearBall = this.human.distanceTo(this.ball.x, this.ball.y) <= SET_PIECE_TAKE_RANGE;
+    const isTaker = active.taker === this.human;
+    if (!isTaker && !nearBall) return;
+
+    if (!isTaker && nearBall) {
+      active.taker = this.human;
+      transferBallControl(this.human, this.time.now);
+    }
+
+    const type = active.resolution.type;
+    if (action.type === 'pass') {
+      this.applySetPieceImpulse(type, active.resolution, action.mode === 'short' ? 'short' : 'long');
+      return;
+    }
+
+    if (type === 'corner') {
+      this.applySetPieceImpulse(type, active.resolution, action.charged ? 'long' : 'cross');
+      return;
+    }
+
+    this.applySetPieceImpulse(type, active.resolution, action.charged ? 'long' : 'short');
+  }
+
+  private runCpuOrAutoSetPieceTake(active: ActiveSetPiece): void {
+    const type = active.resolution.type;
+    if (type === 'corner') {
+      this.applySetPieceImpulse(type, active.resolution, 'cross');
+      return;
+    }
+    if (type === 'goalKick') {
+      const preferLong = Math.random() > 0.35;
+      this.applySetPieceImpulse(type, active.resolution, preferLong ? 'long' : 'short');
+      return;
+    }
+    this.applySetPieceImpulse(type, active.resolution, 'short');
+  }
+
+  private updateSetPiece(time: number): void {
+    const active = this.activeSetPiece;
+    if (!active || this.matchEnded) return;
+
+    this.settleSetPiecePositions(active);
+
+    if (active.stage === 'prep' && time >= active.readyAt) {
+      this.enterSetPieceReady(active, time);
+    }
+
+    if (active.stage !== 'ready') return;
+
+    if (active.humanCanTake) {
+      const action = this.human.update(time);
+      if (action?.type === 'kick' || action?.type === 'pass') {
+        this.tryHumanSetPieceTake(action);
+      }
+      if (!this.activeSetPiece) return;
+    } else {
+      this.human.stop();
+    }
+
+    const shouldAuto =
+      time >= active.maxWaitAt ||
+      (!active.humanCanTake && time >= active.autoTakeAt);
+
+    if (shouldAuto && this.activeSetPiece) {
+      this.runCpuOrAutoSetPieceTake(active);
+    }
   }
 
   private readonly onKick: KickCallback = (side, x, y) => {
@@ -429,23 +962,6 @@ export class MatchScene extends Phaser.Scene {
     this.handleFoul(result.fouledSide, result.victim.x, result.victim.y);
   }
 
-  private pushRivalsFromBall(fouledSide: 'home' | 'away', minDist = 70): void {
-    for (const player of this.getAllFieldPlayers()) {
-      if (player.side === fouledSide) continue;
-      const dx = player.x - this.ball.x;
-      const dy = player.y - this.ball.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      if (dist < minDist) {
-        const pos = clampPlayer(
-          this.ball.x + (dx / dist) * minDist,
-          this.ball.y + (dy / dist) * minDist,
-        );
-        player.setPosition(pos.x, pos.y);
-        player.stop();
-      }
-    }
-  }
-
   private giveControlToSide(side: 'home' | 'away', time: number, preferGk = false): void {
     let taker: FieldPlayer | null = null;
     if (preferGk) {
@@ -487,7 +1003,7 @@ export class MatchScene extends Phaser.Scene {
 
     playFoul();
     playWhistle();
-    this.showPhaseOverlay('FALTA', '#ff4444');
+    this.showPhaseOverlay('FALTA', '#ff4444', 'Falta: el juego se reanuda en breve.');
 
     this.scheduleResume(FOUL_PAUSE_MS, true, () => {
       resetBallControl();
@@ -511,7 +1027,7 @@ export class MatchScene extends Phaser.Scene {
 
     playFoul();
     playWhistle();
-    this.showPhaseOverlay('PENAL', '#ffcc33');
+    this.showPhaseOverlay('PENAL', '#ffcc33', 'Penalti (stub): se reanuda el juego.');
 
     this.scheduleResume(PENALTY_STUB_PAUSE_MS, true, () => {
       this.penaltyPhase = 'stub_reset';
@@ -523,8 +1039,9 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private handleSetPiece(): void {
-    if (this.matchEnded || !canStartStoppage(this.phase)) return;
+    if (this.matchEnded || !canDetectOut(this.phase)) return;
     if (this.time.now < this.outDetectCooldownUntil) return;
+    if (this.activeSetPiece) return;
 
     const out = isBallOut(this.ball.x, this.ball.y);
     if (!out.out) return;
@@ -532,34 +1049,38 @@ export class MatchScene extends Phaser.Scene {
     if (!this.enterPhase('setPiece')) return;
 
     const resolution = resolveSetPiece(out);
+    const now = this.time.now;
+    const placed = softCorrectSetPieceBall(resolution.ballX, resolution.ballY);
+    resolution.ballX = placed.x;
+    resolution.ballY = placed.y;
+
+    resetBallControl();
+    this.ball.resetPosition(resolution.ballX, resolution.ballY);
+    this.ball.body.setVelocity(0, 0);
+
+    const taker = this.pickSetPieceTaker(resolution);
+    const targets = this.buildSetPieceTargets(resolution, taker);
+    this.enforceSetPieceSpacing(resolution.type, resolution.possessionSide);
+
+    const prepMs = getSetPiecePrepMs(resolution.type, this.formatId);
+    this.activeSetPiece = {
+      resolution,
+      stage: 'prep',
+      startedAt: now,
+      readyAt: now + prepMs,
+      autoTakeAt: now + prepMs + SET_PIECE_READY_AUTO_MS[resolution.type],
+      maxWaitAt: now + SET_PIECE_MAX_WAIT_MS + (this.formatId === '11v11' ? 800 : 0),
+      taker,
+      humanCanTake: false,
+      targets,
+    };
+
     playWhistle();
-    this.showPhaseOverlay(resolution.overlay);
-
-    this.scheduleResume(SET_PIECE_PAUSE_MS, true, () => {
-      resetBallControl();
-      this.ball.resetPosition(resolution.ballX, resolution.ballY);
-      this.pushRivalsFromBall(resolution.possessionSide, 65);
-
-      if (resolution.type === 'goalKick') {
-        this.giveControlToSide(resolution.possessionSide, this.time.now, true);
-      } else if (resolution.type === 'corner') {
-        const mates = this.getTeammates(resolution.possessionSide).filter(
-          (p) => p !== this.homeGk && p !== this.awayGk,
-        );
-        const taker = mates[0] ?? this.getTeammates(resolution.possessionSide)[0];
-        if (taker) {
-          const pos = clampPlayer(
-            resolution.ballX + resolution.impulseX * 0.35,
-            resolution.ballY + resolution.impulseY * 0.35,
-          );
-          taker.setPosition(pos.x, pos.y);
-          taker.stop();
-          transferBallControl(taker, this.time.now);
-        }
-      } else {
-        this.giveControlToSide(resolution.possessionSide, this.time.now);
-      }
-    });
+    this.showPhaseOverlay(
+      resolution.overlay,
+      '#ffffff',
+      setPieceHintText(resolution.type, 'prep'),
+    );
   }
 
   private softClampEntities(): void {
@@ -590,6 +1111,18 @@ export class MatchScene extends Phaser.Scene {
   update(time: number): void {
     if (this.matchEnded) return;
 
+    if (isSetPiece(this.phase)) {
+      this.updateSetPiece(time);
+      this.human.updateShadow();
+      this.homeGk.updateShadow();
+      this.awayGk.updateShadow();
+      for (const bot of [...this.homeBots, ...this.awayBots]) {
+        bot.updateShadow();
+      }
+      this.ball.setDepth(this.ball.y + 0.5);
+      return;
+    }
+
     if (!isPlaying(this.phase)) {
       this.freezeAll();
       return;
@@ -609,31 +1142,43 @@ export class MatchScene extends Phaser.Scene {
 
     if (!isPlaying(this.phase)) return;
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
 
-    updateTeamBots(
-      this.homeBots,
-      this.ball,
-      homeAnchors,
-      getFormation(this.homeFormationId),
-      'home',
-      time,
-      this.awayBots,
-      this.onKick,
-      (side, x, y, longPass) => this.handlePass(side, x, y, Boolean(longPass)),
-    );
-    updateTeamBots(
-      this.awayBots,
-      this.ball,
-      awayAnchors,
-      getFormation(this.awayFormationId),
-      'away',
-      time,
-      this.homeBots,
-      this.onKick,
-      (side, x, y, longPass) => this.handlePass(side, x, y, Boolean(longPass)),
-    );
+    const heavy = this.formatId === '11v11';
+    const homeDue = !heavy || this.homeAiThrottle % 2 === 0;
+    const awayDue = !heavy || this.awayAiThrottle % 2 === 1;
+    this.homeAiThrottle += 1;
+    this.awayAiThrottle += 1;
+
+    if (homeDue) {
+      updateTeamBots(
+        this.homeBots,
+        this.ball,
+        homeAnchors,
+        getFormation(this.homeFormationId),
+        'home',
+        time,
+        this.awayBots,
+        this.onKick,
+        (side, x, y, longPass) => this.handlePass(side, x, y, Boolean(longPass)),
+        { maxPressers: heavy ? 2 : 1, softSeparation: heavy },
+      );
+    }
+    if (awayDue) {
+      updateTeamBots(
+        this.awayBots,
+        this.ball,
+        awayAnchors,
+        getFormation(this.awayFormationId),
+        'away',
+        time,
+        this.homeBots,
+        this.onKick,
+        (side, x, y, longPass) => this.handlePass(side, x, y, Boolean(longPass)),
+        { maxPressers: heavy ? 2 : 1, softSeparation: heavy },
+      );
+    }
 
     updateGoalkeeper(this.homeGk, this.ball, time, this.onKick, this.awayBots);
     updateGoalkeeper(this.awayGk, this.ball, time, this.onKick, this.homeBots);
@@ -901,8 +1446,8 @@ export class MatchScene extends Phaser.Scene {
       resetAntiStuck(bot);
     }
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
     const playerOnHome = this.setup.playerSide === 'home';
 
     this.homeGk.resetTo(GOALKEEPER_HOME_X, GOAL_CENTER_Y);

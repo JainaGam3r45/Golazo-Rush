@@ -1,6 +1,8 @@
 import type { Team } from '../mock/teams';
 import type { FormationId } from './formations';
 import { CPU_DEFAULT_FORMATION, DEFAULT_FORMATION, isFormationId } from './formations';
+import type { MatchFormatId } from './formats';
+import { DEFAULT_MATCH_FORMAT, isMatchFormatId } from './formats';
 import { createLocalMatchId } from './session';
 
 export const ALLOWED_DURATIONS = [60, 120, 180] as const;
@@ -19,6 +21,7 @@ export type MatchSetup = {
   playerSide: 'home' | 'away';
   formationId: FormationId;
   opponentFormationId: FormationId;
+  formatId: MatchFormatId;
 };
 
 export type MatchSetupInput = {
@@ -28,6 +31,7 @@ export type MatchSetupInput = {
   playerSide?: 'home' | 'away';
   formationId?: FormationId;
   opponentFormationId?: FormationId;
+  formatId?: MatchFormatId;
 };
 
 export function validateDuration(seconds: unknown): MatchDuration {
@@ -86,6 +90,8 @@ export function buildMatchSetup(
     input.opponentFormationId && isFormationId(input.opponentFormationId)
       ? input.opponentFormationId
       : CPU_DEFAULT_FORMATION;
+  const formatId =
+    input.formatId && isMatchFormatId(input.formatId) ? input.formatId : DEFAULT_MATCH_FORMAT;
 
   return {
     localMatchId: withMatchId ? createLocalMatchId() : '',
@@ -97,6 +103,7 @@ export function buildMatchSetup(
     playerSide,
     formationId,
     opponentFormationId,
+    formatId,
   };
 }
 

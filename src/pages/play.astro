@@ -17,7 +17,7 @@ const initialClock = formatMatchClock(180);
   <section class="play-header">
     <h1 class="section-title">Partido</h1>
     <p class="play-header__hint">
-      Elige tu selección, configura el partido y usa WASD para moverte. Shift sprint, Espacio tiro (mantén para cargar), E pase corto, Q despeje, F entrada.
+      Elige tu selección, el formato (5v5 o 11v11) y la formación. WASD para moverte · Shift sprint · Espacio tiro · E pase · Q despeje · F entrada.
     </p>
     <p class="play-session" data-play-session hidden></p>
   </section>
@@ -30,7 +30,62 @@ const initialClock = formatMatchClock(180);
 
   <div id="match-stage" class="match-stage" hidden>
     <div class="match-hud" id="match-hud">
-      <p class="match-hud__mode" id="match-mode">Partido rápido vs CPU</p>
+      <div class="match-hud__top">
+        <p class="match-hud__mode" id="match-mode">5v5 vs CPU</p>
+        <p class="match-hud__stoppage" id="match-stoppage" data-stoppage>En juego</p>
+        <div class="match-hud__actions">
+          <button
+            type="button"
+            class="match-hud__icon-btn"
+            data-controls-toggle
+            aria-expanded="true"
+            aria-controls="match-controls-panel"
+            title="Controles"
+          >
+            <svg class="match-hud__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="8" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"></rect>
+              <circle cx="8" cy="13" r="1.25" fill="currentColor"></circle>
+              <circle cx="12" cy="11" r="1.25" fill="currentColor"></circle>
+              <circle cx="12" cy="15" r="1.25" fill="currentColor"></circle>
+              <circle cx="16" cy="13" r="1.25" fill="currentColor"></circle>
+            </svg>
+            <span class="match-hud__icon-label">Controles</span>
+          </button>
+          <button
+            type="button"
+            class="match-hud__icon-btn"
+            data-fullscreen
+            aria-label="Pantalla completa"
+            title="Pantalla completa"
+          >
+            <svg class="match-hud__icon" data-fullscreen-icon-enter viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
+            </svg>
+            <svg class="match-hud__icon" data-fullscreen-icon-exit hidden viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M3 8h5V3M16 3v5h5M3 16h5v5M16 21v-5h5"></path>
+            </svg>
+            <span class="match-hud__icon-label" data-fullscreen-label>Pantalla completa</span>
+          </button>
+          <button
+            type="button"
+            class="match-hud__icon-btn"
+            data-mute
+            aria-label="Silenciar sonido"
+            title="Silenciar"
+          >
+            <svg class="match-hud__icon" data-mute-icon-on viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M16 9.5a4 4 0 010 5M18.5 7a7 7 0 010 10"></path>
+            </svg>
+            <svg class="match-hud__icon" data-mute-icon-off hidden viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M17 10l4 4M21 10l-4 4"></path>
+            </svg>
+            <span class="match-hud__icon-label" data-mute-label>Silenciar</span>
+          </button>
+        </div>
+      </div>
+
       <div class="match-hud__scoreboard">
         <span class="match-hud__team-name" id="hud-home-name">Local</span>
         <span class="match-hud__score"><span id="score-home">0</span></span>
@@ -40,20 +95,28 @@ const initialClock = formatMatchClock(180);
         <span class="match-hud__score"><span id="score-away">0</span></span>
         <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
       </div>
-      <div class="match-hud__controls">
-        <p class="match-hud__controls-hint" data-controls-hint>
-          WASD mover · Shift sprint · Espacio tiro · E pase · Q despeje · F entrada
-        </p>
-        <button type="button" class="match-hud__btn" data-fullscreen aria-label="Pantalla completa">
-          Pantalla completa
-        </button>
-        <button type="button" class="match-hud__btn" data-mute aria-label="Silenciar sonido">
-          Silenciar
-        </button>
-        <p class="match-hud__hint" data-fullscreen-hint hidden>
-          Pantalla completa no disponible en este navegador.
+
+      <div
+        class="match-hud__controls-panel"
+        id="match-controls-panel"
+        data-controls-panel
+      >
+        <div class="match-hud__chips" data-controls-chips>
+          <span class="match-hud__chip"><kbd>WASD</kbd> mover</span>
+          <span class="match-hud__chip"><kbd>Shift</kbd> sprint</span>
+          <span class="match-hud__chip"><kbd>Espacio</kbd> tiro</span>
+          <span class="match-hud__chip"><kbd>E</kbd> pase</span>
+          <span class="match-hud__chip"><kbd>Q</kbd> despeje</span>
+          <span class="match-hud__chip"><kbd>F</kbd> entrada</span>
+        </div>
+        <p class="match-hud__context-hint" data-controls-hint>
+          En juego: controla tu jugador y busca el gol.
         </p>
       </div>
+
+      <p class="match-hud__hint" data-fullscreen-hint hidden>
+        Pantalla completa no disponible en este navegador.
+      </p>
     </div>
 
     <div id="game-container" class="game-container"></div>
@@ -68,9 +131,11 @@ const initialClock = formatMatchClock(180);
   import { isSoundMuted, setSoundMuted } from '../lib/storage/soundPreference';
   import {
     isFullscreenSupported,
+    isFullscreenActive,
     toggleFullscreen,
     wireFullscreenScaleRefresh,
   } from '../lib/match/fullscreen';
+  import { formatModeLabel } from '../lib/match/formats';
   import { insforge, isInsForgeConfigured } from '../lib/insforge';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
@@ -89,6 +154,8 @@ const initialClock = formatMatchClock(180);
   import { formatMatchClock } from '../lib/match/formatMatchClock';
   import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
 
+  const CONTROLS_PANEL_KEY = 'golazo:controls-panel-open';
+
   const playDataEl = document.getElementById('play-data');
   const teamNames = JSON.parse(playDataEl?.dataset.teamNames ?? '{}');
 
@@ -96,6 +163,7 @@ const initialClock = formatMatchClock(180);
   let submitInFlight = false;
   const submittedMatchIds = new Set();
   let matchEndedHandler = null;
+  let stoppageHandler = null;
   let currentUser = null;
   let stopInFlight = null;
   const playUnsubscribes = [];
@@ -108,6 +176,10 @@ const initialClock = formatMatchClock(180);
   const fullscreenBtn = document.querySelector('[data-fullscreen]');
   const muteBtn = document.querySelector('[data-mute]');
   const fullscreenHint = document.querySelector('[data-fullscreen-hint]');
+  const controlsToggle = document.querySelector('[data-controls-toggle]');
+  const controlsPanel = document.querySelector('[data-controls-panel]');
+  const stoppageEl = document.querySelector('[data-stoppage]');
+  const controlsHint = document.querySelector('[data-controls-hint]');
 
   function getTeamName(id) {
     return teamNames[id] ?? id;
@@ -123,11 +195,65 @@ const initialClock = formatMatchClock(180);
   function updateMuteButton(refreshVolume = false) {
     if (!muteBtn) return;
     const muted = isSoundMuted();
-    muteBtn.textContent = muted ? 'Sonido' : 'Silenciar';
-    muteBtn.setAttribute('aria-label', muted ? 'Activar sonido' : 'Silenciar sonido');
+    const label = muted ? 'Sonido' : 'Silenciar';
+    const aria = muted ? 'Activar sonido' : 'Silenciar sonido';
+    muteBtn.setAttribute('aria-label', aria);
+    muteBtn.setAttribute('title', label);
+    muteBtn.classList.toggle('match-hud__icon-btn--active', muted);
+
+    const onIcon = muteBtn.querySelector('[data-mute-icon-on]');
+    const offIcon = muteBtn.querySelector('[data-mute-icon-off]');
+    const labelEl = muteBtn.querySelector('[data-mute-label]');
+    if (onIcon) onIcon.hidden = muted;
+    if (offIcon) offIcon.hidden = !muted;
+    if (labelEl) labelEl.textContent = label;
+
     if (refreshVolume) {
       void import('../game/audio/matchAudio').then((mod) => mod.refreshAmbientVolume());
     }
+  }
+
+  function updateFullscreenButton() {
+    if (!fullscreenBtn) return;
+    const active = isFullscreenActive();
+    const label = active ? 'Salir' : 'Pantalla completa';
+    fullscreenBtn.setAttribute('aria-label', label);
+    fullscreenBtn.setAttribute('title', label);
+    fullscreenBtn.classList.toggle('match-hud__icon-btn--active', active);
+
+    const enterIcon = fullscreenBtn.querySelector('[data-fullscreen-icon-enter]');
+    const exitIcon = fullscreenBtn.querySelector('[data-fullscreen-icon-exit]');
+    const labelEl = fullscreenBtn.querySelector('[data-fullscreen-label]');
+    if (enterIcon) enterIcon.hidden = active;
+    if (exitIcon) exitIcon.hidden = !active;
+    if (labelEl) labelEl.textContent = label;
+  }
+
+  function readControlsPanelPref() {
+    try {
+      const stored = localStorage.getItem(CONTROLS_PANEL_KEY);
+      if (stored === null) return window.matchMedia('(min-width: 640px)').matches;
+      return stored === 'true';
+    } catch {
+      return true;
+    }
+  }
+
+  function setControlsPanelOpen(open) {
+    if (!controlsPanel || !controlsToggle) return;
+    controlsPanel.hidden = !open;
+    controlsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    controlsToggle.classList.toggle('match-hud__icon-btn--active', open);
+    try {
+      localStorage.setItem(CONTROLS_PANEL_KEY, open ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+  }
+
+  function setStoppageState(label, hint) {
+    if (stoppageEl) stoppageEl.textContent = label || 'En juego';
+    if (controlsHint && hint) controlsHint.textContent = hint;
   }
 
   async function stopActiveMatch() {
@@ -159,6 +285,7 @@ const initialClock = formatMatchClock(180);
     stopMatchAudio();
     disposeMatchAudio();
     unbindMatchEnded();
+    unbindStoppage();
     for (const unsub of playUnsubscribes.splice(0)) {
       unsub();
     }
@@ -179,10 +306,14 @@ const initialClock = formatMatchClock(180);
       if (!matchStage) return;
       try {
         await toggleFullscreen(matchStage);
+        updateFullscreenButton();
       } catch {
         if (fullscreenHint) fullscreenHint.hidden = false;
       }
     });
+
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
 
     muteBtn?.addEventListener('click', async () => {
       const { unlockMatchAudio } = await import('../game/audio/matchAudio');
@@ -191,7 +322,14 @@ const initialClock = formatMatchClock(180);
       updateMuteButton(true);
     });
 
+    controlsToggle?.addEventListener('click', () => {
+      const open = controlsToggle.getAttribute('aria-expanded') !== 'true';
+      setControlsPanelOpen(open);
+    });
+
+    setControlsPanelOpen(readControlsPanelPref());
     updateMuteButton();
+    updateFullscreenButton();
   }
 
   function showResultPanel(detail) {
@@ -296,9 +434,26 @@ const initialClock = formatMatchClock(180);
     }
   }
 
+  function bindStoppage() {
+    unbindStoppage();
+    stoppageHandler = (event) => {
+      const detail = event.detail ?? {};
+      setStoppageState(detail.label ?? 'En juego', detail.hint);
+    };
+    window.addEventListener('golazo:match-stoppage', stoppageHandler);
+  }
+
+  function unbindStoppage() {
+    if (stoppageHandler) {
+      window.removeEventListener('golazo:match-stoppage', stoppageHandler);
+      stoppageHandler = null;
+    }
+  }
+
   async function restartMatch() {
     await stopActiveMatch();
     unbindMatchEnded();
+    unbindStoppage();
     showPhase('preview');
   }
 
@@ -323,6 +478,13 @@ const initialClock = formatMatchClock(180);
         clockEl.textContent = formatMatchClock(setup.durationSeconds);
       }
 
+      const modeEl = document.getElementById('match-mode');
+      if (modeEl) {
+        modeEl.textContent = formatModeLabel(setup.formatId ?? '5v5');
+      }
+
+      setStoppageState('En juego', 'En juego: controla tu jugador y busca el gol.');
+
       const homeName = document.getElementById('hud-home-name');
       const awayName = document.getElementById('hud-away-name');
       if (homeName) homeName.textContent = getTeamName(setup.homeTeamId);
@@ -340,6 +502,7 @@ const initialClock = formatMatchClock(180);
       unlockMatchAudio();
       startGame('game-container', setup);
 
+      bindStoppage();
       bindMatchEnded((e) => {
         const detail = e.detail;
         submitMatchResult(detail);

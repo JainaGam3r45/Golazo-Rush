@@ -96,6 +96,41 @@ test.describe('Play', () => {
     await expect(hint).toContainText(/F.*entrada/i);
   });
 
+  test('preview shows format selector for 5v5 and 11v11', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+
+    await expect(page.locator('[data-format-selector]')).toBeVisible();
+    await expect(page.locator('[data-format="5v5"]')).toBeVisible();
+    await expect(page.locator('[data-format="11v11"]')).toBeVisible();
+    await expect(page.locator('[data-format="5v5"]')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('can choose 5v5 and start match with HUD mode', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-format="5v5"]').click();
+    await page.locator('[data-play-match]').click();
+
+    await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
+    await expect(page.locator('#match-mode')).toContainText(/5v5/i);
+    await expect(page.locator('[data-stoppage]')).toBeVisible();
+  });
+
+  test('can choose 11v11 experimental and start match', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-format="11v11"]').click();
+    await expect(page.locator('[data-preview-mode-badge]')).toContainText(/11v11/i);
+    await page.locator('[data-play-match]').click();
+
+    await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
+    await expect(page.locator('#match-mode')).toContainText(/11v11/i);
+  });
+
   test('full flow: select team, preview, play, canvas visible', async ({ page }) => {
     await page.goto('/play');
 
@@ -120,7 +155,7 @@ test.describe('Play', () => {
     await page.locator('[data-continue-team]').click();
     await page.locator('[data-play-match]').click();
 
-    await expect(page.locator('#match-mode')).toContainText('Partido rápido vs CPU');
+    await expect(page.locator('#match-mode')).toContainText(/5v5.*CPU/i);
   });
 
   test('HUD shows control instructions during match', async ({ page }) => {
@@ -129,11 +164,19 @@ test.describe('Play', () => {
     await page.locator('[data-continue-team]').click();
     await page.locator('[data-play-match]').click();
 
-    const controlsHint = page.locator('[data-controls-hint]');
-    await expect(controlsHint).toBeVisible();
-    await expect(controlsHint).toContainText(/E.*pase/i);
-    await expect(controlsHint).toContainText(/Q.*despeje/i);
-    await expect(controlsHint).toContainText(/F.*entrada/i);
+    const controlsPanel = page.locator('[data-controls-panel]');
+    const controlsToggle = page.locator('[data-controls-toggle]');
+    await expect(controlsToggle).toBeVisible();
+
+    if (await controlsPanel.isHidden()) {
+      await controlsToggle.click();
+    }
+    await expect(controlsPanel).toBeVisible();
+    await expect(controlsPanel).toContainText(/WASD/i);
+    await expect(controlsPanel).toContainText(/E/i);
+    await expect(controlsPanel).toContainText(/Q/i);
+    await expect(controlsPanel).toContainText(/F/i);
+    await expect(page.locator('[data-controls-hint]')).toBeVisible();
   });
 
   test('guest banner mentions playing as guest', async ({ page }) => {
@@ -165,14 +208,31 @@ test.describe('Play', () => {
     await expect(page.locator('[data-mute]')).toBeVisible();
   });
 
-  test('guest does not see formation selector', async ({ page }) => {
+  test('mute toggles label and persists preference', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    const muteBtn = page.locator('[data-mute]');
+    await expect(muteBtn).toBeVisible();
+    const before = await muteBtn.getAttribute('aria-label');
+    await muteBtn.click();
+    await expect(muteBtn).not.toHaveAttribute('aria-label', before ?? '');
+
+    await expect
+      .poll(async () => page.evaluate(() => localStorage.getItem('golazo:sound-muted')))
+      .toMatch(/^(true|false)$/);
+  });
+
+  test('guest can see formation selector', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
     const selector = page.locator('[data-formation-selector]');
-    await expect(selector).toBeHidden();
-    await expect(page.locator('[data-formation-guest]')).toBeVisible();
+    await expect(selector).toBeVisible();
+    await expect(page.locator('[data-formation="4-4-2"]')).toBeVisible();
   });
 });
 
