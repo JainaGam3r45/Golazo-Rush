@@ -1,33 +1,31 @@
----
+﻿---
 import type { Team } from '../lib/mock/teams';
-import { getTeamFlagEmoji } from '../lib/teams/flags';
+import { getTeamFlagAlt, getTeamFlagSrc } from '../lib/teams/flags';
 
 interface Props {
   teamId: string;
   team?: Team;
+  teamName?: string;
   size?: 'sm' | 'md' | 'lg';
 }
 
-const { teamId, team, size = 'md' } = Astro.props;
-const flagEmoji = getTeamFlagEmoji(teamId);
-const label = team?.name ?? teamId;
+const { teamId, team, teamName: teamNameProp, size = 'md' } = Astro.props;
+const teamName = teamNameProp ?? team?.name;
+const flagSrc = getTeamFlagSrc(teamId);
+const flagAlt = getTeamFlagAlt(teamId, teamName);
 ---
 
 <span
   class:list={['country-flag', `country-flag--${size}`]}
   data-team-id={teamId}
-  aria-label={label}
 >
-  {
-    team && (
-      <span
-        class:list={['country-flag__stripes', `country-flag__stripes--${team.flagStyle}`]}
-        aria-hidden="true"
-      >
-        <span class="country-flag__primary" style={`background: ${team.primary}`} />
-        <span class="country-flag__secondary" style={`background: ${team.secondary}`} />
-      </span>
-    )
-  }
-  <span class="country-flag__emoji" aria-hidden="true">{flagEmoji}</span>
+  <img
+    class="country-flag__img"
+    src={flagSrc}
+    alt={flagAlt}
+    width="40"
+    height="28"
+    loading="lazy"
+    decoding="async"
+  />
 </span>

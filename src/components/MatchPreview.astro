@@ -1,4 +1,4 @@
----
+﻿---
 import CountryFlag from './CountryFlag.astro';
 import type { Team } from '../lib/mock/teams';
 import { ALLOWED_DURATIONS } from '../lib/match/setup';
@@ -17,7 +17,7 @@ const teamsJson = JSON.stringify(teams);
   <div class="match-preview__teams">
     <div class="match-preview__team" data-preview-home>
       <CountryFlag teamId="brasil" team={teams.find((t) => t.id === 'brasil')} size="lg" />
-      <span class="match-preview__team-name" data-preview-home-name>—</span>
+      <span class="match-preview__team-name" data-preview-home-name>â€”</span>
       <span class="match-preview__side">Local</span>
     </div>
 
@@ -25,14 +25,14 @@ const teamsJson = JSON.stringify(teams);
 
     <div class="match-preview__team" data-preview-away>
       <CountryFlag teamId="argentina" team={teams.find((t) => t.id === 'argentina')} size="lg" />
-      <span class="match-preview__team-name" data-preview-away-name>—</span>
+      <span class="match-preview__team-name" data-preview-away-name>â€”</span>
       <span class="match-preview__side">Visitante</span>
     </div>
   </div>
 
   <div class="match-preview__duration">
-    <span class="match-preview__duration-label">Duración</span>
-    <div class="match-preview__duration-options" role="radiogroup" aria-label="Duración del partido">
+    <span class="match-preview__duration-label">DuraciÃ³n</span>
+    <div class="match-preview__duration-options" role="radiogroup" aria-label="DuraciÃ³n del partido">
       {
         ALLOWED_DURATIONS.map((seconds) => (
           <button
@@ -67,6 +67,7 @@ const teamsJson = JSON.stringify(teams);
     validateDuration,
     isValidOpponent,
   } from '../lib/match/setup';
+  import { updateCountryFlagElement } from '../lib/teams/flagDom';
 
   function wireMatchPreview() {
     const section = document.querySelector<HTMLElement>('[data-match-preview]');
@@ -92,27 +93,7 @@ const teamsJson = JSON.stringify(teams);
 
     function updateFlagEl(flagEl, team) {
       if (!flagEl || !team) return;
-      flagEl.dataset.teamId = team.id;
-      flagEl.setAttribute('aria-label', team.name);
-
-      const emoji = flagEl.querySelector('.country-flag__emoji');
-      if (emoji) {
-        const flags = {
-          brasil: '🇧🇷', japon: '🇯🇵', argentina: '🇦🇷', francia: '🇫🇷',
-          alemania: '🇩🇪', espana: '🇪🇸', mexico: '🇲🇽', uruguay: '🇺🇾',
-          inglaterra: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', portugal: '🇵🇹', colombia: '🇨🇴', marruecos: '🇲🇦',
-        };
-        emoji.textContent = flags[team.id] ?? '⚽';
-      }
-
-      const stripes = flagEl.querySelector('.country-flag__stripes');
-      if (stripes) {
-        stripes.className = `country-flag__stripes country-flag__stripes--${team.flagStyle}`;
-        const primary = stripes.querySelector('.country-flag__primary');
-        const secondary = stripes.querySelector('.country-flag__secondary');
-        if (primary) primary.style.background = team.primary;
-        if (secondary) secondary.style.background = team.secondary;
-      }
+      updateCountryFlagElement(flagEl, team.id, team.name);
     }
 
     function renderPreview() {
@@ -168,3 +149,4 @@ const teamsJson = JSON.stringify(teams);
 
   wireMatchPreview();
 </script>
+
