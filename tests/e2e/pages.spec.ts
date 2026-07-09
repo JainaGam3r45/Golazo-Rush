@@ -26,9 +26,9 @@ test.describe('Ranking', () => {
       await expect(page.getByText('Brasil')).toBeVisible();
       await expect(page.getByText('Argentina')).toBeVisible();
 
-      const flags = page.locator('.team-card .country-flag__img');
+      const flags = page.locator('.team-card .country-flag__svg use');
       expect(await flags.count()).toBeGreaterThanOrEqual(3);
-      await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
+      await expect(flags.first()).toHaveAttribute('href', /#flag-/);
     } else {
       await expect(emptyState).toBeVisible();
     }
@@ -43,12 +43,21 @@ test.describe('Play', () => {
     await expect(page.locator('#game-container canvas')).toHaveCount(0);
   });
 
-  test('team selector shows real flag images', async ({ page }) => {
+  test('team selector shows flag sprites', async ({ page }) => {
     await page.goto('/play');
 
     await expect(page.locator('[data-team-selector]')).toBeVisible();
-    const brFlag = page.locator('[data-team-selector] img[src*="/flags/br.svg"]');
+    const brFlag = page.locator('[data-team-selector] .country-flag__svg use[href="#flag-br"]');
     await expect(brFlag).toBeVisible();
+  });
+
+  test('control hints mention new keys', async ({ page }) => {
+    await page.goto('/play');
+
+    const hint = page.locator('.play-header__hint');
+    await expect(hint).toContainText(/E.*pase/i);
+    await expect(hint).toContainText(/Q.*despeje/i);
+    await expect(hint).toContainText(/F.*entrada/i);
   });
 
   test('full flow: select team, preview, play, canvas visible', async ({ page }) => {
@@ -75,6 +84,19 @@ test.describe('Play', () => {
     await page.locator('[data-play-match]').click();
 
     await expect(page.locator('#match-mode')).toContainText('Partido rápido vs CPU');
+  });
+
+  test('HUD shows control instructions during match', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    const controlsHint = page.locator('[data-controls-hint]');
+    await expect(controlsHint).toBeVisible();
+    await expect(controlsHint).toContainText(/E.*pase/i);
+    await expect(controlsHint).toContainText(/Q.*despeje/i);
+    await expect(controlsHint).toContainText(/F.*entrada/i);
   });
 
   test('guest banner mentions playing as guest', async ({ page }) => {
@@ -176,4 +198,3 @@ test.describe('Auth pages', () => {
     await expect(page.locator('[data-account-guest]').getByRole('link', { name: 'Crear cuenta' })).toBeVisible();
   });
 });
-
