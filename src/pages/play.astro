@@ -28,20 +28,33 @@ const initialClock = formatMatchClock(180);
   <MatchPreview teams={teams} />
   <MatchResultPanel />
 
-  <div class="match-hud" id="match-hud" hidden>
-    <p class="match-hud__mode" id="match-mode">Partido rápido vs CPU</p>
-    <div class="match-hud__scoreboard">
-      <span class="match-hud__team-name" id="hud-home-name">Local</span>
-      <span class="match-hud__score"><span id="score-home">0</span></span>
-      <span class="match-hud__divider" aria-hidden="true">-</span>
-      <span class="match-hud__clock" id="match-clock">{initialClock}</span>
-      <span class="match-hud__divider" aria-hidden="true">-</span>
-      <span class="match-hud__score"><span id="score-away">0</span></span>
-      <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
+  <div id="match-stage" class="match-stage" hidden>
+    <div class="match-hud" id="match-hud">
+      <p class="match-hud__mode" id="match-mode">Partido rápido vs CPU</p>
+      <div class="match-hud__scoreboard">
+        <span class="match-hud__team-name" id="hud-home-name">Local</span>
+        <span class="match-hud__score"><span id="score-home">0</span></span>
+        <span class="match-hud__divider" aria-hidden="true">·</span>
+        <span class="match-hud__clock" id="match-clock">{initialClock}</span>
+        <span class="match-hud__divider" aria-hidden="true">·</span>
+        <span class="match-hud__score"><span id="score-away">0</span></span>
+        <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
+      </div>
+      <div class="match-hud__controls">
+        <button type="button" class="match-hud__btn" data-fullscreen aria-label="Pantalla completa">
+          Pantalla completa
+        </button>
+        <button type="button" class="match-hud__btn" data-mute aria-label="Silenciar sonido">
+          Silenciar
+        </button>
+        <p class="match-hud__hint" data-fullscreen-hint hidden>
+          Pantalla completa no disponible en este navegador.
+        </p>
+      </div>
     </div>
-  </div>
 
-  <div id="game-container" class="game-container" hidden></div>
+    <div id="game-container" class="game-container"></div>
+  </div>
 
   <section class="play-lobby">
     <LobbyPanel compact />
@@ -50,6 +63,13 @@ const initialClock = formatMatchClock(180);
 
 <script>
   import { startGame, destroyGame } from '../game/main';
+  import { unlockMatchAudio, refreshAmbientVolume, stopMatchAudio } from '../game/audio/matchAudio';
+  import { isSoundMuted, setSoundMuted } from '../lib/storage/soundPreference';
+  import {
+    isFullscreenSupported,
+    toggleFullscreen,
+    wireFullscreenScaleRefresh,
+  } from '../lib/match/fullscreen';
   import { insforge, isInsForgeConfigured } from '../lib/insforge';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
@@ -80,8 +100,10 @@ const initialClock = formatMatchClock(180);
   const teamSelector = document.querySelector('[data-team-selector]');
   const matchPreview = document.querySelector('[data-match-preview]');
   const matchResult = document.querySelector('[data-match-result]');
-  const matchHud = document.getElementById('match-hud');
-  const gameContainer = document.getElementById('game-container');
+  const matchStage = document.getElementById('match-stage');
+  const fullscreenBtn = document.querySelector('[data-fullscreen]');
+  const muteBtn = document.querySelector('[data-mute]');
+  const fullscreenHint = document.querySelector('[data-fullscreen-hint]');
 
   function getTeamName(id) {
     return teamNames[id] ?? id;
@@ -91,8 +113,41 @@ const initialClock = formatMatchClock(180);
     if (teamSelector) teamSelector.hidden = phase !== 'select';
     if (matchPreview) matchPreview.hidden = phase !== 'preview';
     if (matchResult) matchResult.hidden = phase !== 'result';
-    if (matchHud) matchHud.hidden = phase !== 'playing';
-    if (gameContainer) gameContainer.hidden = phase !== 'playing';
+    if (matchStage) matchStage.hidden = phase !== 'playing';
+  }
+
+  function updateMuteButton() {
+    if (!muteBtn) return;
+    const muted = isSoundMuted();
+    muteBtn.textContent = muted ? 'Sonido' : 'Silenciar';
+    muteBtn.setAttribute('aria-label', muted ? 'Activar sonido' : 'Silenciar sonido');
+    refreshAmbientVolume();
+  }
+
+  function wireMatchControls() {
+    wireFullscreenScaleRefresh();
+
+    if (!isFullscreenSupported()) {
+      fullscreenBtn?.setAttribute('disabled', 'true');
+      if (fullscreenHint) fullscreenHint.hidden = false;
+    }
+
+    fullscreenBtn?.addEventListener('click', async () => {
+      if (!matchStage) return;
+      try {
+        await toggleFullscreen(matchStage);
+      } catch {
+        if (fullscreenHint) fullscreenHint.hidden = false;
+      }
+    });
+
+    muteBtn?.addEventListener('click', () => {
+      unlockMatchAudio();
+      setSoundMuted(!isSoundMuted());
+      updateMuteButton();
+    });
+
+    updateMuteButton();
   }
 
   function showResultPanel(detail) {
@@ -190,6 +245,7 @@ const initialClock = formatMatchClock(180);
 
   function restartMatch() {
     destroyGame();
+    stopMatchAudio();
     unbindMatchEnded();
     showPhase('preview');
   }
@@ -221,6 +277,7 @@ const initialClock = formatMatchClock(180);
       if (scoreHome) scoreHome.textContent = '0';
       if (scoreAway) scoreAway.textContent = '0';
 
+      unlockMatchAudio();
       startGame('game-container', setup);
 
       bindMatchEnded((e) => {
@@ -301,6 +358,7 @@ const initialClock = formatMatchClock(180);
     currentUser = getAuthState().user;
   }
 
+  wireMatchControls();
   wirePlaySession();
   initPlayFlow();
   wirePlayRealtime();

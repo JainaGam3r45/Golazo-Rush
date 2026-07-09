@@ -224,10 +224,39 @@
   width: 100%;
 }
 
-/* Match HUD */
-.match-hud {
+/* Match stage & HUD */
+.match-stage {
   max-width: 1100px;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto 1.5rem;
+}
+
+.match-stage[hidden] {
+  display: none !important;
+}
+
+.match-stage:fullscreen,
+.match-stage:-webkit-full-screen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.match-stage:fullscreen .game-container,
+.match-stage:-webkit-full-screen .game-container {
+  flex: 1;
+  max-width: none;
+  aspect-ratio: auto;
+  height: auto;
+}
+
+.match-hud {
+  margin: 0 0 0.75rem;
 }
 
 .match-hud[hidden] {
@@ -290,6 +319,50 @@
   letter-spacing: 0.06em;
   min-width: 3.5rem;
   text-align: center;
+}
+
+.match-hud__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.match-hud__btn {
+  padding: 0.375rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.match-hud__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.match-hud__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.match-hud__hint {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.match-hud__hint[hidden] {
+  display: none !important;
 }
 
 .game-container {

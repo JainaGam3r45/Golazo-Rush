@@ -3,6 +3,7 @@ import { Ball } from '../entities/Ball';
 import { HumanPlayer } from '../entities/HumanPlayer';
 import { BotPlayer } from '../entities/BotPlayer';
 import { Goalkeeper } from '../entities/Goalkeeper';
+import type { FieldPlayer } from '../entities/FieldPlayer';
 import type { MatchSetup } from '../../lib/match/setup';
 import type { MatchEndedDetail, MatchNeedsPenaltiesDetail } from '../../lib/realtime/types';
 import { getFormation, type FormationId } from '../../lib/match/formations';
@@ -26,8 +27,10 @@ import {
   PITCH_WIDTH,
 } from '../config/pitch';
 import { getFieldAnchors, getKickoffBallPosition } from '../config/spawnLayouts';
-import { updateTeamBots } from '../ai/botBrain';
+import { updateTeamBots, type KickCallback } from '../ai/botBrain';
 import { updateGoalkeeper } from '../ai/goalkeeperBrain';
+import { registerTouch, resetPossession } from '../ai/possession';
+import { playGoal, playKick, playWhistle } from '../audio/matchAudio';
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16);
@@ -90,6 +93,7 @@ export class MatchScene extends Phaser.Scene {
   private kickoffSide: 'home' | 'away' = 'home';
   private homeFormationId!: FormationId;
   private awayFormationId!: FormationId;
+  private vfxGraphics!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super('MatchScene');
@@ -103,6 +107,7 @@ export class MatchScene extends Phaser.Scene {
     this.goalCooldown = false;
     this.matchEnded = false;
     this.kickoffSide = 'home';
+    resetPossession();
 
     this.homeFormationId =
       this.setup.playerSide === 'home' ? this.setup.formationId : this.setup.opponentFormationId;
@@ -113,6 +118,7 @@ export class MatchScene extends Phaser.Scene {
   create(): void {
     this.drawPitch();
     this.drawGoals();
+    this.vfxGraphics = this.add.graphics().setDepth(5);
     this.spawnTeams();
 
     this.physics.world.setBounds(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
@@ -215,12 +221,29 @@ export class MatchScene extends Phaser.Scene {
     }
   }
 
+  private readonly onKick: KickCallback = (side, x, y) => {
+    this.handleKick(side, x, y);
+  };
+
+  private handleKick(side: 'home' | 'away', x: number, y: number): void {
+    registerTouch(side, this.time.now);
+    playKick();
+    this.spawnKickParticles(x, y);
+    this.ball.flashKick();
+  }
+
+  private tryPlayerKick(player: FieldPlayer, charged: boolean, time: number): void {
+    if (player.kickBall(this.ball, charged, time)) {
+      this.handleKick(player.side, player.x, player.y);
+    }
+  }
+
   update(time: number): void {
     if (this.matchEnded) return;
 
     const { kick, charged } = this.human.update(time);
     if (kick) {
-      this.human.kickBall(this.ball, charged, time);
+      this.tryPlayerKick(this.human, charged, time);
     }
 
     const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
@@ -233,6 +256,8 @@ export class MatchScene extends Phaser.Scene {
       getFormation(this.homeFormationId),
       'home',
       time,
+      this.awayBots,
+      this.onKick,
     );
     updateTeamBots(
       this.awayBots,
@@ -241,12 +266,75 @@ export class MatchScene extends Phaser.Scene {
       getFormation(this.awayFormationId),
       'away',
       time,
+      this.homeBots,
+      this.onKick,
     );
 
-    updateGoalkeeper(this.homeGk, this.ball, time);
-    updateGoalkeeper(this.awayGk, this.ball, time);
+    updateGoalkeeper(this.homeGk, this.ball, time, this.onKick);
+    updateGoalkeeper(this.awayGk, this.ball, time, this.onKick);
 
+    this.homeGk.updateShadow();
+    this.awayGk.updateShadow();
+    for (const bot of [...this.homeBots, ...this.awayBots]) {
+      bot.updateShadow();
+    }
+
+    this.ball.updateTrail();
     this.checkGoal();
+  }
+
+  private spawnKickParticles(x: number, y: number): void {
+    const count = 4;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const dist = 8 + Math.random() * 12;
+      const px = x + Math.cos(angle) * dist;
+      const py = y + Math.sin(angle) * dist;
+      const dot = this.add.circle(px, py, 3, 0xffffff, 0.7).setDepth(4);
+      this.tweens.add({
+        targets: dot,
+        alpha: 0,
+        scale: 0.2,
+        x: px + Math.cos(angle) * 16,
+        y: py + Math.sin(angle) * 16,
+        duration: 200,
+        onComplete: () => dot.destroy(),
+      });
+    }
+  }
+
+  private spawnGoalParticles(): void {
+    const count = 8;
+    const cx = PITCH_WIDTH / 2;
+    const cy = PITCH_HEIGHT / 2;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      const dist = 20 + Math.random() * 40;
+      const px = cx + Math.cos(angle) * dist;
+      const py = cy + Math.sin(angle) * dist;
+      const color = i % 2 === 0 ? 0x39ff14 : 0xffffff;
+      const dot = this.add.circle(px, py, 4, color, 0.85).setDepth(6);
+      this.tweens.add({
+        targets: dot,
+        alpha: 0,
+        y: py - 30 - Math.random() * 20,
+        scale: 1.5,
+        duration: 500 + Math.random() * 200,
+        onComplete: () => dot.destroy(),
+      });
+    }
+
+    this.vfxGraphics.fillStyle(0xffffff, 0.25);
+    this.vfxGraphics.fillRect(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
+    this.tweens.add({
+      targets: this.vfxGraphics,
+      alpha: 0,
+      duration: 180,
+      onComplete: () => {
+        this.vfxGraphics.clear();
+        this.vfxGraphics.setAlpha(1);
+      },
+    });
   }
 
   private endMatch(): void {
@@ -254,6 +342,7 @@ export class MatchScene extends Phaser.Scene {
     this.matchEnded = true;
     this.clockTimer?.remove();
     this.freezeAll();
+    playWhistle();
 
     const durationSeconds = Math.round((this.time.now - this.matchStartedAt) / 1000);
     const isTie = this.homeScore === this.awayScore;
@@ -290,9 +379,14 @@ export class MatchScene extends Phaser.Scene {
 
   private drawPitch(): void {
     const graphics = this.add.graphics();
+    const stripeWidth = 80;
+    const colors = [0x1a5c1a, 0x1e6b1e];
 
-    graphics.fillStyle(0x1a5c1a, 1);
-    graphics.fillRect(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
+    for (let x = 0; x < PITCH_WIDTH; x += stripeWidth) {
+      const stripeIdx = Math.floor(x / stripeWidth) % 2;
+      graphics.fillStyle(colors[stripeIdx], 1);
+      graphics.fillRect(x, 0, stripeWidth, PITCH_HEIGHT);
+    }
 
     graphics.lineStyle(3, 0xffffff, 0.9);
     graphics.strokeRect(
@@ -302,6 +396,9 @@ export class MatchScene extends Phaser.Scene {
       PITCH_HEIGHT - PITCH_MARGIN * 2,
     );
     graphics.strokeCircle(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, CENTER_CIRCLE_RADIUS);
+    graphics.fillStyle(0xffffff, 0.9);
+    graphics.fillCircle(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, 4);
+
     graphics.beginPath();
     graphics.moveTo(PITCH_WIDTH / 2, PITCH_MARGIN);
     graphics.lineTo(PITCH_WIDTH / 2, PITCH_HEIGHT - PITCH_MARGIN);
@@ -320,25 +417,41 @@ export class MatchScene extends Phaser.Scene {
     const homeColor = getTeamColor(this.setup.homeTeamId);
     const awayColor = getTeamColor(this.setup.awayTeamId);
 
-    const leftGoal = this.add.rectangle(
-      GOAL_DEPTH / 2,
-      GOAL_CENTER_Y,
-      GOAL_DEPTH,
-      GOAL_HEIGHT,
-      homeColor,
-      0.35,
-    );
-    leftGoal.setStrokeStyle(2, homeColor, 0.8);
+    this.drawGoalStructure(0, homeColor);
+    this.drawGoalStructure(PITCH_WIDTH - GOAL_DEPTH, awayColor, true);
+  }
 
-    const rightGoal = this.add.rectangle(
-      PITCH_WIDTH - GOAL_DEPTH / 2,
+  private drawGoalStructure(x: number, color: number, mirror = false): void {
+    const net = this.add.graphics();
+    net.lineStyle(1, 0xffffff, 0.35);
+
+    const postX = mirror ? x + GOAL_DEPTH : x;
+    const innerX = mirror ? x : x + GOAL_DEPTH;
+
+    net.lineBetween(postX, GOAL_TOP, postX, GOAL_BOTTOM);
+    net.lineBetween(postX, GOAL_TOP, innerX, GOAL_TOP);
+    net.lineBetween(postX, GOAL_BOTTOM, innerX, GOAL_BOTTOM);
+
+    const step = 14;
+    for (let ny = GOAL_TOP; ny <= GOAL_BOTTOM; ny += step) {
+      net.lineBetween(postX, ny, innerX, ny + (mirror ? -step / 2 : step / 2));
+    }
+    for (let nx = postX; mirror ? nx >= innerX : nx <= innerX; nx += (mirror ? -1 : 1) * step) {
+      const t = Math.abs(nx - postX) / GOAL_DEPTH;
+      const yTop = GOAL_TOP + t * 8;
+      const yBot = GOAL_BOTTOM - t * 8;
+      net.lineBetween(nx, yTop, nx + (mirror ? -step : step), yBot);
+    }
+
+    const goalRect = this.add.rectangle(
+      x + GOAL_DEPTH / 2,
       GOAL_CENTER_Y,
       GOAL_DEPTH,
       GOAL_HEIGHT,
-      awayColor,
-      0.35,
+      color,
+      0.2,
     );
-    rightGoal.setStrokeStyle(2, awayColor, 0.8);
+    goalRect.setStrokeStyle(2, color, 0.7);
   }
 
   private checkGoal(): void {
@@ -365,6 +478,9 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private celebrateGoal(): void {
+    playGoal();
+    this.spawnGoalParticles();
+
     const text = this.add
       .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 - 40, '¡GOL!', {
         fontFamily: 'Bebas Neue, sans-serif',
@@ -375,7 +491,8 @@ export class MatchScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setAlpha(0)
-      .setScale(0.5);
+      .setScale(0.5)
+      .setDepth(7);
 
     this.tweens.add({
       targets: text,
@@ -401,6 +518,7 @@ export class MatchScene extends Phaser.Scene {
   private resetAfterGoal(): void {
     this.goalCooldown = true;
     this.freezeAll();
+    resetPossession();
 
     const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
     const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');

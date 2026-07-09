@@ -6,6 +6,7 @@ const SPRINT_MULTIPLIER = 1.5;
 const SPRINT_COOLDOWN_MS = 2000;
 const SPRINT_DURATION_MS = 800;
 const CHARGE_TIME_MS = 400;
+const ACCENT_COLOR = 0x39ff14;
 
 export class HumanPlayer extends FieldPlayer {
   private keys!: {
@@ -22,6 +23,10 @@ export class HumanPlayer extends FieldPlayer {
   private chargingKick = false;
   private chargeStartedAt = 0;
   private youLabel: Phaser.GameObjects.Text | null = null;
+  private accentRing: Phaser.GameObjects.Arc;
+  private chargeRing: Phaser.GameObjects.Arc;
+  private sprintLines: Phaser.GameObjects.Graphics;
+  private lastMoveDir = { x: 0, y: -1 };
 
   constructor(
     scene: Phaser.Scene,
@@ -37,7 +42,19 @@ export class HumanPlayer extends FieldPlayer {
       kind: 'human',
       slot,
       maxSpeed: PLAYER_SPEED,
+      strokeColor: ACCENT_COLOR,
     });
+
+    this.accentRing = scene.add.circle(x, y, 20, ACCENT_COLOR, 0);
+    this.accentRing.setStrokeStyle(2, ACCENT_COLOR, 0.85);
+    this.accentRing.setDepth(0);
+
+    this.chargeRing = scene.add.circle(x, y, 18, ACCENT_COLOR, 0);
+    this.chargeRing.setStrokeStyle(2, ACCENT_COLOR, 0);
+    this.chargeRing.setDepth(3);
+
+    this.sprintLines = scene.add.graphics();
+    this.sprintLines.setDepth(0);
 
     const keyboard = scene.input.keyboard;
     if (keyboard) {
@@ -52,20 +69,56 @@ export class HumanPlayer extends FieldPlayer {
     }
 
     this.youLabel = scene.add
-      .text(x, y - 22, 'Tú', {
+      .text(x, y - 28, 'Tú', {
         fontFamily: 'Bebas Neue, sans-serif',
-        fontSize: '14px',
-        color: '#ffffff',
+        fontSize: '20px',
+        color: '#39ff14',
         stroke: '#0a0f0a',
-        strokeThickness: 3,
+        strokeThickness: 4,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(4);
   }
 
   override resetTo(x: number, y: number): void {
     super.resetTo(x, y);
+    this.updateDecorations(0, false, 0);
+  }
+
+  private updateDecorations(time: number, charging: boolean, chargeProgress: number): void {
+    this.accentRing.setPosition(this.x, this.y);
+    this.chargeRing.setPosition(this.x, this.y);
+
+    if (charging && chargeProgress > 0) {
+      const scale = 1 + chargeProgress * 0.5;
+      this.chargeRing.setScale(scale);
+      this.chargeRing.setStrokeStyle(2, ACCENT_COLOR, 0.4 + chargeProgress * 0.5);
+    } else {
+      this.chargeRing.setScale(1);
+      this.chargeRing.setStrokeStyle(2, ACCENT_COLOR, 0);
+    }
+
     if (this.youLabel) {
-      this.youLabel.setPosition(x, y - 22);
+      this.youLabel.setPosition(this.x, this.y - 28);
+    }
+
+    this.sprintLines.clear();
+    if (this.sprinting) {
+      const backX = this.x - this.lastMoveDir.x * 16;
+      const backY = this.y - this.lastMoveDir.y * 16;
+      const perpX = -this.lastMoveDir.y;
+      const perpY = this.lastMoveDir.x;
+
+      this.sprintLines.lineStyle(2, ACCENT_COLOR, 0.5);
+      this.sprintLines.beginPath();
+      this.sprintLines.moveTo(backX + perpX * 4, backY + perpY * 4);
+      this.sprintLines.lineTo(backX - this.lastMoveDir.x * 10, backY - this.lastMoveDir.y * 10);
+      this.sprintLines.strokePath();
+
+      this.sprintLines.beginPath();
+      this.sprintLines.moveTo(backX - perpX * 4, backY - perpY * 4);
+      this.sprintLines.lineTo(backX - this.lastMoveDir.x * 10, backY - this.lastMoveDir.y * 10);
+      this.sprintLines.strokePath();
     }
   }
 
@@ -79,6 +132,11 @@ export class HumanPlayer extends FieldPlayer {
     if (this.keys?.S.isDown) vy += PLAYER_SPEED;
 
     const moving = vx !== 0 || vy !== 0;
+    if (moving) {
+      const len = Math.sqrt(vx * vx + vy * vy) || 1;
+      this.lastMoveDir = { x: vx / len, y: vy / len };
+    }
+
     const canSprint = time >= this.sprintCooldownUntil;
 
     if (this.keys?.SHIFT.isDown && moving && canSprint && !this.sprinting) {
@@ -92,16 +150,17 @@ export class HumanPlayer extends FieldPlayer {
     const speedMult = this.sprinting ? SPRINT_MULTIPLIER : 1;
     this.setMovement(vx * speedMult, vy * speedMult);
 
-    if (this.youLabel) {
-      this.youLabel.setPosition(this.x, this.y - 22);
-    }
-
     let kick = false;
     let charged = false;
+    let chargeProgress = 0;
 
     if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
       this.chargingKick = true;
       this.chargeStartedAt = time;
+    }
+
+    if (this.chargingKick && this.keys?.SPACE.isDown) {
+      chargeProgress = Math.min(1, (time - this.chargeStartedAt) / CHARGE_TIME_MS);
     }
 
     if (this.chargingKick && this.keys?.SPACE.isUp) {
@@ -111,12 +170,17 @@ export class HumanPlayer extends FieldPlayer {
       this.chargingKick = false;
     }
 
+    this.updateDecorations(time, this.chargingKick, chargeProgress);
+
     return { kick, charged };
   }
 
   destroy(fromScene?: boolean): void {
     this.youLabel?.destroy();
     this.youLabel = null;
+    this.accentRing.destroy();
+    this.chargeRing.destroy();
+    this.sprintLines.destroy();
     super.destroy(fromScene);
   }
 }

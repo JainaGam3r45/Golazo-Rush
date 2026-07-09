@@ -36,3 +36,8 @@ export function destroyGame(): void {
 export function isGameRunning(): boolean {
   return game !== null;
 }
+
+export function refreshGameScale(): void {
+  if (!game) return;
+  game.scale.refresh();
+}

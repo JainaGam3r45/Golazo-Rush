@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FieldPlayer } from './FieldPlayer';
+import { GK_KICK_COOLDOWN_MS } from './FieldPlayer';
 import {
   GOALKEEPER_HOME_X,
   GOALKEEPER_AWAY_X,
@@ -31,9 +32,11 @@ export class Goalkeeper extends FieldPlayer {
       width: GK_SIZE,
       height: GK_SIZE,
       strokeAlpha: 0.85,
+      kickCooldownMs: GK_KICK_COOLDOWN_MS,
     });
     this.homeX = side === 'home' ? GOALKEEPER_HOME_X : GOALKEEPER_AWAY_X;
     this.setDepth(2);
+    this.shadow.setScale(1.15, 1.1);
   }
 
   private static darkenColor(color: number): number {

@@ -96,6 +96,16 @@ test.describe('Play', () => {
     await expect(clock).toHaveText(/^\d+:\d{2}$/);
   });
 
+  test('match HUD shows fullscreen and mute controls', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    await expect(page.locator('[data-fullscreen]')).toBeVisible();
+    await expect(page.locator('[data-mute]')).toBeVisible();
+  });
+
   test('guest does not see formation selector', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
