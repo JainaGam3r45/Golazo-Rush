@@ -17,7 +17,7 @@ const teamsJson = JSON.stringify(teams);
   <div class="match-preview__teams">
     <div class="match-preview__team" data-preview-home>
       <CountryFlag teamId="brasil" team={teams.find((t) => t.id === 'brasil')} size="lg" />
-      <span class="match-preview__team-name" data-preview-home-name>â€”</span>
+      <span class="match-preview__team-name" data-preview-home-name>&mdash;</span>
       <span class="match-preview__side">Local</span>
     </div>
 
@@ -25,14 +25,14 @@ const teamsJson = JSON.stringify(teams);
 
     <div class="match-preview__team" data-preview-away>
       <CountryFlag teamId="argentina" team={teams.find((t) => t.id === 'argentina')} size="lg" />
-      <span class="match-preview__team-name" data-preview-away-name>â€”</span>
+      <span class="match-preview__team-name" data-preview-away-name>&mdash;</span>
       <span class="match-preview__side">Visitante</span>
     </div>
   </div>
 
   <div class="match-preview__duration">
-    <span class="match-preview__duration-label">DuraciÃ³n</span>
-    <div class="match-preview__duration-options" role="radiogroup" aria-label="DuraciÃ³n del partido">
+    <span class="match-preview__duration-label">Duración</span>
+    <div class="match-preview__duration-options" role="radiogroup" aria-label="Duración del partido">
       {
         ALLOWED_DURATIONS.map((seconds) => (
           <button

@@ -11,7 +11,7 @@ const teams = await getTeams();
 const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
 ---
 
-<Layout title="Golazo Rush â€” Jugar">
+<Layout title="Golazo Rush — Jugar">
   <section class="play-header">
     <h1 class="section-title">Partido</h1>
     <p class="play-header__hint">
@@ -33,7 +33,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         <span class="match-hud__score"><span id="score-home">0</span></span>
       </div>
       <span class="match-hud__clock" id="match-clock">3:00</span>
-      <span class="match-hud__divider">â€”</span>
+      <span class="match-hud__divider" aria-hidden="true">&mdash;</span>
       <div class="match-hud__team">
         <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
         <span class="match-hud__score"><span id="score-away">0</span></span>
