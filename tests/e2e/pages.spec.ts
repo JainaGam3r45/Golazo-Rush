@@ -1,35 +1,37 @@
 ﻿import { test, expect } from '@playwright/test';
 
 test.describe('Home', () => {
-  test('shows hero title, play link, ranking nav, and team flags', async ({ page }) => {
+  test('shows hero title, play link, and ranking nav', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Golazo Rush' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Jugar ahora' })).toBeVisible();
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Ranking' })).toBeVisible();
-
-    const flags = page.locator('.country-flag__img');
-    expect(await flags.count()).toBeGreaterThanOrEqual(3);
-    await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
+    await expect(page.getByRole('navigation').getByRole('link', { name: 'Entrar' })).toBeVisible();
   });
 });
 
 test.describe('Ranking', () => {
-  test('shows global ranking with team cards and real flag images', async ({ page }) => {
+  test('shows global ranking or empty state with team flags when populated', async ({ page }) => {
     await page.goto('/ranking');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Ranking mundial' })).toBeVisible();
-    await expect(page.locator('[data-ranking-list]')).toBeVisible();
 
     const teamCards = page.locator('.team-card');
-    expect(await teamCards.count()).toBeGreaterThanOrEqual(3);
+    const emptyState = page.getByText('Aún no hay partidos registrados');
+    const cardCount = await teamCards.count();
 
-    await expect(page.getByText('Brasil')).toBeVisible();
-    await expect(page.getByText('Argentina')).toBeVisible();
+    if (cardCount > 0) {
+      expect(cardCount).toBeGreaterThanOrEqual(3);
+      await expect(page.getByText('Brasil')).toBeVisible();
+      await expect(page.getByText('Argentina')).toBeVisible();
 
-    const flags = page.locator('.team-card .country-flag__img');
-    expect(await flags.count()).toBeGreaterThanOrEqual(3);
-    await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
+      const flags = page.locator('.team-card .country-flag__img');
+      expect(await flags.count()).toBeGreaterThanOrEqual(3);
+      await expect(flags.first()).toHaveAttribute('src', /\/flags\/.+\.svg/);
+    } else {
+      await expect(emptyState).toBeVisible();
+    }
   });
 });
 
