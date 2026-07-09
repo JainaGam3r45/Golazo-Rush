@@ -1,7 +1,7 @@
 {
   "name": "golazo-rush",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "JainaGam3r45",
     "url": "https://github.com/JainaGam3r45"
@@ -11,9 +11,10 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "pnpm generate:flags && astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "generate:flags": "node scripts/generate-flag-sprite.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
@@ -24,6 +25,8 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "flag-icons": "^7.5.0",
+    "svgo": "^3.3.2"
   }
 }
