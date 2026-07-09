@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { MatchScene } from '../scenes/MatchScene';
 import type { MatchSetup } from '../../lib/match/setup';
+import { PITCH_HEIGHT, PITCH_WIDTH } from './pitch';
 
 export function createGameConfig(parent: string, setup: MatchSetup): Phaser.Types.Core.GameConfig {
   return {
     type: Phaser.AUTO,
-    width: 800,
-    height: 500,
+    width: PITCH_WIDTH,
+    height: PITCH_HEIGHT,
     parent,
     backgroundColor: '#1a5c1a',
     scale: {

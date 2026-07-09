@@ -9,9 +9,9 @@ export class Ball extends Phaser.GameObjects.Arc {
     scene.physics.add.existing(this);
 
     this.body.setCircle(12);
-    this.body.setBounce(0.92, 0.88);
+    this.body.setBounce(0.85, 0.8);
     this.body.setCollideWorldBounds(true);
-    this.body.setDrag(100);
+    this.body.setDrag(160);
     this.body.setMaxVelocity(650, 650);
   }
 
@@ -19,12 +19,12 @@ export class Ball extends Phaser.GameObjects.Arc {
     const dx = this.x - playerX;
     const dy = this.y - playerY;
     const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = dx / distance;
+    const ny = dy / distance;
     const multiplier = charged ? 1.15 : 1;
 
-    this.body.setVelocity(
-      (dx / distance) * force * multiplier,
-      (dy / distance) * force * multiplier,
-    );
+    this.setPosition(playerX + nx * 20, playerY + ny * 20);
+    this.body.setVelocity(nx * force * multiplier, ny * force * multiplier);
 
     if (charged) {
       this.scene.tweens.add({

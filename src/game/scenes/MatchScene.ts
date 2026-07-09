@@ -1,16 +1,33 @@
 import Phaser from 'phaser';
-import { Player } from '../entities/Player';
 import { Ball } from '../entities/Ball';
+import { HumanPlayer } from '../entities/HumanPlayer';
+import { BotPlayer } from '../entities/BotPlayer';
+import { Goalkeeper } from '../entities/Goalkeeper';
 import type { MatchSetup } from '../../lib/match/setup';
 import type { MatchEndedDetail, MatchNeedsPenaltiesDetail } from '../../lib/realtime/types';
+import { getFormation, type FormationId } from '../../lib/match/formations';
+import { formatMatchClock } from '../../lib/match/formatMatchClock';
 import { teams as mockTeams } from '../../lib/mock/teams';
-
-const PITCH_WIDTH = 800;
-const PITCH_HEIGHT = 500;
-const GOAL_TOP = 190;
-const GOAL_BOTTOM = 310;
-const GOAL_DEPTH = 18;
-const GOAL_RESET_PAUSE_MS = 1200;
+import {
+  CENTER_CIRCLE_RADIUS,
+  GOAL_BOTTOM,
+  GOAL_CENTER_Y,
+  GOAL_DEPTH,
+  GOAL_HEIGHT,
+  GOAL_RESET_PAUSE_MS,
+  GOAL_TOP,
+  GOALKEEPER_AWAY_X,
+  GOALKEEPER_HOME_X,
+  PENALTY_BOX_HEIGHT,
+  PENALTY_BOX_TOP,
+  PENALTY_BOX_WIDTH,
+  PITCH_HEIGHT,
+  PITCH_MARGIN,
+  PITCH_WIDTH,
+} from '../config/pitch';
+import { getFieldAnchors, getKickoffBallPosition } from '../config/spawnLayouts';
+import { updateTeamBots } from '../ai/botBrain';
+import { updateGoalkeeper } from '../ai/goalkeeperBrain';
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16);
@@ -35,9 +52,7 @@ function updateScoreOverlay(home: number, away: number): void {
 function updateMatchClock(secondsLeft: number): void {
   const clockEl = document.getElementById('match-clock');
   if (!clockEl) return;
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-  clockEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+  clockEl.textContent = formatMatchClock(secondsLeft);
 }
 
 function updateTeamLabels(homeTeamId: string, awayTeamId: string): void {
@@ -59,7 +74,11 @@ function emitMatchNeedsPenalties(detail: MatchNeedsPenaltiesDetail): void {
 
 export class MatchScene extends Phaser.Scene {
   private setup!: MatchSetup;
-  private player!: Player;
+  private human!: HumanPlayer;
+  private homeBots: BotPlayer[] = [];
+  private awayBots: BotPlayer[] = [];
+  private homeGk!: Goalkeeper;
+  private awayGk!: Goalkeeper;
   private ball!: Ball;
   private homeScore = 0;
   private awayScore = 0;
@@ -68,6 +87,9 @@ export class MatchScene extends Phaser.Scene {
   private matchStartedAt = 0;
   private matchDurationMs = 180_000;
   private clockTimer: Phaser.Time.TimerEvent | null = null;
+  private kickoffSide: 'home' | 'away' = 'home';
+  private homeFormationId!: FormationId;
+  private awayFormationId!: FormationId;
 
   constructor() {
     super('MatchScene');
@@ -80,17 +102,18 @@ export class MatchScene extends Phaser.Scene {
     this.awayScore = 0;
     this.goalCooldown = false;
     this.matchEnded = false;
+    this.kickoffSide = 'home';
+
+    this.homeFormationId =
+      this.setup.playerSide === 'home' ? this.setup.formationId : this.setup.opponentFormationId;
+    this.awayFormationId =
+      this.setup.playerSide === 'away' ? this.setup.formationId : this.setup.opponentFormationId;
   }
 
   create(): void {
     this.drawPitch();
     this.drawGoals();
-
-    const playerColor = getTeamColor(this.setup.playerTeamId);
-    this.player = new Player(this, PITCH_WIDTH / 2, PITCH_HEIGHT / 2, playerColor);
-    this.ball = new Ball(this, PITCH_WIDTH / 2 + 60, PITCH_HEIGHT / 2);
-
-    this.physics.add.collider(this.player, this.ball);
+    this.spawnTeams();
 
     this.physics.world.setBounds(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
     this.matchStartedAt = this.time.now;
@@ -118,22 +141,110 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
+  private spawnTeams(): void {
+    const homeColor = getTeamColor(this.setup.homeTeamId);
+    const awayColor = getTeamColor(this.setup.awayTeamId);
+    const playerOnHome = this.setup.playerSide === 'home';
+
+    const kickoff = getKickoffBallPosition(this.kickoffSide);
+    this.ball = new Ball(this, kickoff.x, kickoff.y);
+
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+
+    this.homeGk = new Goalkeeper(
+      this,
+      GOALKEEPER_HOME_X,
+      GOAL_CENTER_Y,
+      homeColor,
+      'home',
+      playerOnHome ? 'teammate' : 'opponent',
+    );
+    this.awayGk = new Goalkeeper(
+      this,
+      GOALKEEPER_AWAY_X,
+      GOAL_CENTER_Y,
+      awayColor,
+      'away',
+      playerOnHome ? 'opponent' : 'teammate',
+    );
+    this.physics.add.collider(this.homeGk, this.ball);
+    this.physics.add.collider(this.awayGk, this.ball);
+
+    this.homeBots = [];
+    this.awayBots = [];
+
+    for (let i = 0; i < homeAnchors.length; i++) {
+      const anchor = homeAnchors[i];
+      if (playerOnHome && i === 0) {
+        this.human = new HumanPlayer(this, anchor.x, anchor.y, homeColor, 'home', anchor.slot);
+        this.physics.add.collider(this.human, this.ball);
+        continue;
+      }
+      const bot = new BotPlayer(
+        this,
+        anchor.x,
+        anchor.y,
+        homeColor,
+        'home',
+        anchor.slot,
+        playerOnHome ? 'teammate' : 'opponent',
+      );
+      this.homeBots.push(bot);
+      this.physics.add.collider(bot, this.ball);
+    }
+
+    for (let i = 0; i < awayAnchors.length; i++) {
+      const anchor = awayAnchors[i];
+      if (!playerOnHome && i === 0) {
+        this.human = new HumanPlayer(this, anchor.x, anchor.y, awayColor, 'away', anchor.slot);
+        this.physics.add.collider(this.human, this.ball);
+        continue;
+      }
+      const bot = new BotPlayer(
+        this,
+        anchor.x,
+        anchor.y,
+        awayColor,
+        'away',
+        anchor.slot,
+        playerOnHome ? 'opponent' : 'teammate',
+      );
+      this.awayBots.push(bot);
+      this.physics.add.collider(bot, this.ball);
+    }
+  }
+
   update(time: number): void {
     if (this.matchEnded) return;
 
-    const { kick, charged } = this.player.update(time);
-
-    if (
-      kick &&
-      this.player.distanceTo(this.ball.x, this.ball.y) <= this.player.kickRange
-    ) {
-      this.ball.kickFrom(
-        this.player.x,
-        this.player.y,
-        this.player.getKickForce(charged),
-        charged,
-      );
+    const { kick, charged } = this.human.update(time);
+    if (kick) {
+      this.human.kickBall(this.ball, charged, time);
     }
+
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+
+    updateTeamBots(
+      this.homeBots,
+      this.ball,
+      homeAnchors,
+      getFormation(this.homeFormationId),
+      'home',
+      time,
+    );
+    updateTeamBots(
+      this.awayBots,
+      this.ball,
+      awayAnchors,
+      getFormation(this.awayFormationId),
+      'away',
+      time,
+    );
+
+    updateGoalkeeper(this.homeGk, this.ball, time);
+    updateGoalkeeper(this.awayGk, this.ball, time);
 
     this.checkGoal();
   }
@@ -142,22 +253,20 @@ export class MatchScene extends Phaser.Scene {
     if (this.matchEnded) return;
     this.matchEnded = true;
     this.clockTimer?.remove();
-    this.player.body.setVelocity(0, 0);
-    this.ball.body.setVelocity(0, 0);
+    this.freezeAll();
 
     const durationSeconds = Math.round((this.time.now - this.matchStartedAt) / 1000);
     const isTie = this.homeScore === this.awayScore;
 
     if (isTie) {
-      const penaltyDetail: MatchNeedsPenaltiesDetail = {
+      emitMatchNeedsPenalties({
         localMatchId: this.setup.localMatchId,
         homeTeamId: this.setup.homeTeamId,
         awayTeamId: this.setup.awayTeamId,
         homeScore: this.homeScore,
         awayScore: this.awayScore,
         durationSeconds,
-      };
-      emitMatchNeedsPenalties(penaltyDetail);
+      });
     }
 
     emitMatchEnded({
@@ -171,6 +280,14 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
+  private freezeAll(): void {
+    this.human.stop();
+    this.ball.body.setVelocity(0, 0);
+    for (const bot of [...this.homeBots, ...this.awayBots]) bot.stop();
+    this.homeGk.stop();
+    this.awayGk.stop();
+  }
+
   private drawPitch(): void {
     const graphics = this.add.graphics();
 
@@ -178,15 +295,25 @@ export class MatchScene extends Phaser.Scene {
     graphics.fillRect(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
 
     graphics.lineStyle(3, 0xffffff, 0.9);
-    graphics.strokeRect(20, 20, PITCH_WIDTH - 40, PITCH_HEIGHT - 40);
-    graphics.strokeCircle(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, 60);
+    graphics.strokeRect(
+      PITCH_MARGIN,
+      PITCH_MARGIN,
+      PITCH_WIDTH - PITCH_MARGIN * 2,
+      PITCH_HEIGHT - PITCH_MARGIN * 2,
+    );
+    graphics.strokeCircle(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, CENTER_CIRCLE_RADIUS);
     graphics.beginPath();
-    graphics.moveTo(PITCH_WIDTH / 2, 20);
-    graphics.lineTo(PITCH_WIDTH / 2, PITCH_HEIGHT - 20);
+    graphics.moveTo(PITCH_WIDTH / 2, PITCH_MARGIN);
+    graphics.lineTo(PITCH_WIDTH / 2, PITCH_HEIGHT - PITCH_MARGIN);
     graphics.strokePath();
 
-    graphics.strokeRect(20, 120, 100, 260);
-    graphics.strokeRect(PITCH_WIDTH - 120, 120, 100, 260);
+    graphics.strokeRect(PITCH_MARGIN, PENALTY_BOX_TOP, PENALTY_BOX_WIDTH, PENALTY_BOX_HEIGHT);
+    graphics.strokeRect(
+      PITCH_WIDTH - PITCH_MARGIN - PENALTY_BOX_WIDTH,
+      PENALTY_BOX_TOP,
+      PENALTY_BOX_WIDTH,
+      PENALTY_BOX_HEIGHT,
+    );
   }
 
   private drawGoals(): void {
@@ -195,9 +322,9 @@ export class MatchScene extends Phaser.Scene {
 
     const leftGoal = this.add.rectangle(
       GOAL_DEPTH / 2,
-      (GOAL_TOP + GOAL_BOTTOM) / 2,
+      GOAL_CENTER_Y,
       GOAL_DEPTH,
-      GOAL_BOTTOM - GOAL_TOP,
+      GOAL_HEIGHT,
       homeColor,
       0.35,
     );
@@ -205,9 +332,9 @@ export class MatchScene extends Phaser.Scene {
 
     const rightGoal = this.add.rectangle(
       PITCH_WIDTH - GOAL_DEPTH / 2,
-      (GOAL_TOP + GOAL_BOTTOM) / 2,
+      GOAL_CENTER_Y,
       GOAL_DEPTH,
-      GOAL_BOTTOM - GOAL_TOP,
+      GOAL_HEIGHT,
       awayColor,
       0.35,
     );
@@ -221,6 +348,7 @@ export class MatchScene extends Phaser.Scene {
 
     if (inGoalBand && this.ball.x <= GOAL_DEPTH) {
       this.awayScore += 1;
+      this.kickoffSide = 'home';
       updateScoreOverlay(this.homeScore, this.awayScore);
       this.celebrateGoal();
       this.resetAfterGoal();
@@ -229,6 +357,7 @@ export class MatchScene extends Phaser.Scene {
 
     if (inGoalBand && this.ball.x >= PITCH_WIDTH - GOAL_DEPTH) {
       this.homeScore += 1;
+      this.kickoffSide = 'away';
       updateScoreOverlay(this.homeScore, this.awayScore);
       this.celebrateGoal();
       this.resetAfterGoal();
@@ -271,9 +400,37 @@ export class MatchScene extends Phaser.Scene {
 
   private resetAfterGoal(): void {
     this.goalCooldown = true;
-    this.ball.resetPosition(PITCH_WIDTH / 2, PITCH_HEIGHT / 2);
-    this.player.setPosition(PITCH_WIDTH / 2 - 50, PITCH_HEIGHT / 2);
-    this.player.body.setVelocity(0, 0);
+    this.freezeAll();
+
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home');
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away');
+    const playerOnHome = this.setup.playerSide === 'home';
+
+    this.homeGk.resetTo(GOALKEEPER_HOME_X, GOAL_CENTER_Y);
+    this.awayGk.resetTo(GOALKEEPER_AWAY_X, GOAL_CENTER_Y);
+
+    for (let i = 0; i < homeAnchors.length; i++) {
+      const anchor = homeAnchors[i];
+      if (playerOnHome && i === 0) {
+        this.human.resetTo(anchor.x, anchor.y);
+      } else {
+        const botIdx = playerOnHome ? i - 1 : i;
+        this.homeBots[botIdx]?.resetTo(anchor.x, anchor.y);
+      }
+    }
+
+    for (let i = 0; i < awayAnchors.length; i++) {
+      const anchor = awayAnchors[i];
+      if (!playerOnHome && i === 0) {
+        this.human.resetTo(anchor.x, anchor.y);
+      } else {
+        const botIdx = playerOnHome ? i : i - 1;
+        this.awayBots[botIdx]?.resetTo(anchor.x, anchor.y);
+      }
+    }
+
+    const kickoff = getKickoffBallPosition(this.kickoffSide);
+    this.ball.resetPosition(kickoff.x, kickoff.y);
 
     this.time.delayedCall(GOAL_RESET_PAUSE_MS, () => {
       this.goalCooldown = false;
