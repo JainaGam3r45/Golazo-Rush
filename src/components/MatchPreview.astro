@@ -2,22 +2,23 @@
 import CountryFlag from './CountryFlag.astro';
 import type { Team } from '../lib/mock/teams';
 import { ALLOWED_DURATIONS } from '../lib/match/setup';
+import { FORMATION_IDS, FORMATIONS } from '../lib/match/formations';
 
 interface Props {
   teams: Team[];
 }
 
 const { teams } = Astro.props;
-const teamsJson = JSON.stringify(teams);
 ---
 
 <section class="match-preview" data-match-preview hidden data-teams={JSON.stringify(teams)}>
   <h2 class="match-preview__title">Previa del partido</h2>
+  <p class="match-preview__mode-badge">Partido rápido vs CPU</p>
 
   <div class="match-preview__teams">
     <div class="match-preview__team" data-preview-home>
       <CountryFlag teamId="brasil" team={teams.find((t) => t.id === 'brasil')} size="lg" />
-      <span class="match-preview__team-name" data-preview-home-name>&mdash;</span>
+      <span class="match-preview__team-name" data-preview-home-name>—</span>
       <span class="match-preview__side">Local</span>
     </div>
 
@@ -25,9 +26,31 @@ const teamsJson = JSON.stringify(teams);
 
     <div class="match-preview__team" data-preview-away>
       <CountryFlag teamId="argentina" team={teams.find((t) => t.id === 'argentina')} size="lg" />
-      <span class="match-preview__team-name" data-preview-away-name>&mdash;</span>
+      <span class="match-preview__team-name" data-preview-away-name>—</span>
       <span class="match-preview__side">Visitante</span>
     </div>
+  </div>
+
+  <div class="match-preview__formation" data-formation-block>
+    <span class="match-preview__formation-label">Formación (5v5 arcade)</span>
+    <div class="match-preview__formation-selector" data-formation-selector hidden role="radiogroup" aria-label="Formación del equipo">
+      {
+        FORMATION_IDS.map((id) => (
+          <button
+            type="button"
+            class="match-preview__formation-btn"
+            data-formation={id}
+            role="radio"
+            aria-checked="false"
+          >
+            {FORMATIONS[id].label}
+          </button>
+        ))
+      }
+    </div>
+    <p class="match-preview__formation-guest" data-formation-guest>
+      Formación: 4-4-2 Equilibrada (5v5 arcade)
+    </p>
   </div>
 
   <div class="match-preview__duration">
@@ -67,6 +90,12 @@ const teamsJson = JSON.stringify(teams);
     validateDuration,
     isValidOpponent,
   } from '../lib/match/setup';
+  import { DEFAULT_FORMATION, type FormationId } from '../lib/match/formations';
+  import {
+    persistFormationPreference,
+    resolveFormationPreference,
+  } from '../lib/profile/formationPreference';
+  import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
   import { updateCountryFlagElement } from '../lib/teams/flagDom';
 
   function wireMatchPreview() {
@@ -82,22 +111,55 @@ const teamsJson = JSON.stringify(teams);
     const playBtn = section.querySelector<HTMLButtonElement>('[data-play-match]');
     const changeRivalBtn = section.querySelector('[data-change-rival]');
     const durationBtns = section.querySelectorAll<HTMLButtonElement>('[data-duration]');
+    const formationSelector = section.querySelector<HTMLElement>('[data-formation-selector]');
+    const formationGuest = section.querySelector<HTMLElement>('[data-formation-guest]');
+    const formationBtns = section.querySelectorAll<HTMLButtonElement>('[data-formation]');
 
     let playerTeamId = '';
     let opponentTeamId = '';
     let durationSeconds = 180;
+    let formationId: FormationId = DEFAULT_FORMATION;
+    let isLoggedIn = false;
 
-    function getTeam(id) {
-      return teams.find((t) => t.id === id);
+    function getTeam(id: string) {
+      return teams.find((t: { id: string }) => t.id === id);
     }
 
-    function updateFlagEl(flagEl, team) {
+    function updateFlagEl(flagEl: Element | null, team: { id: string; name: string } | undefined) {
       if (!flagEl || !team) return;
       updateCountryFlagElement(flagEl, team.id, team.name);
     }
 
+    function setFormationUi(selected: FormationId) {
+      formationId = selected;
+      for (const btn of formationBtns) {
+        const active = btn.dataset.formation === selected;
+        btn.classList.toggle('match-preview__formation-btn--active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+      }
+    }
+
+    function updateAuthUi() {
+      const loggedIn = Boolean(getAuthState().user);
+      isLoggedIn = loggedIn;
+      if (formationSelector) formationSelector.hidden = !loggedIn;
+      if (formationGuest) formationGuest.hidden = loggedIn;
+    }
+
+    async function loadFormationPreference() {
+      if (!getAuthState().user) {
+        setFormationUi(DEFAULT_FORMATION);
+        return;
+      }
+      const resolved = await resolveFormationPreference();
+      setFormationUi(resolved);
+    }
+
     function renderPreview() {
-      const setup = buildMatchSetup({ playerTeamId, opponentTeamId, durationSeconds }, teams);
+      const setup = buildMatchSetup(
+        { playerTeamId, opponentTeamId, durationSeconds, formationId },
+        teams,
+      );
       playerTeamId = setup.playerTeamId;
       opponentTeamId = setup.opponentTeamId;
 
@@ -114,7 +176,7 @@ const teamsJson = JSON.stringify(teams);
     }
 
     window.addEventListener('golazo:team-selected', (event) => {
-      const detail = event.detail;
+      const detail = (event as CustomEvent).detail;
       playerTeamId = detail.teamId;
       opponentTeamId = pickRandomOpponent(playerTeamId, teams);
       renderPreview();
@@ -136,17 +198,43 @@ const teamsJson = JSON.stringify(teams);
       });
     }
 
+    for (const btn of formationBtns) {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.formation as FormationId;
+        setFormationUi(id);
+        await persistFormationPreference(id);
+        renderPreview();
+      });
+    }
+
     const defaultDurationBtn = section.querySelector('[data-duration="180"]');
     defaultDurationBtn?.classList.add('match-preview__duration-btn--active');
 
     playBtn?.addEventListener('click', () => {
       const setup = finalizeMatchSetup(
-        buildMatchSetup({ playerTeamId, opponentTeamId, durationSeconds }, teams),
+        buildMatchSetup(
+          {
+            playerTeamId,
+            opponentTeamId,
+            durationSeconds,
+            formationId: isLoggedIn ? formationId : DEFAULT_FORMATION,
+          },
+          teams,
+        ),
       );
       window.dispatchEvent(new CustomEvent('golazo:start-match', { detail: setup }));
+    });
+
+    subscribeAuth(() => {
+      updateAuthUi();
+      void loadFormationPreference();
+    });
+
+    void hydrateSession().then(() => {
+      updateAuthUi();
+      void loadFormationPreference();
     });
   }
 
   wireMatchPreview();
 </script>
-

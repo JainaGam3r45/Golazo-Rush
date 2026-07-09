@@ -8,6 +8,10 @@ const { compact = false } = Astro.props;
 
 <aside class:list={['lobby-panel', 'card', { 'lobby-panel--compact': compact }]}>
   <h3 class="lobby-panel__title">Lobby en vivo</h3>
+  <p class="lobby-panel__note">
+    El partido actual es local contra CPU. El lobby en vivo es para futuros modos en línea.
+  </p>
+  <p class="lobby-panel__chat-placeholder">Chat de sala próximamente</p>
 
   <div class="lobby-panel__section">
     <p class="lobby-panel__subtitle">Jugadores conectados</p>
@@ -32,11 +36,29 @@ const { compact = false } = Astro.props;
   }
 
   .lobby-panel__title {
-    margin: 0 0 1rem;
+    margin: 0 0 0.5rem;
     font-family: var(--font-display);
     font-size: 1.125rem;
     color: var(--accent);
     letter-spacing: 0.04em;
+  }
+
+  .lobby-panel__note {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  .lobby-panel__chat-placeholder {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-style: italic;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    border-radius: 4px;
   }
 
   .lobby-panel__section {

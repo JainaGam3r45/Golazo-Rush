@@ -71,6 +71,11 @@
         syncEl.textContent = 'Partida guardada localmente (sin conexión al servidor).';
       } else if (state === 'pending') {
         syncEl.textContent = 'Guardando resultado…';
+      } else if (state === 'guest') {
+        syncEl.textContent =
+          'Resultado local. Inicia sesión para guardar tu progreso y ranking.';
+      } else if (state === 'local') {
+        syncEl.textContent = 'Resultado local (servidor no configurado).';
       }
     });
 
