@@ -1,0 +1,24 @@
+.play-header {
+  margin-bottom: 1rem;
+}
+
+.play-header__hint {
+  margin: -0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.play-lobby {
+  max-width: 1100px;
+  margin: 1.5rem auto 0;
+}
+
+.play-session {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.play-session a {
+  color: var(--accent);
+}

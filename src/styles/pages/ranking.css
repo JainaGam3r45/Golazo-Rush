@@ -1,0 +1,24 @@
+.ranking-header {
+  margin-bottom: 2rem;
+}
+
+.ranking-header__subtitle {
+  margin: -0.5rem 0 0;
+  color: var(--text-muted);
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ranking-empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}

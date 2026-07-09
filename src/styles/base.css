@@ -1,0 +1,60 @@
+:root {
+  --bg: #0a0f0a;
+  --bg-elevated: #121a12;
+  --surface: #1a241a;
+  --border: #2a3d2a;
+  --text: #e8f5e8;
+  --text-muted: #8aab8a;
+  --accent: #39ff14;
+  --accent-dim: #2bcc10;
+  --accent-glow: rgba(57, 255, 20, 0.25);
+  --danger: #ff4444;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: var(--text);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
