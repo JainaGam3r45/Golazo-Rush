@@ -43,6 +43,42 @@ test.describe('Play', () => {
     await expect(page.locator('#game-container canvas')).toHaveCount(0);
   });
 
+  test('keeps zero canvases after 5 seconds idle', async ({ page }) => {
+    await page.goto('/play');
+    await page.waitForTimeout(5000);
+    await expect(page.locator('#game-container canvas')).toHaveCount(0);
+  });
+
+  test('creates exactly one canvas after starting a match', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    const canvas = page.locator('#game-container canvas');
+    await expect(canvas).toBeVisible({ timeout: 10_000 });
+    await expect(canvas).toHaveCount(1);
+  });
+
+  test('restart keeps at most one canvas', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('golazo:restart-match'));
+    });
+
+    await expect(page.locator('[data-match-preview]')).toBeVisible();
+    await expect(page.locator('#game-container canvas')).toHaveCount(0);
+
+    await page.locator('[data-play-match]').click();
+    await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
+  });
+
   test('team selector shows flag sprites', async ({ page }) => {
     await page.goto('/play');
 
@@ -75,6 +111,7 @@ test.describe('Play', () => {
     const gameContainer = page.locator('#game-container');
     await expect(gameContainer).toBeVisible();
     await expect(gameContainer.locator('canvas')).toBeVisible({ timeout: 10_000 });
+    await expect(gameContainer.locator('canvas')).toHaveCount(1);
   });
 
   test('HUD shows CPU mode after match starts', async ({ page }) => {
