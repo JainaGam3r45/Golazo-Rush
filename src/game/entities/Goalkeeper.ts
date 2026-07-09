@@ -33,6 +33,7 @@ export class Goalkeeper extends FieldPlayer {
       height: GK_SIZE,
       strokeAlpha: 0.85,
       kickCooldownMs: GK_KICK_COOLDOWN_MS,
+      visualKind: 'goalkeeper',
     });
     this.homeX = side === 'home' ? GOALKEEPER_HOME_X : GOALKEEPER_AWAY_X;
     this.setDepth(2);
