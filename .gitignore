@@ -10,6 +10,9 @@ dist/
 .env.local
 .env.*.local
 
+# InsForge local project link (contains API keys)
+.insforge/
+
 # Logs
 *.log
 npm-debug.log*
@@ -23,3 +26,9 @@ yarn-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Test output
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
