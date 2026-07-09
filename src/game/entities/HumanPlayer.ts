@@ -48,6 +48,7 @@ export class HumanPlayer extends FieldPlayer {
     teamColor: number,
     side: 'home' | 'away',
     slot: number,
+    scale = 1,
   ) {
     super(scene, x, y, {
       teamColor,
@@ -55,6 +56,7 @@ export class HumanPlayer extends FieldPlayer {
       kind: 'human',
       slot,
       maxSpeed: PLAYER_SPEED,
+      scale,
       strokeColor: ACCENT_COLOR,
     });
 

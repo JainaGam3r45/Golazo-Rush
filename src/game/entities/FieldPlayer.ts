@@ -36,6 +36,7 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
       maxSpeed?: number;
       width?: number;
       height?: number;
+      scale?: number;
       strokeColor?: number;
       strokeAlpha?: number;
       fillAlpha?: number;
@@ -43,8 +44,9 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
       visualKind?: 'goalkeeper';
     },
   ) {
-    const width = options.width ?? 28;
-    const height = options.height ?? 28;
+    const scale = options.scale ?? 1;
+    const width = Math.round((options.width ?? 28) * scale);
+    const height = Math.round((options.height ?? 28) * scale);
     super(scene, x, y, width, height, options.teamColor, 0);
     this.teamColor = options.teamColor;
     this.side = options.side;

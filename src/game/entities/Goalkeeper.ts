@@ -21,6 +21,7 @@ export class Goalkeeper extends FieldPlayer {
     teamColor: number,
     side: 'home' | 'away',
     kind: 'teammate' | 'opponent',
+    scale = 1,
   ) {
     const darkerColor = Goalkeeper.darkenColor(teamColor);
     super(scene, x, y, {
@@ -31,6 +32,7 @@ export class Goalkeeper extends FieldPlayer {
       maxSpeed: GK_SPEED,
       width: GK_SIZE,
       height: GK_SIZE,
+      scale,
       strokeAlpha: 0.85,
       kickCooldownMs: GK_KICK_COOLDOWN_MS,
       visualKind: 'goalkeeper',

@@ -14,6 +14,7 @@ export class BotPlayer extends FieldPlayer {
     side: 'home' | 'away',
     slot: number,
     kind: 'teammate' | 'opponent',
+    scale = 1,
   ) {
     const speedMult = SLOT_SPEED[slot % SLOT_SPEED.length] ?? 1;
     super(scene, x, y, {
@@ -22,6 +23,7 @@ export class BotPlayer extends FieldPlayer {
       kind,
       slot,
       maxSpeed: BOT_SPEED_BASE * speedMult,
+      scale,
       strokeAlpha: kind === 'teammate' ? 0.45 : 0.7,
       kickCooldownMs: BOT_KICK_COOLDOWN_MS,
     });

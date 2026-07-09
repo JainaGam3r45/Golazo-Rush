@@ -27,19 +27,24 @@ export function applySeparation(
   targetX: number,
   targetY: number,
   opponents: BotPlayer[] = [],
+  soft = false,
 ): { x: number; y: number } {
   let pushX = 0;
   let pushY = 0;
+  const teamForce = soft ? SEPARATION_FORCE * 0.55 : SEPARATION_FORCE;
+  const teamRadius = soft ? SEPARATION_RADIUS * 0.85 : SEPARATION_RADIUS;
+  const oppForce = soft ? OPPONENT_SEP_FORCE * 0.4 : OPPONENT_SEP_FORCE;
+  const oppRadius = soft ? OPPONENT_SEP_RADIUS * 0.75 : OPPONENT_SEP_RADIUS;
 
   for (const other of teammates) {
     if (other === bot) continue;
     const dx = bot.x - other.x;
     const dy = bot.y - other.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 0 && dist < SEPARATION_RADIUS) {
-      const strength = (SEPARATION_RADIUS - dist) / SEPARATION_RADIUS;
-      pushX += (dx / dist) * SEPARATION_FORCE * strength;
-      pushY += (dy / dist) * SEPARATION_FORCE * strength;
+    if (dist > 0 && dist < teamRadius) {
+      const strength = (teamRadius - dist) / teamRadius;
+      pushX += (dx / dist) * teamForce * strength;
+      pushY += (dy / dist) * teamForce * strength;
     }
   }
 
@@ -47,10 +52,10 @@ export function applySeparation(
     const dx = bot.x - opp.x;
     const dy = bot.y - opp.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 0 && dist < OPPONENT_SEP_RADIUS) {
-      const strength = (OPPONENT_SEP_RADIUS - dist) / OPPONENT_SEP_RADIUS;
-      pushX += (dx / dist) * OPPONENT_SEP_FORCE * strength;
-      pushY += (dy / dist) * OPPONENT_SEP_FORCE * strength;
+    if (dist > 0 && dist < oppRadius) {
+      const strength = (oppRadius - dist) / oppRadius;
+      pushX += (dx / dist) * oppForce * strength;
+      pushY += (dy / dist) * oppForce * strength;
     }
   }
 

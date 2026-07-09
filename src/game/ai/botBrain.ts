@@ -100,18 +100,46 @@ function findSupporterIndex(bots: BotPlayer[], ball: Ball, presserIdx: number, s
   return best;
 }
 
-function assignRoles(bots: BotPlayer[], ball: Ball, side: 'home' | 'away'): Map<number, BotRole> {
+function findSecondaryPresserIndex(
+  bots: BotPlayer[],
+  ball: Ball,
+  primaryIdx: number,
+): number {
+  const ballPoint = getBallTargetPoint(ball);
+  let best = -1;
+  let bestDist = Infinity;
+  for (let i = 0; i < bots.length; i++) {
+    if (i === primaryIdx) continue;
+    // Prefer midfielders / forwards as second presser; skip pure deep defenders when possible.
+    if (bots.length > 6 && i < Math.floor(bots.length * 0.35)) continue;
+    const dist = bots[i].distanceTo(ballPoint.x, ballPoint.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function assignRoles(
+  bots: BotPlayer[],
+  ball: Ball,
+  side: 'home' | 'away',
+  maxPressers = 1,
+): Map<number, BotRole> {
   const roles = new Map<number, BotRole>();
   const controller = getBallController();
   const presserIdx = findPresserIndex(bots, ball, side);
   const supporterIdx = findSupporterIndex(bots, ball, presserIdx, side);
+  const secondPresser =
+    maxPressers > 1 ? findSecondaryPresserIndex(bots, ball, presserIdx) : -1;
 
   for (let i = 0; i < bots.length; i++) {
-    if (controller && controller.side === side && i === presserIdx) {
+    if (controller && controller.side === side && (i === presserIdx || i === secondPresser)) {
       roles.set(i, 'supporter');
       continue;
     }
-    if (i === presserIdx) {
+    if (i === presserIdx || i === secondPresser) {
       roles.set(i, 'presser');
     } else if (i === supporterIdx) {
       roles.set(i, 'supporter');
@@ -292,6 +320,11 @@ function handleBotWithBall(
   bot.moveToward(goalX, goalY, BOT_SPEED * formation.pressWeight * getSpeedVariance(bot.slot));
 }
 
+export type BotUpdateOptions = {
+  maxPressers?: number;
+  softSeparation?: boolean;
+};
+
 export function updateTeamBots(
   bots: BotPlayer[],
   ball: Ball,
@@ -302,17 +335,19 @@ export function updateTeamBots(
   opponents: BotPlayer[] = [],
   onKick?: KickCallback,
   onPass?: PassCallback,
+  options: BotUpdateOptions = {},
 ): void {
   if (bots.length === 0) return;
 
+  const maxPressers = options.maxPressers ?? 1;
+  const softSeparation = Boolean(options.softSeparation);
   const state = getBallState();
   const controller = getBallController();
   const teammateControls = controller?.side === side;
-  const roles = assignRoles(bots, ball, side);
+  const roles = assignRoles(bots, ball, side, maxPressers);
   const goalX = getOpponentGoalX(side);
   const goalY = PITCH_HEIGHT / 2;
   const ballPoint = getBallTargetPoint(ball);
-
   for (let i = 0; i < bots.length; i++) {
     const bot = bots[i];
     const anchor = anchors[bot.slot] ?? anchors[i];
@@ -323,6 +358,13 @@ export function updateTeamBots(
 
     if (teammateControls && role === 'presser') {
       role = 'supporter';
+    }
+
+    // Defenders hold the line unless they are the designated presser.
+    if (anchor.role === 'def' && role === 'presser' && bots.length > 6) {
+      const inOwnHalf =
+        side === 'home' ? ball.x < PITCH_WIDTH / 2 : ball.x > PITCH_WIDTH / 2;
+      if (!inOwnHalf) role = 'holder';
     }
 
     if (role === 'presser') {
@@ -347,14 +389,14 @@ export function updateTeamBots(
           }
         }
 
-        const separated = applySeparation(bot, bots, targetX, targetY, opponents);
+        const separated = applySeparation(bot, bots, targetX, targetY, opponents, softSeparation);
         const unstuck = applyAntiStuck(bot, separated.x, separated.y, time);
         const chaseSpeed = BOT_SPEED * (0.9 + formation.pressWeight * 0.15) * speedMult;
         bot.moveToward(unstuck.x, unstuck.y, chaseSpeed);
       } else {
         const shifted = shiftAnchorTowardBall(anchor, ball, side, formation.lineHeight);
         const clamped = clampHolderTarget(anchor, shifted.x, shifted.y, side);
-        const separated = applySeparation(bot, bots, clamped.x, clamped.y, opponents);
+        const separated = applySeparation(bot, bots, clamped.x, clamped.y, opponents, softSeparation);
         const unstuck = applyAntiStuck(bot, separated.x, separated.y, time);
         bot.moveToward(unstuck.x, unstuck.y, BOT_SPEED * 0.75 * speedMult);
       }
@@ -371,15 +413,29 @@ export function updateTeamBots(
         supportY = controller.y + offset.y * 2;
       }
 
-      const separated = applySeparation(bot, bots, supportX, supportY, opponents);
+      // Forwards look for space ahead of the ball rather than clustering.
+      if (anchor.role === 'fwd') {
+        const forward = side === 'home' ? 1 : -1;
+        supportX = ballPoint.x + forward * 70 + offset.x;
+        supportY = ballPoint.y + offset.y * 1.4;
+      }
+
+      const separated = applySeparation(bot, bots, supportX, supportY, opponents, softSeparation);
       const unstuck = applyAntiStuck(bot, separated.x, separated.y, time);
       bot.moveToward(unstuck.x, unstuck.y, BOT_SPEED * 0.85 * speedMult);
       continue;
     }
 
     const shifted = shiftAnchorTowardBall(anchor, ball, side, formation.lineHeight);
-    const clamped = clampHolderTarget(anchor, shifted.x, shifted.y, side);
-    const separated = applySeparation(bot, bots, clamped.x, clamped.y, opponents);
+    let holdX = shifted.x;
+    let holdY = shifted.y;
+    if (anchor.role === 'fwd') {
+      const forward = side === 'home' ? 1 : -1;
+      holdX = Math.max(0, Math.min(PITCH_WIDTH, shifted.x + forward * 24));
+      holdY = shifted.y + ((anchor.slot % 2 === 0 ? -1 : 1) * 18);
+    }
+    const clamped = clampHolderTarget(anchor, holdX, holdY, side);
+    const separated = applySeparation(bot, bots, clamped.x, clamped.y, opponents, softSeparation);
     const unstuck = applyAntiStuck(bot, separated.x, separated.y, time);
     bot.moveToward(unstuck.x, unstuck.y, BOT_SPEED * 0.8 * speedMult);
   }

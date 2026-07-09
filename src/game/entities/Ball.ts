@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
 import { getBallAirTime } from '../ai/possession';
 
-const TRAIL_MAX_POINTS = 7;
+const TRAIL_MAX_POINTS = 5;
+let trailPointCap = TRAIL_MAX_POINTS;
+
+export function setBallTrailCap(cap: number): void {
+  trailPointCap = Math.max(2, Math.min(TRAIL_MAX_POINTS, cap));
+}
 const TRAIL_MIN_SPEED = 100;
 const BALL_RADIUS = 12;
 
@@ -88,7 +93,7 @@ export class Ball extends Phaser.GameObjects.Container {
 
     if (speed > TRAIL_MIN_SPEED) {
       this.trailPoints.push({ x: this.x, y: this.y });
-      if (this.trailPoints.length > TRAIL_MAX_POINTS) {
+      if (this.trailPoints.length > trailPointCap) {
         this.trailPoints.shift();
       }
     } else if (this.trailPoints.length > 0) {
