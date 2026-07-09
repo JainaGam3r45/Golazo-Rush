@@ -58,7 +58,22 @@ const teamsJson = JSON.stringify(teams);
   import { getAuthState, hydrateSession, signOut } from '../lib/auth/session';
   import { fetchProfile } from '../lib/profile/store';
   import { persistSelectedTeam, resolveSelectedTeam } from '../lib/profile/teamSelection';
-  import { getTeamFlagAlt, getTeamFlagSrc } from '../lib/teams/flags';
+  import { getTeamFlagAlt, getTeamFlagHref } from '../lib/teams/flags';
+
+  function createFlagSvg(teamId: string, teamName: string): HTMLElement {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'country-flag__svg');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', getTeamFlagHref(teamId));
+    svg.append(use);
+    const wrap = document.createElement('span');
+    wrap.className = 'country-flag country-flag--md';
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', getTeamFlagAlt(teamId, teamName));
+    wrap.append(svg);
+    return wrap;
+  }
 
   function wireAccountPage() {
     const page = document.querySelector<HTMLElement>('[data-account-page]');
@@ -90,18 +105,11 @@ const teamsJson = JSON.stringify(teams);
         btn.setAttribute('aria-selected', team.id === selectedTeamId ? 'true' : 'false');
         if (team.id === selectedTeamId) btn.classList.add('account-page__team-option--selected');
 
-        const img = document.createElement('img');
-        img.className = 'country-flag__img';
-        img.src = getTeamFlagSrc(team.id);
-        img.alt = getTeamFlagAlt(team.id, team.name);
-        img.width = 40;
-        img.height = 28;
-        img.loading = 'lazy';
-
+        const flagWrap = createFlagSvg(team.id, team.name);
         const label = document.createElement('span');
         label.textContent = team.name;
 
-        btn.append(img, label);
+        btn.append(flagWrap, label);
         btn.addEventListener('click', async () => {
           selectedTeamId = team.id;
           await persistSelectedTeam(team.id);
@@ -117,13 +125,8 @@ const teamsJson = JSON.stringify(teams);
       if (teamFlagEl) {
         teamFlagEl.innerHTML = '';
         if (team) {
-          const img = document.createElement('img');
-          img.className = 'country-flag__img';
-          img.src = getTeamFlagSrc(team.id);
-          img.alt = getTeamFlagAlt(team.id, team.name);
-          img.width = 40;
-          img.height = 28;
-          teamFlagEl.append(img);
+          const flagWrap = createFlagSvg(team.id, team.name);
+          teamFlagEl.append(flagWrap);
         }
       }
       if (teamNameEl) teamNameEl.textContent = team?.name ?? 'Sin selección';

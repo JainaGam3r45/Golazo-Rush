@@ -1,4 +1,4 @@
-﻿import { getTeamFlagAlt, getTeamFlagSrc } from './flags';
+﻿import { getTeamFlagAlt, getTeamFlagHref } from './flags';
 
 export function updateCountryFlagElement(
   flagEl: Element | null,
@@ -8,11 +8,10 @@ export function updateCountryFlagElement(
   if (!flagEl) return;
 
   flagEl.setAttribute('data-team-id', teamId);
-  flagEl.setAttribute('aria-label', teamName ?? teamId);
+  flagEl.setAttribute('aria-label', getTeamFlagAlt(teamId, teamName));
 
-  const img = flagEl.querySelector<HTMLImageElement>('.country-flag__img');
-  if (img) {
-    img.src = getTeamFlagSrc(teamId);
-    img.alt = getTeamFlagAlt(teamId, teamName);
+  const use = flagEl.querySelector<SVGUseElement>('.country-flag__svg use');
+  if (use) {
+    use.setAttribute('href', getTeamFlagHref(teamId));
   }
 }

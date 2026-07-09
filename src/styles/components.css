@@ -97,25 +97,24 @@
   flex-shrink: 0;
 }
 
-.country-flag__img {
+.country-flag__svg {
   display: block;
-  object-fit: cover;
   border-radius: 3px;
   border: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.country-flag--sm .country-flag__img {
+.country-flag--sm .country-flag__svg {
   width: 28px;
   height: 20px;
 }
 
-.country-flag--md .country-flag__img {
+.country-flag--md .country-flag__svg {
   width: 40px;
   height: 28px;
 }
 
-.country-flag--lg .country-flag__img {
+.country-flag--lg .country-flag__svg {
   width: 52px;
   height: 36px;
 }

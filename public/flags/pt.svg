@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-label="Bandera de Portugal">
-  <rect width="360" height="600" fill="#006600"/>
-  <rect x="360" width="540" height="600" fill="#ff0000"/>
-  <circle cx="360" cy="300" r="105" fill="#ffcc29" stroke="#fff" stroke-width="10"/>
-  <circle cx="360" cy="300" r="42" fill="#fff"/>
-  <rect x="345" y="285" width="30" height="30" fill="#ff0000"/>
-</svg>

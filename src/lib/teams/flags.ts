@@ -1,16 +1,16 @@
-﻿const TEAM_FLAG_FILES: Record<string, string> = {
-  brasil: 'br.svg',
-  japon: 'jp.svg',
-  argentina: 'ar.svg',
-  francia: 'fr.svg',
-  alemania: 'de.svg',
-  espana: 'es.svg',
-  mexico: 'mx.svg',
-  uruguay: 'uy.svg',
-  inglaterra: 'gb-eng.svg',
-  portugal: 'pt.svg',
-  colombia: 'co.svg',
-  marruecos: 'ma.svg',
+﻿const TEAM_FLAG_CODES: Record<string, string> = {
+  brasil: 'br',
+  japon: 'jp',
+  argentina: 'ar',
+  francia: 'fr',
+  alemania: 'de',
+  espana: 'es',
+  mexico: 'mx',
+  uruguay: 'uy',
+  inglaterra: 'gb-eng',
+  portugal: 'pt',
+  colombia: 'co',
+  marruecos: 'ma',
 };
 
 const TEAM_DISPLAY_NAMES: Record<string, string> = {
@@ -28,9 +28,18 @@ const TEAM_DISPLAY_NAMES: Record<string, string> = {
   marruecos: 'Marruecos',
 };
 
+export function getTeamFlagCode(teamId: string): string {
+  return TEAM_FLAG_CODES[teamId] ?? 'br';
+}
+
+export function getTeamFlagHref(teamId: string): string {
+  return `#flag-${getTeamFlagCode(teamId)}`;
+}
+
+/** @deprecated Use getTeamFlagHref for sprite-based flags */
 export function getTeamFlagSrc(teamId: string): string {
-  const file = TEAM_FLAG_FILES[teamId];
-  return file ? `/flags/${file}` : '/flags/br.svg';
+  const code = getTeamFlagCode(teamId);
+  return `#flag-${code}`;
 }
 
 export function getTeamFlagAlt(teamId: string, teamName?: string): string {

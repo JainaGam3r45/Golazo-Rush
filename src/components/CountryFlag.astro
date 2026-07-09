@@ -1,6 +1,6 @@
 ﻿---
 import type { Team } from '../lib/mock/teams';
-import { getTeamFlagAlt, getTeamFlagSrc } from '../lib/teams/flags';
+import { getTeamFlagAlt, getTeamFlagHref } from '../lib/teams/flags';
 
 interface Props {
   teamId: string;
@@ -11,21 +11,17 @@ interface Props {
 
 const { teamId, team, teamName: teamNameProp, size = 'md' } = Astro.props;
 const teamName = teamNameProp ?? team?.name;
-const flagSrc = getTeamFlagSrc(teamId);
+const flagHref = getTeamFlagHref(teamId);
 const flagAlt = getTeamFlagAlt(teamId, teamName);
 ---
 
 <span
   class:list={['country-flag', `country-flag--${size}`]}
   data-team-id={teamId}
+  role="img"
+  aria-label={flagAlt}
 >
-  <img
-    class="country-flag__img"
-    src={flagSrc}
-    alt={flagAlt}
-    width="40"
-    height="28"
-    loading="lazy"
-    decoding="async"
-  />
+  <svg class="country-flag__svg" aria-hidden="true">
+    <use href={flagHref} />
+  </svg>
 </span>
