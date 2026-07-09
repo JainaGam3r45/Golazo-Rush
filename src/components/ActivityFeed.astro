@@ -14,6 +14,10 @@ function eventLabel(type: string): string {
 }
 ---
 
+{
+  recentActivity.length === 0 ? (
+    <p class="activity-feed__empty">Sin actividad reciente todavía.</p>
+  ) : (
 <ul class="activity-feed" data-activity-feed>
   {
     recentActivity.map((event) => {
@@ -39,6 +43,8 @@ function eventLabel(type: string): string {
     })
   }
 </ul>
+  )
+}
 
 <script define:vars={{ teamNames }}>
   import { CHANNELS } from '../lib/realtime/channels';

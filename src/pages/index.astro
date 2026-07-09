@@ -33,9 +33,13 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     <div>
       <h2 class="section-title">Mejores selecciones</h2>
       <div class="ranking-preview">
-        {topTeams.map((ranking) => (
-          <TeamCard ranking={ranking} team={teamMap[ranking.teamId]} compact />
-        ))}
+        {topTeams.length === 0 ? (
+          <p class="ranking-preview__empty">Sin partidos todavía. ¡Juega el primero!</p>
+        ) : (
+          topTeams.map((ranking) => (
+            <TeamCard ranking={ranking} team={teamMap[ranking.teamId]} compact />
+          ))
+        )}
       </div>
       <a href="/ranking" class="link-more">Ver ranking completo →</a>
     </div>
@@ -158,6 +162,17 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .ranking-preview__empty {
+    margin: 0;
+    padding: 1.25rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 0.9375rem;
   }
 
   .link-more {

@@ -1,5 +1,5 @@
-import { insforge, isInsForgeConfigured } from '../insforge';
 import { teams as mockTeams, type Team } from '../mock/teams';
+import { canUseInsForge, getInsForgeClient } from './source';
 
 type TeamRow = {
   id: string;
@@ -35,11 +35,16 @@ function mapTeam(row: TeamRow): Team {
 }
 
 export async function getTeams(): Promise<Team[]> {
-  if (!isInsForgeConfigured || !insforge) {
+  if (!canUseInsForge()) {
     return mockTeams;
   }
 
-  const { data, error } = await insforge.database
+  const client = getInsForgeClient();
+  if (!client) {
+    return mockTeams;
+  }
+
+  const { data, error } = await client.database
     .from('teams')
     .select('id, name, code, color_primary, color_secondary')
     .order('name');

@@ -15,11 +15,17 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     <p class="ranking-header__subtitle">Selecciones clasificadas por puntos, victorias y diferencia de goles.</p>
   </section>
 
-  <div class="ranking-list" data-ranking-list>
-    {globalRankings.map((ranking) => (
-      <TeamCard ranking={ranking} team={teamMap[ranking.teamId]} />
-    ))}
-  </div>
+  {
+    globalRankings.length === 0 ? (
+      <p class="ranking-empty">Aún no hay partidos registrados. ¡Sé el primero en jugar!</p>
+    ) : (
+      <div class="ranking-list" data-ranking-list>
+        {globalRankings.map((ranking) => (
+          <TeamCard ranking={ranking} team={teamMap[ranking.teamId]} />
+        ))}
+      </div>
+    )
+  }
 </Layout>
 
 <script define:vars={{ teamNames }}>
@@ -56,5 +62,15 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .ranking-empty {
+    margin: 0;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
   }
 </style>

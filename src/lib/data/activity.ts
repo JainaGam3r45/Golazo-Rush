@@ -1,5 +1,5 @@
-import { insforge, isInsForgeConfigured } from '../insforge';
 import { recentActivity as mockActivity, type LiveEvent } from '../mock/activity';
+import { canUseInsForge, getInsForgeClient } from './source';
 
 type LiveEventRow = {
   id: string;
@@ -39,18 +39,23 @@ function mapEvent(row: LiveEventRow): LiveEvent {
 }
 
 export async function getRecentActivity(limit = 6): Promise<LiveEvent[]> {
-  if (!isInsForgeConfigured || !insforge) {
+  if (!canUseInsForge()) {
     return mockActivity.slice(0, limit);
   }
 
-  const { data, error } = await insforge.database
+  const client = getInsForgeClient();
+  if (!client) {
+    return [];
+  }
+
+  const { data, error } = await client.database
     .from('live_events')
     .select('id, type, message, team_id, match_id, created_at')
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error || !data?.length) {
-    return mockActivity.slice(0, limit);
+  if (error || !data) {
+    return [];
   }
 
   return (data as LiveEventRow[]).map(mapEvent);

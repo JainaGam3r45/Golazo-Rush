@@ -1,9 +1,9 @@
-import { insforge, isInsForgeConfigured } from '../insforge';
 import {
   globalRankings as mockRankings,
   type TeamRanking,
 } from '../mock/rankings';
 import { getTeams } from './teams';
+import { canUseInsForge, getInsForgeClient } from './source';
 
 type RankingRow = {
   team_id: string;
@@ -29,18 +29,23 @@ function mapRanking(row: RankingRow, rank: number): TeamRanking {
 }
 
 export async function getGlobalRankings(): Promise<TeamRanking[]> {
-  if (!isInsForgeConfigured || !insforge) {
+  if (!canUseInsForge()) {
     return mockRankings;
   }
 
-  const { data, error } = await insforge.database
+  const client = getInsForgeClient();
+  if (!client) {
+    return [];
+  }
+
+  const { data, error } = await client.database
     .from('team_rankings')
     .select('team_id, points, wins, draws, losses, goals_for, goals_against')
     .order('points', { ascending: false })
     .order('goals_for', { ascending: false });
 
-  if (error || !data?.length) {
-    return mockRankings;
+  if (error || !data) {
+    return [];
   }
 
   return (data as RankingRow[]).map((row, index) => mapRanking(row, index + 1));
