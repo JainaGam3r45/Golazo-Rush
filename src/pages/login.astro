@@ -13,15 +13,17 @@ import OAuthButtons from '../components/OAuthButtons.astro';
     <p class="auth-form__error" data-auth-error hidden></p>
 
     <form class="auth-form card" data-login-form>
-      <label class="auth-form__field">
-        <span>Email</span>
-        <input type="email" name="email" required autocomplete="email" />
-      </label>
+      <div class="auth-form__fields">
+        <label class="auth-form__field">
+          <span>Email</span>
+          <input type="email" name="email" required autocomplete="email" />
+        </label>
 
-      <label class="auth-form__field">
-        <span>Contraseña</span>
-        <input type="password" name="password" required autocomplete="current-password" minlength="6" />
-      </label>
+        <label class="auth-form__field">
+          <span>Contraseña</span>
+          <input type="password" name="password" required autocomplete="current-password" minlength="6" />
+        </label>
+      </div>
 
       <button type="submit" class="btn auth-form__submit" data-auth-submit>Entrar</button>
     </form>

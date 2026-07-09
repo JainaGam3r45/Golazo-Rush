@@ -15,20 +15,22 @@ import OAuthButtons from '../components/OAuthButtons.astro';
 
     <form class="auth-form card" data-register-form>
       <div data-register-fields>
-        <label class="auth-form__field">
-          <span>Nombre visible</span>
-          <input type="text" name="name" required autocomplete="name" minlength="2" maxlength="40" />
-        </label>
+        <div class="auth-form__fields">
+          <label class="auth-form__field">
+            <span>Nombre visible</span>
+            <input type="text" name="name" required autocomplete="name" minlength="2" maxlength="40" />
+          </label>
 
-        <label class="auth-form__field">
-          <span>Email</span>
-          <input type="email" name="email" required autocomplete="email" />
-        </label>
+          <label class="auth-form__field">
+            <span>Email</span>
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
 
-        <label class="auth-form__field">
-          <span>Contraseña</span>
-          <input type="password" name="password" required autocomplete="new-password" minlength="6" />
-        </label>
+          <label class="auth-form__field">
+            <span>Contraseña</span>
+            <input type="password" name="password" required autocomplete="new-password" minlength="6" />
+          </label>
+        </div>
 
         <button type="submit" class="btn auth-form__submit" data-auth-submit>Crear cuenta</button>
       </div>
