@@ -67,6 +67,44 @@ test.describe('Play', () => {
     await expect(gameContainer).toBeVisible();
     await expect(gameContainer.locator('canvas')).toBeVisible({ timeout: 10_000 });
   });
+
+  test('HUD shows CPU mode after match starts', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    await expect(page.locator('#match-mode')).toContainText('Partido rápido vs CPU');
+  });
+
+  test('guest banner mentions playing as guest', async ({ page }) => {
+    await page.goto('/play');
+
+    const session = page.locator('[data-play-session]');
+    await expect(session).toBeVisible({ timeout: 10_000 });
+    await expect(session).toContainText(/invitado/i);
+  });
+
+  test('match clock uses clean M:SS format', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    const clock = page.locator('#match-clock');
+    await expect(clock).toBeVisible();
+    await expect(clock).toHaveText(/^\d+:\d{2}$/);
+  });
+
+  test('guest does not see formation selector', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+
+    const selector = page.locator('[data-formation-selector]');
+    await expect(selector).toBeHidden();
+    await expect(page.locator('[data-formation-guest]')).toBeVisible();
+  });
 });
 
 test.describe('Auth pages', () => {
