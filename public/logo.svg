@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="Golazo Rush">
+  <title>Golazo Rush</title>
+  <circle cx="16" cy="20" r="10" stroke="#39ff14" stroke-width="2" opacity="0.22" />
+  <circle cx="22" cy="20" r="10" stroke="#39ff14" stroke-width="2.5" />
+  <path d="M22 13.2l3.4 2.5-1.3 3.8h-4.2l-1.3-3.8z" fill="#39ff14" />
+</svg>

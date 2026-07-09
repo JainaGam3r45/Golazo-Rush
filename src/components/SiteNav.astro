@@ -9,7 +9,10 @@ const currentPath = Astro.url.pathname;
 ---
 
 <nav class="site-nav">
-  <a href="/" class="site-nav__brand">Golazo Rush</a>
+  <a href="/" class="site-nav__brand">
+    <img src="/logo.svg" alt="" class="site-nav__logo" width="36" height="36" decoding="async" />
+    <span class="site-nav__brand-text">Golazo Rush</span>
+  </a>
   <div class="site-nav__right">
     <ul class="site-nav__links">
       {
