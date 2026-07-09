@@ -1,4 +1,4 @@
----
+﻿---
 import CountryFlag from './CountryFlag.astro';
 import type { Team } from '../lib/mock/teams';
 
@@ -37,17 +37,21 @@ const { teams, initialTeamId } = Astro.props;
 </section>
 
 <script>
-  import { getSelectedTeam, setSelectedTeam } from '../lib/storage/selectedTeam';
+  import { hydrateSession } from '../lib/auth/session';
+  import { persistSelectedTeam, resolveSelectedTeam } from '../lib/profile/teamSelection';
 
-  function wireTeamSelector() {
+  async function wireTeamSelector() {
     const section = document.querySelector<HTMLElement>('[data-team-selector]');
     if (!section) return;
 
+    await hydrateSession();
+
     const options = section.querySelectorAll<HTMLButtonElement>('.team-selector__option[data-team-id]');
     const continueBtn = section.querySelector<HTMLButtonElement>('[data-continue-team]');
-    let selectedId = getSelectedTeam();
+    let selectedId = await resolveSelectedTeam();
 
-    if (selectedId) {
+    function applySelection() {
+      if (!selectedId) return;
       for (const option of options) {
         const isSelected = option.dataset.teamId === selectedId;
         option.classList.toggle('team-selector__option--selected', isSelected);
@@ -56,19 +60,15 @@ const { teams, initialTeamId } = Astro.props;
       if (continueBtn) continueBtn.disabled = false;
     }
 
+    applySelection();
+
     for (const option of options) {
-      option.addEventListener('click', () => {
+      option.addEventListener('click', async () => {
         selectedId = option.dataset.teamId ?? null;
         if (!selectedId) return;
 
-        for (const opt of options) {
-          const isSelected = opt.dataset.teamId === selectedId;
-          opt.classList.toggle('team-selector__option--selected', isSelected);
-          opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
-        }
-
-        setSelectedTeam(selectedId);
-        if (continueBtn) continueBtn.disabled = false;
+        applySelection();
+        await persistSelectedTeam(selectedId);
       });
     }
 

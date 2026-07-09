@@ -1,4 +1,4 @@
----
+﻿---
 import Layout from '../layouts/Layout.astro';
 import LobbyPanel from '../components/LobbyPanel.astro';
 import TeamSelector from '../components/TeamSelector.astro';
@@ -11,12 +11,13 @@ const teams = await getTeams();
 const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
 ---
 
-<Layout title="Golazo Rush — Jugar">
+<Layout title="Golazo Rush â€” Jugar">
   <section class="play-header">
     <h1 class="section-title">Partido</h1>
     <p class="play-header__hint">
       Elige tu selección, configura el partido y usa WASD para moverte. Shift para sprint, Espacio para patear (mantén para cargar).
     </p>
+    <p class="play-session" data-play-session hidden></p>
   </section>
 
   <div id="play-data" data-team-names={JSON.stringify(teamNames)} hidden></div>
@@ -32,7 +33,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         <span class="match-hud__score"><span id="score-home">0</span></span>
       </div>
       <span class="match-hud__clock" id="match-clock">3:00</span>
-      <span class="match-hud__divider">—</span>
+      <span class="match-hud__divider">â€”</span>
       <div class="match-hud__team">
         <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
         <span class="match-hud__score"><span id="score-away">0</span></span>
@@ -259,6 +260,36 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     });
   }
 
+
+  async function wirePlaySession() {
+    const sessionEl = document.querySelector<HTMLElement>('[data-play-session]');
+    if (!sessionEl) return;
+
+    const { hydrateSession, subscribeAuth } = await import('../lib/auth/session');
+    const { fetchProfile } = await import('../lib/profile/store');
+
+    subscribeAuth(async (state) => {
+      if (state.loading) {
+        sessionEl.hidden = true;
+        return;
+      }
+
+      if (state.user) {
+        const profile = await fetchProfile(state.user.id);
+        const name = profile?.display_name ?? state.user.name ?? 'Jugador';
+        sessionEl.textContent = `Jugando como ${name}`;
+        sessionEl.hidden = false;
+        return;
+      }
+
+      sessionEl.innerHTML = 'Puedes jugar sin cuenta, pero <a href="/login">inicia sesión</a> para guardar tu selección y progreso.';
+      sessionEl.hidden = false;
+    });
+
+    await hydrateSession();
+  }
+
+  wirePlaySession();
   initPlayFlow();
   wirePlayRealtime();
 </script>
@@ -279,3 +310,4 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     margin: 1.5rem auto 0;
   }
 </style>
+
