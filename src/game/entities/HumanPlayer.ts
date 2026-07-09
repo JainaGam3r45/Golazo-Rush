@@ -7,6 +7,13 @@ const SPRINT_COOLDOWN_MS = 2000;
 const SPRINT_DURATION_MS = 800;
 const CHARGE_TIME_MS = 400;
 const ACCENT_COLOR = 0x39ff14;
+const PASS_COOLDOWN_MS = 450;
+const LONG_KICK_COOLDOWN_MS = 700;
+
+export type HumanAction =
+  | { type: 'kick'; charged: boolean }
+  | { type: 'pass'; mode: 'short' | 'long' }
+  | { type: 'tackle' };
 
 export class HumanPlayer extends FieldPlayer {
   private keys!: {
@@ -16,6 +23,9 @@ export class HumanPlayer extends FieldPlayer {
     D: Phaser.Input.Keyboard.Key;
     SHIFT: Phaser.Input.Keyboard.Key;
     SPACE: Phaser.Input.Keyboard.Key;
+    E: Phaser.Input.Keyboard.Key;
+    Q: Phaser.Input.Keyboard.Key;
+    F: Phaser.Input.Keyboard.Key;
   };
 
   private sprinting = false;
@@ -23,10 +33,12 @@ export class HumanPlayer extends FieldPlayer {
   private chargingKick = false;
   private chargeStartedAt = 0;
   private youLabel: Phaser.GameObjects.Text | null = null;
-  private accentRing: Phaser.GameObjects.Arc;
   private chargeRing: Phaser.GameObjects.Arc;
   private sprintLines: Phaser.GameObjects.Graphics;
   private lastMoveDir = { x: 0, y: -1 };
+  private lastPassAt = 0;
+  private lastLongKickAt = 0;
+  private lastTackleAt = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -45,10 +57,6 @@ export class HumanPlayer extends FieldPlayer {
       strokeColor: ACCENT_COLOR,
     });
 
-    this.accentRing = scene.add.circle(x, y, 20, ACCENT_COLOR, 0);
-    this.accentRing.setStrokeStyle(2, ACCENT_COLOR, 0.85);
-    this.accentRing.setDepth(0);
-
     this.chargeRing = scene.add.circle(x, y, 18, ACCENT_COLOR, 0);
     this.chargeRing.setStrokeStyle(2, ACCENT_COLOR, 0);
     this.chargeRing.setDepth(3);
@@ -65,6 +73,9 @@ export class HumanPlayer extends FieldPlayer {
         D: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
         SHIFT: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
         SPACE: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+        E: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+        Q: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+        F: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F),
       };
     }
 
@@ -80,13 +91,34 @@ export class HumanPlayer extends FieldPlayer {
       .setDepth(4);
   }
 
+  getLastTackleAt(): number {
+    return this.lastTackleAt;
+  }
+
+  markTackle(time: number): void {
+    this.lastTackleAt = time;
+  }
+
+  getKickDirection(): { x: number; y: number } {
+    const moving = this.lastMoveDir.x !== 0 || this.lastMoveDir.y !== 0;
+    if (moving) return { ...this.lastMoveDir };
+
+    const goalX = this.side === 'home' ? 1100 : 0;
+    const dx = goalX - this.x;
+    const dy = 325 - this.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: dx / len, y: dy / len };
+  }
+
   override resetTo(x: number, y: number): void {
     super.resetTo(x, y);
     this.updateDecorations(0, false, 0);
+    this.lastPassAt = 0;
+    this.lastLongKickAt = 0;
+    this.lastTackleAt = 0;
   }
 
   private updateDecorations(time: number, charging: boolean, chargeProgress: number): void {
-    this.accentRing.setPosition(this.x, this.y);
     this.chargeRing.setPosition(this.x, this.y);
 
     if (charging && chargeProgress > 0) {
@@ -122,7 +154,7 @@ export class HumanPlayer extends FieldPlayer {
     }
   }
 
-  update(time: number): { kick: boolean; charged: boolean } {
+  update(time: number): HumanAction | null {
     let vx = 0;
     let vy = 0;
 
@@ -150,8 +182,6 @@ export class HumanPlayer extends FieldPlayer {
     const speedMult = this.sprinting ? SPRINT_MULTIPLIER : 1;
     this.setMovement(vx * speedMult, vy * speedMult);
 
-    let kick = false;
-    let charged = false;
     let chargeProgress = 0;
 
     if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -165,20 +195,44 @@ export class HumanPlayer extends FieldPlayer {
 
     if (this.chargingKick && this.keys?.SPACE.isUp) {
       const chargeDuration = time - this.chargeStartedAt;
-      charged = chargeDuration >= CHARGE_TIME_MS;
-      kick = true;
+      const charged = chargeDuration >= CHARGE_TIME_MS;
       this.chargingKick = false;
+      this.updateDecorations(time, false, 0);
+      return { type: 'kick', charged };
+    }
+
+    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.E) && time - this.lastPassAt >= PASS_COOLDOWN_MS) {
+      this.lastPassAt = time;
+      this.updateDecorations(time, this.chargingKick, chargeProgress);
+      return { type: 'pass', mode: 'short' };
+    }
+
+    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.Q) && time - this.lastLongKickAt >= LONG_KICK_COOLDOWN_MS) {
+      this.lastLongKickAt = time;
+      this.updateDecorations(time, this.chargingKick, chargeProgress);
+      return { type: 'pass', mode: 'long' };
+    }
+
+    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.F)) {
+      this.updateDecorations(time, this.chargingKick, chargeProgress);
+      return { type: 'tackle' };
     }
 
     this.updateDecorations(time, this.chargingKick, chargeProgress);
+    return null;
+  }
 
-    return { kick, charged };
+  override updateShadow(): void {
+    super.updateShadow();
+    if (this.youLabel) {
+      this.youLabel.setDepth(this.y + 1);
+    }
+    this.chargeRing.setDepth(this.y + 2);
   }
 
   destroy(fromScene?: boolean): void {
     this.youLabel?.destroy();
     this.youLabel = null;
-    this.accentRing.destroy();
     this.chargeRing.destroy();
     this.sprintLines.destroy();
     super.destroy(fromScene);

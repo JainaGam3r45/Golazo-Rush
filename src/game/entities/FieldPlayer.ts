@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { createPlayerVisual, type PlayerVisual } from './playerVisual';
 
 export const KICK_RANGE = 36;
 export const KICK_FORCE = 380;
@@ -21,6 +22,7 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
   readonly kind: FieldPlayerKind;
   readonly slot: number;
   readonly shadow: Phaser.GameObjects.Ellipse;
+  protected readonly visual: PlayerVisual;
 
   constructor(
     scene: Phaser.Scene,
@@ -38,20 +40,30 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
       strokeAlpha?: number;
       fillAlpha?: number;
       kickCooldownMs?: number;
+      visualKind?: 'goalkeeper';
     },
   ) {
     const width = options.width ?? 28;
     const height = options.height ?? 28;
-    super(scene, x, y, width, height, options.teamColor, options.fillAlpha ?? 1);
+    super(scene, x, y, width, height, options.teamColor, 0);
     this.teamColor = options.teamColor;
     this.side = options.side;
     this.kind = options.kind;
     this.slot = options.slot;
     this.maxSpeed = options.maxSpeed ?? 220;
     this.kickCooldownMs = options.kickCooldownMs ?? KICK_COOLDOWN_MS;
+    this.setAlpha(0.001);
 
-    this.shadow = scene.add.ellipse(x, y + height * 0.35, width * 0.9, height * 0.35, 0x000000, 0.25);
+    this.shadow = scene.add.ellipse(x, y + height * 0.35, width * 0.9, height * 0.35, 0x000000, 0);
     this.shadow.setDepth(0);
+
+    this.visual = createPlayerVisual(scene, x, y, {
+      teamColor: options.teamColor,
+      kind: options.visualKind ?? options.kind,
+      slot: options.slot,
+      width,
+      height,
+    });
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -59,18 +71,14 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
 
     const strokeColor = options.strokeColor ?? 0xffffff;
     const strokeAlpha = options.strokeAlpha ?? (options.kind === 'human' ? 1 : 0.55);
-    this.setStrokeStyle(options.kind === 'human' ? 3 : 2, strokeColor, strokeAlpha);
-
-    if (options.kind === 'teammate') {
-      this.setAlpha(0.92);
-    }
+    this.setStrokeStyle(0, strokeColor, 0);
 
     this.body.setCollideWorldBounds(true);
     this.body.setImmovable(false);
   }
 
   updateShadow(): void {
-    this.shadow.setPosition(this.x, this.y + this.height * 0.35);
+    this.visual.sync(this.x, this.y, this.y, this.body.velocity.x, this.body.velocity.y);
   }
 
   setMovement(vx: number, vy: number): void {
@@ -130,15 +138,24 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
     charged = false,
     time = 0,
     forceScale = 1,
+    direction?: { x: number; y: number },
   ): boolean {
     if (!this.canKick(time)) return false;
     if (this.distanceTo(ball.x, ball.y) > this.kickRange) return false;
 
-    const dx = ball.x - this.x;
-    const dy = ball.y - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-    const nx = dx / distance;
-    const ny = dy / distance;
+    let nx: number;
+    let ny: number;
+    if (direction) {
+      const len = Math.sqrt(direction.x ** 2 + direction.y ** 2) || 1;
+      nx = direction.x / len;
+      ny = direction.y / len;
+    } else {
+      const dx = ball.x - this.x;
+      const dy = ball.y - this.y;
+      const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+      nx = dx / distance;
+      ny = dy / distance;
+    }
 
     ball.setPosition(
       this.x + nx * (this.width / 2 + KICK_OFFSET),
@@ -170,6 +187,7 @@ export class FieldPlayer extends Phaser.GameObjects.Rectangle {
 
   destroy(fromScene?: boolean): void {
     this.shadow.destroy();
+    this.visual.destroy();
     super.destroy(fromScene);
   }
 }
