@@ -1,15 +1,18 @@
 ﻿---
 import Layout from '../layouts/Layout.astro';
+import OAuthButtons from '../components/OAuthButtons.astro';
 ---
 
 <Layout title="Golazo Rush — Entrar">
   <section class="auth-page">
-    <h1 class="section-title">Entrar</h1>
-    <p class="auth-page__hint">Inicia sesión para guardar tu selección y progreso.</p>
+    <header class="auth-page__header">
+      <h1 class="section-title">Entrar</h1>
+      <p class="auth-page__hint">Inicia sesión para guardar tu selección y progreso.</p>
+    </header>
+
+    <p class="auth-form__error" data-auth-error hidden></p>
 
     <form class="auth-form card" data-login-form>
-      <p class="auth-form__error" data-auth-error hidden></p>
-
       <label class="auth-form__field">
         <span>Email</span>
         <input type="email" name="email" required autocomplete="email" />
@@ -23,12 +26,16 @@ import Layout from '../layouts/Layout.astro';
       <button type="submit" class="btn auth-form__submit" data-auth-submit>Entrar</button>
     </form>
 
-    <p class="auth-page__footer">
-      ¿No tienes cuenta? <a href="/register">Crear cuenta</a>
-    </p>
-    <p class="auth-page__footer">
-      <a href="/play">Seguir jugando sin cuenta</a>
-    </p>
+    <OAuthButtons variant="login" />
+
+    <footer class="auth-page__footers">
+      <p class="auth-page__footer">
+        ¿No tienes cuenta? <a href="/register">Crear cuenta</a>
+      </p>
+      <p class="auth-page__footer auth-page__footer--guest">
+        <a href="/play">Seguir jugando sin cuenta</a>
+      </p>
+    </footer>
   </section>
 </Layout>
 
@@ -36,7 +43,8 @@ import Layout from '../layouts/Layout.astro';
   import { insforge, isInsForgeConfigured } from '../lib/insforge';
   import { mapAuthError } from '../lib/auth/errors';
   import { hydrateSession } from '../lib/auth/session';
-  import { fetchProfile, upsertProfile } from '../lib/profile/store';
+  import { wireOAuthButtons } from '../lib/auth/oauth';
+  import { upsertProfile } from '../lib/profile/store';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
 
   function wireLoginForm() {
@@ -92,5 +100,5 @@ import Layout from '../layouts/Layout.astro';
   }
 
   wireLoginForm();
+  wireOAuthButtons('[data-oauth-buttons]', '[data-auth-error]');
 </script>
-

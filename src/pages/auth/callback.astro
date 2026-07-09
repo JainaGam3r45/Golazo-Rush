@@ -1,0 +1,47 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Golazo Rush — Conectando">
+  <section class="auth-page">
+    <header class="auth-page__header">
+      <h1 class="section-title">Conectando</h1>
+      <p class="auth-page__hint auth-callback__status" data-callback-status>Completando inicio de sesión…</p>
+    </header>
+  </section>
+</Layout>
+
+<script>
+  import { isInsForgeConfigured } from '../../lib/insforge';
+  import { completeOAuthSession } from '../../lib/auth/oauth';
+  import { mapAuthError } from '../../lib/auth/errors';
+
+  async function handleOAuthCallback() {
+    const statusEl = document.querySelector<HTMLElement>('[data-callback-status]');
+
+    if (!isInsForgeConfigured) {
+      if (statusEl) statusEl.textContent = mapAuthError(null, false);
+      window.setTimeout(() => {
+        window.location.href = '/login';
+      }, 2500);
+      return;
+    }
+
+    const { user, error } = await completeOAuthSession();
+
+    if (user && !error) {
+      window.location.href = '/cuenta';
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = error ?? 'No se pudo completar el inicio de sesión.';
+    }
+
+    window.setTimeout(() => {
+      window.location.href = '/login';
+    }, 2500);
+  }
+
+  void handleOAuthCallback();
+</script>

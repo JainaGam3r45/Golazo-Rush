@@ -1,16 +1,19 @@
 ﻿---
 import Layout from '../layouts/Layout.astro';
+import OAuthButtons from '../components/OAuthButtons.astro';
 ---
 
 <Layout title="Golazo Rush — Crear cuenta">
   <section class="auth-page">
-    <h1 class="section-title">Crear cuenta</h1>
-    <p class="auth-page__hint">Regístrate para guardar tu selección favorita.</p>
+    <header class="auth-page__header">
+      <h1 class="section-title">Crear cuenta</h1>
+      <p class="auth-page__hint">Regístrate para guardar tu selección favorita.</p>
+    </header>
+
+    <p class="auth-form__error" data-auth-error hidden></p>
+    <p class="auth-form__info" data-auth-info hidden></p>
 
     <form class="auth-form card" data-register-form>
-      <p class="auth-form__error" data-auth-error hidden></p>
-      <p class="auth-form__info" data-auth-info hidden></p>
-
       <div data-register-fields>
         <label class="auth-form__field">
           <span>Nombre visible</span>
@@ -40,12 +43,16 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </form>
 
-    <p class="auth-page__footer">
-      ¿Ya tienes cuenta? <a href="/login">Entrar</a>
-    </p>
-    <p class="auth-page__footer">
-      <a href="/play">Seguir jugando sin cuenta</a>
-    </p>
+    <OAuthButtons variant="register" />
+
+    <footer class="auth-page__footers">
+      <p class="auth-page__footer">
+        ¿Ya tienes cuenta? <a href="/login">Entrar</a>
+      </p>
+      <p class="auth-page__footer auth-page__footer--guest">
+        <a href="/play">Seguir jugando sin cuenta</a>
+      </p>
+    </footer>
   </section>
 </Layout>
 
@@ -53,6 +60,7 @@ import Layout from '../layouts/Layout.astro';
   import { insforge, isInsForgeConfigured } from '../lib/insforge';
   import { mapAuthError } from '../lib/auth/errors';
   import { hydrateSession } from '../lib/auth/session';
+  import { wireOAuthButtons } from '../lib/auth/oauth';
   import { upsertProfile } from '../lib/profile/store';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
 
@@ -64,6 +72,7 @@ import Layout from '../layouts/Layout.astro';
     const infoEl = document.querySelector<HTMLElement>('[data-auth-info]');
     const registerFields = document.querySelector<HTMLElement>('[data-register-fields]');
     const verifyFields = document.querySelector<HTMLElement>('[data-verify-fields]');
+    const oauthSection = document.querySelector<HTMLElement>('[data-oauth-section]');
     const submitBtn = document.querySelector<HTMLButtonElement>('[data-auth-submit]');
     const verifyBtn = document.querySelector<HTMLButtonElement>('[data-verify-submit]');
     if (!form || !errorEl || !infoEl || !registerFields || !verifyFields || !submitBtn || !verifyBtn) return;
@@ -100,6 +109,7 @@ import Layout from '../layouts/Layout.astro';
         if (data?.requireEmailVerification) {
           registerFields.hidden = true;
           verifyFields.hidden = false;
+          if (oauthSection) oauthSection.hidden = true;
           infoEl.textContent = 'Revisa tu email o introduce el código de verificación.';
           infoEl.hidden = false;
           return;
@@ -166,4 +176,5 @@ import Layout from '../layouts/Layout.astro';
   }
 
   wireRegisterForm();
+  wireOAuthButtons('[data-oauth-buttons]', '[data-auth-error]');
 </script>
