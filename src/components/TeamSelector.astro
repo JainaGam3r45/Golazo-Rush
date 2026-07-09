@@ -1,0 +1,84 @@
+---
+import CountryFlag from './CountryFlag.astro';
+import type { Team } from '../lib/mock/teams';
+
+interface Props {
+  teams: Team[];
+  initialTeamId?: string;
+}
+
+const { teams, initialTeamId } = Astro.props;
+---
+
+<section class="team-selector" data-team-selector>
+  <h2 class="team-selector__title">Elige tu selección</h2>
+  <p class="team-selector__hint">Tu elección se guarda para la próxima visita.</p>
+
+  <div class="team-selector__grid" role="listbox" aria-label="Selecciones disponibles">
+    {
+      teams.map((team) => (
+        <button
+          type="button"
+          class="team-selector__option"
+          data-team-id={team.id}
+          role="option"
+          aria-selected={team.id === initialTeamId ? 'true' : 'false'}
+        >
+          <CountryFlag teamId={team.id} team={team} size="lg" />
+          <span class="team-selector__name">{team.name}</span>
+        </button>
+      ))
+    }
+  </div>
+
+  <button type="button" class="btn team-selector__continue" data-continue-team disabled>
+    Continuar
+  </button>
+</section>
+
+<script>
+  import { getSelectedTeam, setSelectedTeam } from '../lib/storage/selectedTeam';
+
+  function wireTeamSelector() {
+    const section = document.querySelector<HTMLElement>('[data-team-selector]');
+    if (!section) return;
+
+    const options = section.querySelectorAll<HTMLButtonElement>('.team-selector__option[data-team-id]');
+    const continueBtn = section.querySelector<HTMLButtonElement>('[data-continue-team]');
+    let selectedId = getSelectedTeam();
+
+    if (selectedId) {
+      for (const option of options) {
+        const isSelected = option.dataset.teamId === selectedId;
+        option.classList.toggle('team-selector__option--selected', isSelected);
+        option.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      }
+      if (continueBtn) continueBtn.disabled = false;
+    }
+
+    for (const option of options) {
+      option.addEventListener('click', () => {
+        selectedId = option.dataset.teamId ?? null;
+        if (!selectedId) return;
+
+        for (const opt of options) {
+          const isSelected = opt.dataset.teamId === selectedId;
+          opt.classList.toggle('team-selector__option--selected', isSelected);
+          opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        }
+
+        setSelectedTeam(selectedId);
+        if (continueBtn) continueBtn.disabled = false;
+      });
+    }
+
+    continueBtn?.addEventListener('click', () => {
+      if (!selectedId) return;
+      window.dispatchEvent(
+        new CustomEvent('golazo:team-selected', { detail: { teamId: selectedId } }),
+      );
+    });
+  }
+
+  wireTeamSelector();
+</script>

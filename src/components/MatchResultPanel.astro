@@ -1,0 +1,83 @@
+---
+---
+
+<section class="match-result" data-match-result hidden>
+  <h2 class="match-result__title">Resultado final</h2>
+
+  <div class="match-result__scoreboard">
+    <div class="match-result__team" data-result-home>
+      <span class="match-result__team-name" data-result-home-name>—</span>
+      <span class="match-result__score" data-result-home-score>0</span>
+    </div>
+    <span class="match-result__divider">—</span>
+    <div class="match-result__team" data-result-away>
+      <span class="match-result__team-name" data-result-away-name>—</span>
+      <span class="match-result__score" data-result-away-score>0</span>
+    </div>
+  </div>
+
+  <p class="match-result__outcome" data-result-outcome></p>
+  <p class="match-result__sync" data-result-sync aria-live="polite"></p>
+
+  <div class="match-result__actions">
+    <button type="button" class="btn match-result__restart" data-restart-match>
+      Jugar de nuevo
+    </button>
+    <a href="/ranking" class="btn-outline match-result__ranking">Ver ranking</a>
+  </div>
+</section>
+
+<script>
+  function wireMatchResultPanel() {
+    const section = document.querySelector<HTMLElement>('[data-match-result]');
+    if (!section) return;
+
+    const homeName = section.querySelector('[data-result-home-name]');
+    const awayName = section.querySelector('[data-result-away-name]');
+    const homeScore = section.querySelector('[data-result-home-score]');
+    const awayScore = section.querySelector('[data-result-away-score]');
+    const outcome = section.querySelector('[data-result-outcome]');
+    const syncEl = section.querySelector('[data-result-sync]');
+    const restartBtn = section.querySelector('[data-restart-match]');
+
+    window.addEventListener('golazo:show-result', (event) => {
+      const detail = event.detail;
+      section.hidden = false;
+
+      if (homeName) homeName.textContent = detail.homeTeamName;
+      if (awayName) awayName.textContent = detail.awayTeamName;
+      if (homeScore) homeScore.textContent = String(detail.homeScore);
+      if (awayScore) awayScore.textContent = String(detail.awayScore);
+
+      if (outcome) {
+        if (detail.homeScore > detail.awayScore) {
+          outcome.textContent = `Victoria de ${detail.homeTeamName}`;
+        } else if (detail.awayScore > detail.homeScore) {
+          outcome.textContent = `Victoria de ${detail.awayTeamName}`;
+        } else {
+          outcome.textContent = 'Empate';
+        }
+      }
+
+      if (syncEl) syncEl.textContent = '';
+    });
+
+    window.addEventListener('golazo:result-sync', (event) => {
+      const state = event.detail.state;
+      if (!syncEl) return;
+      if (state === 'synced') {
+        syncEl.textContent = '¡Resultado registrado! Revisa el ranking y la actividad.';
+      } else if (state === 'offline') {
+        syncEl.textContent = 'Partida guardada localmente (sin conexión al servidor).';
+      } else if (state === 'pending') {
+        syncEl.textContent = 'Guardando resultado…';
+      }
+    });
+
+    restartBtn?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('golazo:restart-match'));
+    });
+  }
+
+  wireMatchResultPanel();
+</script>

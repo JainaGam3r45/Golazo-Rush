@@ -1,0 +1,281 @@
+---
+import Layout from '../layouts/Layout.astro';
+import LobbyPanel from '../components/LobbyPanel.astro';
+import TeamSelector from '../components/TeamSelector.astro';
+import MatchPreview from '../components/MatchPreview.astro';
+import MatchResultPanel from '../components/MatchResultPanel.astro';
+import { getTeams } from '../lib/data/teams';
+import { DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
+
+const teams = await getTeams();
+const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
+---
+
+<Layout title="Golazo Rush — Jugar">
+  <section class="play-header">
+    <h1 class="section-title">Partido</h1>
+    <p class="play-header__hint">
+      Elige tu selección, configura el partido y usa WASD para moverte. Shift para sprint, Espacio para patear (mantén para cargar).
+    </p>
+  </section>
+
+  <div id="play-data" data-team-names={JSON.stringify(teamNames)} hidden></div>
+
+  <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
+  <MatchPreview teams={teams} />
+  <MatchResultPanel />
+
+  <div class="match-hud" id="match-hud" hidden>
+    <div class="match-hud__scoreboard">
+      <div class="match-hud__team">
+        <span class="match-hud__team-name" id="hud-home-name">Local</span>
+        <span class="match-hud__score"><span id="score-home">0</span></span>
+      </div>
+      <span class="match-hud__clock" id="match-clock">3:00</span>
+      <span class="match-hud__divider">—</span>
+      <div class="match-hud__team">
+        <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
+        <span class="match-hud__score"><span id="score-away">0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-container" class="game-container" hidden></div>
+
+  <section class="play-lobby">
+    <LobbyPanel compact />
+  </section>
+</Layout>
+
+<script>
+  import { startGame, destroyGame } from '../game/main';
+  import { insforge, isInsForgeConfigured } from '../lib/insforge';
+  import { CHANNELS } from '../lib/realtime/channels';
+  import {
+    subscribe,
+    onEvent,
+    onPresenceJoin,
+    onPresenceLeave,
+    isRealtimeAvailable,
+  } from '../lib/realtime/client';
+  import {
+    appendLobbyMatch,
+    removeLobbyMatch,
+    renderLobbyPresence,
+  } from '../lib/realtime/handlers';
+  import { getSelectedTeam } from '../lib/storage/selectedTeam';
+
+  const playDataEl = document.getElementById('play-data');
+  const teamNames = JSON.parse(playDataEl?.dataset.teamNames ?? '{}');
+
+  let activeMatchId = null;
+  let submitInFlight = false;
+  const submittedMatchIds = new Set();
+  let matchEndedHandler = null;
+
+  const teamSelector = document.querySelector('[data-team-selector]');
+  const matchPreview = document.querySelector('[data-match-preview]');
+  const matchResult = document.querySelector('[data-match-result]');
+  const matchHud = document.getElementById('match-hud');
+  const gameContainer = document.getElementById('game-container');
+
+  function getTeamName(id) {
+    return teamNames[id] ?? id;
+  }
+
+  function showPhase(phase) {
+    if (teamSelector) teamSelector.hidden = phase !== 'select';
+    if (matchPreview) matchPreview.hidden = phase !== 'preview';
+    if (matchResult) matchResult.hidden = phase !== 'result';
+    if (matchHud) matchHud.hidden = phase !== 'playing';
+    if (gameContainer) gameContainer.hidden = phase !== 'playing';
+  }
+
+  function showResultPanel(detail) {
+    showPhase('result');
+    window.dispatchEvent(
+      new CustomEvent('golazo:show-result', {
+        detail: {
+          homeTeamName: getTeamName(detail.homeTeamId),
+          awayTeamName: getTeamName(detail.awayTeamId),
+          homeScore: detail.homeScore,
+          awayScore: detail.awayScore,
+        },
+      }),
+    );
+  }
+
+  function updateResultPanelSyncState(state) {
+    window.dispatchEvent(new CustomEvent('golazo:result-sync', { detail: { state } }));
+  }
+
+  async function submitMatchResult(detail) {
+    showResultPanel(detail);
+
+    if (submittedMatchIds.has(detail.localMatchId)) return;
+    if (submitInFlight) return;
+    if (!isInsForgeConfigured || !insforge) return;
+
+    submitInFlight = true;
+    updateResultPanelSyncState('pending');
+
+    try {
+      const { data, error } = await insforge.functions.invoke('record-match-result', {
+        body: {
+          homeTeamId: detail.homeTeamId,
+          awayTeamId: detail.awayTeamId,
+          homeScore: detail.homeScore,
+          awayScore: detail.awayScore,
+          durationSeconds: detail.durationSeconds,
+        },
+      });
+
+      if (!error) {
+        submittedMatchIds.add(detail.localMatchId);
+        if (data && typeof data === 'object' && 'matchId' in data) {
+          activeMatchId = String(data.matchId);
+          await subscribeToMatchChannel(activeMatchId);
+        }
+      }
+
+      updateResultPanelSyncState(error ? 'offline' : 'synced');
+    } finally {
+      submitInFlight = false;
+    }
+  }
+
+  async function subscribeToMatchChannel(matchId) {
+    if (!isRealtimeAvailable()) return;
+
+    const channel = CHANNELS.match(matchId);
+    const result = await subscribe(channel);
+    if (!result.ok) return;
+
+    onEvent('match_joined', () => {
+      // scaffold for future multiplayer
+    });
+
+    onEvent('match_finished', (payload) => {
+      if (String(payload.matchId) === matchId) {
+        // match channel update
+      }
+    });
+  }
+
+  function bindMatchEnded(handler) {
+    unbindMatchEnded();
+    matchEndedHandler = handler;
+    window.addEventListener('golazo:match-ended', handler);
+  }
+
+  function unbindMatchEnded() {
+    if (matchEndedHandler) {
+      window.removeEventListener('golazo:match-ended', matchEndedHandler);
+      matchEndedHandler = null;
+    }
+  }
+
+  function restartMatch() {
+    destroyGame();
+    unbindMatchEnded();
+    showPhase('preview');
+  }
+
+  function initPlayFlow() {
+    const savedTeam = getSelectedTeam();
+    showPhase(savedTeam ? 'select' : 'select');
+
+    window.addEventListener('golazo:team-selected', () => {
+      showPhase('preview');
+    });
+
+    window.addEventListener('golazo:start-match', (event) => {
+      const setup = event.detail;
+      showPhase('playing');
+
+      const mins = Math.floor(setup.durationSeconds / 60);
+      const secs = setup.durationSeconds % 60;
+      const clockEl = document.getElementById('match-clock');
+      if (clockEl) {
+        clockEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+      }
+
+      const homeName = document.getElementById('hud-home-name');
+      const awayName = document.getElementById('hud-away-name');
+      if (homeName) homeName.textContent = getTeamName(setup.homeTeamId);
+      if (awayName) awayName.textContent = getTeamName(setup.awayTeamId);
+
+      const scoreHome = document.getElementById('score-home');
+      const scoreAway = document.getElementById('score-away');
+      if (scoreHome) scoreHome.textContent = '0';
+      if (scoreAway) scoreAway.textContent = '0';
+
+      startGame('game-container', setup);
+
+      bindMatchEnded((e) => {
+        const detail = e.detail;
+        submitMatchResult(detail);
+      });
+    });
+
+    window.addEventListener('golazo:restart-match', () => {
+      restartMatch();
+    });
+
+    window.addEventListener('golazo:match-needs-penalties', () => {
+      // PenaltyScene stub: ties register as draws in phase 1
+    });
+  }
+
+  async function wirePlayRealtime() {
+    if (!isRealtimeAvailable()) return;
+
+    const lobbyResult = await subscribe(CHANNELS.LOBBY);
+    if (!lobbyResult.ok) return;
+
+    let lobbyMembers = lobbyResult.members.map((m) => ({ presenceId: m.presenceId }));
+    renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
+    document.querySelector('[data-lobby-empty]')?.remove();
+
+    onPresenceJoin(({ member, meta }) => {
+      if (meta.channel !== CHANNELS.LOBBY) return;
+      lobbyMembers = [...lobbyMembers, { presenceId: member.presenceId }];
+      renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
+    });
+
+    onPresenceLeave(({ member, meta }) => {
+      if (meta.channel !== CHANNELS.LOBBY) return;
+      lobbyMembers = lobbyMembers.filter((m) => m.presenceId !== member.presenceId);
+      renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
+    });
+
+    onEvent('match_created', (payload) => {
+      document.querySelector('[data-lobby-empty]')?.remove();
+      appendLobbyMatch(payload, '[data-lobby-matches]');
+    });
+
+    onEvent('match_finished', (payload) => {
+      removeLobbyMatch(String(payload.matchId), '[data-lobby-matches]');
+    });
+  }
+
+  initPlayFlow();
+  wirePlayRealtime();
+</script>
+
+<style>
+  .play-header {
+    margin-bottom: 1rem;
+  }
+
+  .play-header__hint {
+    margin: -0.5rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9375rem;
+  }
+
+  .play-lobby {
+    max-width: 800px;
+    margin: 1.5rem auto 0;
+  }
+</style>
