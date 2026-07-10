@@ -1,0 +1,9 @@
+{
+  "name": "golazo-compute-probe",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
