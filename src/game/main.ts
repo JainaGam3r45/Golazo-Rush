@@ -2,6 +2,10 @@ import Phaser from 'phaser';
 import { createGameConfig } from './config/gameConfig';
 import type { MatchSetup } from '../lib/match/setup';
 import { registerGameScaleRefresh } from '../lib/match/gameBridge';
+import {
+  clearGameplayKeysSuspended,
+  registerCpuGame,
+} from '../lib/match/inputSuspend';
 import { resetPossession } from './ai/possession';
 import { stopMatchAudio } from './audio/matchAudio';
 import { destroyOnlineGame, isOnlineGameRunning } from './online/main';
@@ -22,6 +26,7 @@ export function startGame(parentId: string, setup: MatchSetup): Phaser.Game | nu
 
   parent.innerHTML = '';
   game = new Phaser.Game(createGameConfig(parentId, setup));
+  registerCpuGame(game);
   registerGameScaleRefresh(refreshGameScale);
   return game;
 }
@@ -35,6 +40,8 @@ export function destroyGame(): void {
   registerGameScaleRefresh(null);
 
   if (game) {
+    clearGameplayKeysSuspended(game);
+    registerCpuGame(null);
     // removeCanvas=true, noReturn=false — noReturn would clear Phaser globals
     // and prevent creating another Game without a full page reload.
     game.destroy(true, false);

@@ -9,7 +9,7 @@ interface Props {
 const { teams } = Astro.props;
 ---
 
-<section class="online-room" data-online-room hidden data-teams={JSON.stringify(teams)}>
+<section class="online-room" data-online-room data-teams={JSON.stringify(teams)}>
   <div class="online-room__panel" data-online-view="hydratingSession" hidden>
     <div class="online-room__skeleton" aria-busy="true" aria-live="polite">
       <div class="online-room__skel-line"></div>
@@ -344,7 +344,12 @@ const { teams } = Astro.props;
       }
       window.dispatchEvent(
         new CustomEvent('golazo:online-ui-state', {
-          detail: { state, hasActiveRoom: Boolean(pendingActive || (room && !inLobby)) },
+          detail: {
+            state,
+            hasActiveRoom: Boolean(pendingActive || (room && !inLobby)),
+            roomId: room?.id ?? pendingActive?.id ?? null,
+            errorMsg,
+          },
         }),
       );
     }
@@ -581,20 +586,26 @@ const { teams } = Astro.props;
       const key = chatMessageDedupeKey(msg);
       if (seenChatKeys.has(key)) return;
       seenChatKeys.add(key);
-      const chatList = root.querySelector('[data-online-chat-list]');
-      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
-      if (!chatList) return;
-      if (chatEmpty) chatEmpty.hidden = true;
-      const li = document.createElement('li');
       const who = room?.players.find((p) => p.userId === msg.userId);
       const label = who?.displayName || who?.username || msg.userId.slice(0, 8);
-      const meta = document.createElement('span');
-      meta.style.color = 'var(--accent)';
-      meta.style.fontWeight = '600';
-      meta.textContent = `${label}: `;
-      li.append(meta, document.createTextNode(msg.body));
-      chatList.appendChild(li);
-      chatList.scrollTop = chatList.scrollHeight;
+      const chatList = root.querySelector('[data-online-chat-list]');
+      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
+      if (chatList) {
+        if (chatEmpty) chatEmpty.hidden = true;
+        const li = document.createElement('li');
+        const meta = document.createElement('span');
+        meta.style.color = 'var(--accent)';
+        meta.style.fontWeight = '600';
+        meta.textContent = `${label}: `;
+        li.append(meta, document.createTextNode(msg.body));
+        chatList.appendChild(li);
+        chatList.scrollTop = chatList.scrollHeight;
+      }
+      window.dispatchEvent(
+        new CustomEvent('golazo:room-chat', {
+          detail: { ...msg, displayName: label },
+        }),
+      );
     }
 
     async function enterLobby(next: RoomSnapshot) {
@@ -802,11 +813,27 @@ const { teams } = Astro.props;
 
     window.addEventListener('golazo:play-mode', ((event: CustomEvent<{ mode: string }>) => {
       const mode = event.detail?.mode;
-      root.hidden = mode !== 'online';
       if (mode === 'online') {
         void syncSessionGate();
       }
     }) as EventListener);
+
+    window.addEventListener('golazo:shell-retry-session', () => {
+      void syncSessionGate();
+    });
+
+    window.addEventListener('golazo:shell-abandon-match', () => {
+      matchActive = false;
+      matchConnecting = false;
+      if (room) {
+        void leavePrivateRoom(room.id).then(() => {
+          resetOnlineLocal();
+          renderUi();
+        });
+      } else {
+        renderUi();
+      }
+    });
 
     window.addEventListener('golazo:team-selected', ((event: CustomEvent<{ teamId: string }>) => {
       if (event.detail?.teamId) myTeamId = event.detail.teamId;
@@ -817,27 +844,27 @@ const { teams } = Astro.props;
       if (status === 'joined' || status === 'playing') {
         matchConnecting = false;
         matchActive = true;
+        errorKind = null;
         renderUi();
         return;
       }
       if (status === 'error' || status === 'closed') {
         matchConnecting = false;
         matchActive = false;
-        if (status === 'error') {
-          errorKind = 'recoverable';
-          errorMsg = event.detail?.detail || 'No se pudo conectar al servidor de partida.';
+        if (status === 'error' && event.detail?.detail) {
+          setError(root.querySelector('[data-online-lobby-error]'), event.detail.detail);
+          setError(root.querySelector('[data-online-entry-error]'), event.detail.detail);
         }
         renderUi();
       }
     }) as EventListener);
 
     subscribeAuth(() => {
-      if (!root.hidden) renderUi();
+      renderUi();
     });
 
     void hydrateSession().then(() => {
-      if (!root.hidden) void syncSessionGate();
-      else renderUi();
+      void syncSessionGate();
     });
   }
 

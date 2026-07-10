@@ -1,0 +1,40 @@
+---
+/** In-game menu + controls + abandon confirm — always inside #game-shell. */
+---
+
+<div class="game-menu" data-game-menu hidden>
+  <div class="game-menu__card" role="dialog" aria-modal="true" aria-labelledby="game-menu-title">
+    <h2 class="game-menu__title" id="game-menu-title">Menú</h2>
+    <button type="button" class="btn" data-menu-resume>Reanudar</button>
+    <button type="button" class="btn-outline" data-menu-controls>Controles</button>
+    <button type="button" class="btn-outline" data-menu-sound>Sonido</button>
+    <button type="button" class="btn-outline" data-menu-fullscreen hidden>Volver a pantalla completa</button>
+    <button type="button" class="btn-outline" data-menu-abandon>Abandonar partido</button>
+  </div>
+</div>
+
+<div class="game-controls-help" data-controls-help hidden>
+  <div class="game-controls-help__card" role="dialog" aria-modal="true" aria-labelledby="controls-help-title">
+    <h3 id="controls-help-title">Controles</h3>
+    <div class="game-controls-help__chips">
+      <span><kbd>WASD</kbd> mover</span>
+      <span><kbd>Shift</kbd> sprint</span>
+      <span><kbd>Espacio</kbd> tiro</span>
+      <span><kbd>E</kbd> pase</span>
+      <span><kbd>Q</kbd> despeje</span>
+      <span><kbd>F</kbd> entrada</span>
+    </div>
+    <p data-controls-help-hint>En juego: controla tu jugador y busca el gol.</p>
+    <button type="button" class="btn" data-controls-help-close>Cerrar</button>
+  </div>
+</div>
+
+<div class="game-confirm" data-abandon-confirm hidden>
+  <div class="game-confirm__card" role="dialog" aria-modal="true">
+    <p>¿Abandonar el partido? Se contará como derrota / abandono.</p>
+    <div class="game-confirm__actions">
+      <button type="button" class="btn" data-abandon-confirm-yes>Abandonar</button>
+      <button type="button" class="btn-outline" data-abandon-confirm-no>Cancelar</button>
+    </div>
+  </div>
+</div>

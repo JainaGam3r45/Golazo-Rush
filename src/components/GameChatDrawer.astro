@@ -1,0 +1,33 @@
+---
+/**
+ * Markup-only chat drawer. Wired by play shell controller.
+ * Must remain inside #game-shell (never portaled to document.body).
+ */
+---
+
+<aside class="game-chat" data-game-chat aria-label="Chat">
+  <header class="game-chat__header">
+    <h2 class="game-chat__title">Chat</h2>
+    <button type="button" class="btn-outline" data-chat-close>Cerrar</button>
+  </header>
+  <ul class="game-chat__list" data-chat-list>
+    <li class="game-chat__empty" data-chat-empty>Aún no hay mensajes.</li>
+  </ul>
+  <div class="game-chat__quick" data-chat-quick hidden>
+    <button type="button" data-chat-quick-msg="¡Buena!">¡Buena!</button>
+    <button type="button" data-chat-quick-msg="Suerte">Suerte</button>
+    <button type="button" data-chat-quick-msg="Buen partido">Buen partido</button>
+    <button type="button" data-chat-quick-msg="GG">GG</button>
+  </div>
+  <p class="game-chat__error" data-chat-error hidden role="alert"></p>
+  <form class="game-chat__form" data-chat-form>
+    <input
+      type="text"
+      maxlength="200"
+      data-chat-input
+      placeholder="Escribe un mensaje…"
+      autocomplete="off"
+    />
+    <button type="submit" class="btn">Enviar</button>
+  </form>
+</aside>

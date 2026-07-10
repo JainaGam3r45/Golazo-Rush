@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { areGameplayKeysSuspended } from '../../lib/match/inputSuspend';
 import { FieldPlayer } from './FieldPlayer';
 
 const PLAYER_SPEED = 220;
@@ -158,6 +159,13 @@ export class HumanPlayer extends FieldPlayer {
   }
 
   update(time: number): HumanAction | null {
+    if (areGameplayKeysSuspended(this.scene.game)) {
+      this.setMovement(0, 0);
+      this.chargingKick = false;
+      this.updateDecorations(time, false, 0);
+      return null;
+    }
+
     let vx = 0;
     let vy = 0;
 

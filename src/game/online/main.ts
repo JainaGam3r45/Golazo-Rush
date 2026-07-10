@@ -3,6 +3,10 @@ import { OnlineMatchScene, buildOnlineMatchSetup } from './OnlineMatchScene';
 import type { OnlineMatchStartDetail } from '../../lib/match/onlineClient';
 import { PITCH_HEIGHT, PITCH_WIDTH } from '../config/pitch';
 import { registerGameScaleRefresh } from '../../lib/match/gameBridge';
+import {
+  clearGameplayKeysSuspended,
+  registerOnlineGame,
+} from '../../lib/match/inputSuspend';
 import { stopMatchAudio } from '../audio/matchAudio';
 
 let onlineGame: Phaser.Game | null = null;
@@ -45,6 +49,7 @@ export function startOnlineGame(
   destroyOnlineGame();
   parent.innerHTML = '';
   onlineGame = new Phaser.Game(createOnlineGameConfig(parentId, detail));
+  registerOnlineGame(onlineGame);
   registerGameScaleRefresh(() => {
     onlineGame?.scale.refresh();
   });
@@ -54,6 +59,8 @@ export function startOnlineGame(
 export function destroyOnlineGame(): void {
   if (!onlineGame) return;
 
+  clearGameplayKeysSuspended(onlineGame);
+  registerOnlineGame(null);
   registerGameScaleRefresh(null);
   onlineGame.destroy(true, false);
   onlineGame = null;

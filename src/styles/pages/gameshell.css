@@ -1,0 +1,639 @@
+/* Immersive game shell — dark client chrome using Golazo tokens */
+
+body.layout--immersive {
+  overflow: hidden;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.layout-immersive {
+  width: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+}
+
+.layout-immersive > main {
+  padding: 0;
+  height: 100%;
+}
+
+.game-shell {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent),
+    var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.game-shell--immersive-css {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100vw;
+  height: 100dvh;
+}
+
+.game-shell__chrome {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.game-shell__chrome > * {
+  pointer-events: auto;
+}
+
+.game-shell__chrome > *[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.game-shell__reenter-fs {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 90%, var(--accent) 10%);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.game-shell__reenter-fs[hidden] {
+  display: none !important;
+}
+
+.game-shell__panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem clamp(1rem, 3vw, 2rem);
+}
+
+.game-shell__panel[hidden] {
+  display: none !important;
+}
+
+.game-shell__panel--match {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem clamp(0.5rem, 2vw, 1rem) 0.75rem;
+  overflow: hidden;
+}
+
+.game-shell__panel--match[hidden] {
+  display: none !important;
+}
+
+/* Entry */
+.shell-entry {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 1rem;
+  min-height: 100%;
+}
+
+.shell-entry__brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 8vw, 4.5rem);
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.shell-entry__status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.shell-entry__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.shell-entry__actions .btn {
+  min-width: min(18rem, 90vw);
+}
+
+/* Hub */
+.shell-hub {
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.shell-hub__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.shell-hub__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+.shell-hub__session {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.shell-hub__session a {
+  color: var(--accent);
+}
+
+.shell-hub__cards {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .shell-hub__cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.shell-hub__card {
+  display: grid;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 1.35rem 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 12%),
+    var(--bg-elevated)
+  );
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.shell-hub__card:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.shell-hub__card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shell-hub__card-title {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.shell-hub__card-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.shell-hub__card-meta {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.shell-hub__badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bg);
+  background: var(--accent);
+}
+
+.shell-hub__badge[hidden] {
+  display: none !important;
+}
+
+.shell-hub__back {
+  margin-bottom: 1rem;
+}
+
+.shell-hub__online-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 960px) {
+  .shell-hub__online-layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 0.75fr);
+    align-items: start;
+  }
+}
+
+.shell-hub__side {
+  display: grid;
+  gap: 1rem;
+}
+
+.shell-health {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 0.8125rem;
+}
+
+.shell-health__label {
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.shell-health__value {
+  margin: 0;
+  font-weight: 600;
+}
+
+.shell-health__value[data-health='online'] {
+  color: var(--accent);
+}
+
+.shell-health__value[data-health='connecting'] {
+  color: var(--text-muted);
+}
+
+.shell-health__value[data-health='degraded'] {
+  color: #e8c44a;
+}
+
+.shell-health__value[data-health='offline'],
+.shell-health__value[data-health='unknown'] {
+  color: var(--danger);
+}
+
+.shell-connecting {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  min-height: 100%;
+}
+
+.shell-connecting__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--accent);
+}
+
+.shell-error {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  min-height: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+}
+
+.shell-error__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  color: var(--danger);
+}
+
+/* Match HUD compact */
+.game-shell .match-stage {
+  max-width: none;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-shell .match-hud {
+  flex-shrink: 0;
+  margin-bottom: 0.4rem;
+}
+
+.game-shell .game-container {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  aspect-ratio: auto;
+  height: auto;
+}
+
+.game-shell:fullscreen,
+.game-shell:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+.game-shell:fullscreen .game-shell__panel--match,
+.game-shell:-webkit-full-screen .game-shell__panel--match {
+  height: 100%;
+}
+
+/* Chat drawer — inside #game-shell only */
+.game-chat {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(22rem, 92vw);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--bg-elevated) 96%, black);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.game-chat--open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.game-chat__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.game-chat__title {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--accent);
+  font-size: 1.15rem;
+}
+
+.game-chat__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  flex: 1;
+  overflow: auto;
+  font-size: 0.875rem;
+}
+
+.game-chat__empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.game-chat__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 1rem 0.5rem;
+}
+
+.game-chat__quick button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.game-chat__form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.game-chat__form input {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.game-chat__toggle {
+  position: relative;
+}
+
+.game-chat__badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.game-chat__badge[hidden] {
+  display: none !important;
+}
+
+.game-chat__error {
+  margin: 0 1rem 0.5rem;
+  color: #ff7b7b;
+  font-size: 0.8rem;
+}
+
+.game-chat__error[hidden] {
+  display: none !important;
+}
+
+/* In-game menu overlay — inside #game-shell */
+.game-menu {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 10, 6, 0.72);
+  padding: 1rem;
+}
+
+.game-menu[hidden] {
+  display: none !important;
+}
+
+.game-menu__card {
+  width: min(22rem, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.game-menu__title {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--accent);
+  text-align: center;
+}
+
+.game-menu__card .btn,
+.game-menu__card .btn-outline {
+  width: 100%;
+}
+
+.game-controls-help {
+  position: absolute;
+  inset: 0;
+  z-index: 29;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 10, 6, 0.72);
+  padding: 1rem;
+}
+
+.game-controls-help[hidden] {
+  display: none !important;
+}
+
+.game-controls-help__card {
+  width: min(26rem, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.game-controls-help__card h3 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display);
+  color: var(--accent);
+}
+
+.game-controls-help__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.game-controls-help__chips span {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.8rem;
+}
+
+.game-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 10, 6, 0.78);
+  padding: 1rem;
+}
+
+.game-confirm[hidden] {
+  display: none !important;
+}
+
+.game-confirm__card {
+  width: min(22rem, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  text-align: center;
+}
+
+.game-confirm__card p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+}
+
+.game-confirm__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Hide legacy page chrome when nested in shell */
+.game-shell .play-header,
+.game-shell .play-mode {
+  display: none !important;
+}
+
+.game-shell .online-room {
+  margin: 0;
+}
+
+.game-shell .online-room__chat {
+  display: none;
+}
+
+.game-shell .online-room__lobby-grid {
+  grid-template-columns: 1fr;
+}
+
+.game-shell .play-lobby {
+  margin: 0;
+  max-width: none;
+}
+
+.game-shell [data-online-room-mount]:empty {
+  display: none;
+}
+
+.match-hud__conn {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.game-shell [data-hub-subview] [data-match-preview] {
+  display: block;
+}
+
+.game-shell [data-hub-subview] [data-match-preview][hidden] {
+  display: none !important;
+}

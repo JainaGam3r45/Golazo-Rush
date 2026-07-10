@@ -7,6 +7,7 @@ import {
   aimFromButtons,
   type KeyboardLike,
 } from '../../lib/match/onlineInput';
+import { areGameplayKeysSuspended } from '../../lib/match/inputSuspend';
 import {
   pushSnap,
   sampleInterpolatedFrame,
@@ -369,20 +370,20 @@ export class OnlineMatchScene extends Phaser.Scene {
   }
 
   private readKeys(): KeyboardLike {
+    const empty: KeyboardLike = {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+      sprint: false,
+      shoot: false,
+      pass: false,
+      tackle: false,
+      clear: false,
+    };
+    if (areGameplayKeysSuspended(this.game)) return empty;
     const k = this.keys;
-    if (!k) {
-      return {
-        up: false,
-        down: false,
-        left: false,
-        right: false,
-        sprint: false,
-        shoot: false,
-        pass: false,
-        tackle: false,
-        clear: false,
-      };
-    }
+    if (!k) return empty;
     return {
       up: k.W.isDown,
       down: k.S.isDown,

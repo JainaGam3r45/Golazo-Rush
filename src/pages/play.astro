@@ -1,173 +1,28 @@
 ﻿---
 import Layout from '../layouts/Layout.astro';
-import LobbyPanel from '../components/LobbyPanel.astro';
-import TeamSelector from '../components/TeamSelector.astro';
-import MatchPreview from '../components/MatchPreview.astro';
-import MatchResultPanel from '../components/MatchResultPanel.astro';
-import OnlineRoomPanel from '../components/OnlineRoomPanel.astro';
+import GameShell from '../components/GameShell.astro';
 import { getTeams } from '../lib/data/teams';
-import { DEFAULT_DURATION, DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
-import { formatMatchClock } from '../lib/match/formatMatchClock';
 
 const teams = await getTeams();
 const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
-const initialClock = formatMatchClock(DEFAULT_DURATION);
 ---
 
-<Layout title="Golazo Rush — Jugar">
-  <section class="play-header">
-    <h1 class="section-title">PARTIDO</h1>
-    <p class="play-header__hint">Elige cómo jugar y prepara tu equipo.</p>
-    <p class="play-session" data-play-session hidden aria-live="polite"></p>
-  </section>
-
-  <div class="play-mode" data-play-mode role="tablist" aria-label="Modo de juego">
-    <button
-      type="button"
-      class="play-mode__card play-mode__card--active"
-      data-play-mode-btn="cpu"
-      role="tab"
-      aria-selected="true"
-    >
-      <span class="play-mode__card-title">Contra bots</span>
-      <span class="play-mode__card-desc">Partido rápido individual</span>
-    </button>
-    <button
-      type="button"
-      class="play-mode__card"
-      data-play-mode-btn="online"
-      role="tab"
-      aria-selected="false"
-    >
-      <span class="play-mode__card-title">Online 1v1</span>
-      <span class="play-mode__card-desc">Compite contra otro jugador</span>
-      <span class="play-mode__card-meta">Requiere cuenta</span>
-      <span class="play-mode__badge" data-online-active-badge hidden>Sala en curso</span>
-    </button>
-  </div>
-
-  <div id="play-data" data-team-names={JSON.stringify(teamNames)} hidden></div>
-
-  <div data-cpu-flow>
-    <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
-    <MatchPreview teams={teams} />
-  </div>
-
-  <OnlineRoomPanel teams={teams} />
-  <MatchResultPanel />
-
-  <div id="match-stage" class="match-stage" hidden>
-    <div class="match-hud" id="match-hud">
-      <div class="match-hud__top">
-        <p class="match-hud__mode" id="match-mode">11v11 Contra bots</p>
-        <p class="match-hud__stoppage" id="match-stoppage" data-stoppage>En juego</p>
-        <div class="match-hud__actions">
-          <button
-            type="button"
-            class="match-hud__icon-btn"
-            data-controls-toggle
-            aria-expanded="true"
-            aria-controls="match-controls-panel"
-            title="Controles"
-          >
-            <svg class="match-hud__icon" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="8" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"></rect>
-              <circle cx="8" cy="13" r="1.25" fill="currentColor"></circle>
-              <circle cx="12" cy="11" r="1.25" fill="currentColor"></circle>
-              <circle cx="12" cy="15" r="1.25" fill="currentColor"></circle>
-              <circle cx="16" cy="13" r="1.25" fill="currentColor"></circle>
-            </svg>
-            <span class="match-hud__icon-label">Controles</span>
-          </button>
-          <button
-            type="button"
-            class="match-hud__icon-btn"
-            data-fullscreen
-            aria-label="Pantalla completa"
-            title="Pantalla completa"
-          >
-            <svg class="match-hud__icon" data-fullscreen-icon-enter viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
-            </svg>
-            <svg class="match-hud__icon" data-fullscreen-icon-exit hidden viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M3 8h5V3M16 3v5h5M3 16h5v5M16 21v-5h5"></path>
-            </svg>
-            <span class="match-hud__icon-label" data-fullscreen-label>Pantalla completa</span>
-          </button>
-          <button
-            type="button"
-            class="match-hud__icon-btn"
-            data-mute
-            aria-label="Silenciar sonido"
-            title="Silenciar"
-          >
-            <svg class="match-hud__icon" data-mute-icon-on viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M16 9.5a4 4 0 010 5M18.5 7a7 7 0 010 10"></path>
-            </svg>
-            <svg class="match-hud__icon" data-mute-icon-off hidden viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
-              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M17 10l4 4M21 10l-4 4"></path>
-            </svg>
-            <span class="match-hud__icon-label" data-mute-label>Silenciar</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="match-hud__scoreboard">
-        <span class="match-hud__team-name" id="hud-home-name">Local</span>
-        <span class="match-hud__score"><span id="score-home">0</span></span>
-        <span class="match-hud__divider" aria-hidden="true">·</span>
-        <span class="match-hud__clock" id="match-clock">{initialClock}</span>
-        <span class="match-hud__divider" aria-hidden="true">·</span>
-        <span class="match-hud__score"><span id="score-away">0</span></span>
-        <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
-      </div>
-
-      <div
-        class="match-hud__controls-panel"
-        id="match-controls-panel"
-        data-controls-panel
-      >
-        <div class="match-hud__chips" data-controls-chips>
-          <span class="match-hud__chip"><kbd>WASD</kbd> mover</span>
-          <span class="match-hud__chip"><kbd>Shift</kbd> sprint</span>
-          <span class="match-hud__chip"><kbd>Espacio</kbd> tiro</span>
-          <span class="match-hud__chip"><kbd>E</kbd> pase</span>
-          <span class="match-hud__chip"><kbd>Q</kbd> despeje</span>
-          <span class="match-hud__chip"><kbd>F</kbd> entrada</span>
-        </div>
-        <p class="match-hud__context-hint" data-controls-hint>
-          En juego: controla tu jugador y busca el gol.
-        </p>
-      </div>
-
-      <p class="match-hud__hint" data-fullscreen-hint hidden>
-        Pantalla completa no disponible en este navegador.
-      </p>
-    </div>
-
-    <div id="game-container" class="game-container"></div>
-  </div>
-
-  <section class="play-lobby" data-play-lobby hidden>
-    <details class="play-lobby__details">
-      <summary class="play-lobby__summary">Actividad online</summary>
-      <LobbyPanel compact />
-    </details>
-  </section>
+<Layout title="Golazo Rush — Jugar" immersive>
+  <GameShell teams={teams} teamNames={teamNames} />
 </Layout>
 
 <script>
   import { isSoundMuted, setSoundMuted } from '../lib/storage/soundPreference';
   import {
     isFullscreenSupported,
-    isFullscreenActive,
-    toggleFullscreen,
+    isShellFullscreen,
+    enterFullscreen,
     wireFullscreenScaleRefresh,
   } from '../lib/match/fullscreen';
   import { formatModeLabel } from '../lib/match/formats';
   import { insforge, isInsForgeConfigured } from '../lib/insforge';
+  import { getPublicGameServerUrl, toHttpUrl } from '../lib/match/onlineProtocol';
+  import { resolveOnlineAccessToken } from '../lib/match/onlineAuth';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
     subscribe,
@@ -181,14 +36,25 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
     removeLobbyMatch,
     renderLobbyPresence,
   } from '../lib/realtime/handlers';
-  import { getSelectedTeam } from '../lib/storage/selectedTeam';
   import { formatMatchClock } from '../lib/match/formatMatchClock';
   import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
-
-  const CONTROLS_PANEL_KEY = 'golazo:controls-panel-open';
+  import { DEFAULT_DURATION } from '../lib/match/setup';
+  import { createShellController } from '../lib/match/shellController';
+  import { mapOnlineUiToShell } from '../lib/match/shellState';
+  import { createServerHealthMonitor } from '../lib/match/serverHealth';
+  import {
+    setActiveGameSuspended,
+    clearGameplayKeysSuspended,
+    getActivePhaserGame,
+  } from '../lib/match/inputSuspend';
+  import { refreshGameScale } from '../lib/match/gameBridge';
+  import { sendRoomChat } from '../lib/match/privateRoomApi';
+  import { chatMessageDedupeKey } from '../lib/match/lineup';
 
   const playDataEl = document.getElementById('play-data');
   const teamNames = JSON.parse(playDataEl?.dataset.teamNames ?? '{}');
+  const shellRoot = document.getElementById('game-shell');
+  if (!shellRoot) throw new Error('game-shell missing');
 
   let activeMatchId = null;
   let submitInFlight = false;
@@ -199,132 +65,170 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
   let stopInFlight = null;
   const playUnsubscribes = [];
   const matchChannelUnsubscribes = [];
+  let chatRoomId = null;
+  let chatOpen = false;
+  let unreadChat = 0;
+  const seenChatKeys = new Set();
+  let lastHealthOffline = false;
 
-  const teamSelector = document.querySelector('[data-team-selector]');
-  const matchPreview = document.querySelector('[data-match-preview]');
-  const matchResult = document.querySelector('[data-match-result]');
-  const matchStage = document.getElementById('match-stage');
-  const cpuFlow = document.querySelector('[data-cpu-flow]');
-  const playModeBtns = document.querySelectorAll('[data-play-mode-btn]');
-  const fullscreenBtn = document.querySelector('[data-fullscreen]');
-  const muteBtn = document.querySelector('[data-mute]');
-  const fullscreenHint = document.querySelector('[data-fullscreen-hint]');
-  const controlsToggle = document.querySelector('[data-controls-toggle]');
-  const controlsPanel = document.querySelector('[data-controls-panel]');
-  const stoppageEl = document.querySelector('[data-stoppage]');
-  const controlsHint = document.querySelector('[data-controls-hint]');
+  const shell = createShellController({ root: shellRoot });
+  const health = createServerHealthMonitor({
+    onChange(snap) {
+      const el = shellRoot.querySelector('[data-health-value]');
+      if (!el) return;
+      const labels = {
+        online: 'Online',
+        connecting: 'Conectando…',
+        degraded: 'Degradado',
+        offline: 'Offline',
+        unknown: 'Desconocido',
+      };
+      el.textContent = labels[snap.status] ?? snap.status;
+      el.dataset.health = snap.status;
+      lastHealthOffline = snap.status === 'offline';
+      const onlineCard = shellRoot.querySelector('[data-hub-card="online"]');
+      if (onlineCard && shell.getHubSubview() === 'cards') {
+        // keep card clickable; actions inside OnlineRoomPanel still work when online
+      }
+      const createBtn = document.querySelector('[data-online-create]');
+      const joinBtn = document.querySelector('[data-online-join]');
+      if (createBtn) createBtn.disabled = lastHealthOffline;
+      if (joinBtn) joinBtn.disabled = lastHealthOffline;
+    },
+  });
 
-  let playMode = 'cpu';
+  const fsWire = wireFullscreenScaleRefresh((active) => {
+    updateReenterChip(active);
+    const menuFs = shellRoot.querySelector('[data-menu-fullscreen]');
+    if (menuFs) menuFs.hidden = active || !isFullscreenSupported();
+  });
 
   function getTeamName(id) {
     return teamNames[id] ?? id;
   }
 
-  const playLobby = document.querySelector('[data-play-lobby]');
-  const onlineActiveBadge = document.querySelector('[data-online-active-badge]');
-
-  function setPlayMode(mode) {
-    playMode = mode === 'online' ? 'online' : 'cpu';
-    for (const btn of playModeBtns) {
-      const active = btn.getAttribute('data-play-mode-btn') === playMode;
-      btn.classList.toggle('play-mode__card--active', active);
-      btn.classList.toggle('play-mode__btn--active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    }
-    if (cpuFlow) cpuFlow.hidden = playMode !== 'cpu';
-    if (playLobby) playLobby.hidden = playMode !== 'online';
-    if (playMode === 'online') {
-      if (matchStage) matchStage.hidden = true;
-      void stopActiveMatch();
-    } else if (!matchStage || matchStage.hidden) {
-      // keep current cpu phase
-    }
-    window.dispatchEvent(new CustomEvent('golazo:play-mode', { detail: { mode: playMode } }));
+  function updateReenterChip(fsActive) {
+    const chip = shellRoot.querySelector('[data-reenter-fs]');
+    if (!chip) return;
+    const inGame =
+      shell.getState() === 'match' ||
+      shell.getState() === 'hub' ||
+      shell.getState() === 'room' ||
+      shell.getState() === 'results';
+    chip.hidden = !inGame || fsActive || shellRoot.classList.contains('game-shell--immersive-css');
   }
 
-  window.addEventListener('golazo:online-ui-state', (event) => {
-    const hasActive = Boolean(event.detail?.hasActiveRoom);
-    if (onlineActiveBadge) onlineActiveBadge.hidden = !hasActive;
-  });
-
-  function showPhase(phase) {
-    if (playMode !== 'cpu') return;
-    if (teamSelector) teamSelector.hidden = phase !== 'select';
-    if (matchPreview) matchPreview.hidden = phase !== 'preview';
-    if (matchResult) matchResult.hidden = phase !== 'result';
-    if (matchStage) matchStage.hidden = phase !== 'playing';
+  function setChatVisible(open) {
+    chatOpen = open;
+    const drawer = shellRoot.querySelector('[data-game-chat]');
+    if (drawer) {
+      drawer.classList.toggle('game-chat--open', open);
+    }
+    for (const btn of shellRoot.querySelectorAll('[data-chat-toggle], [data-chat-toggle-match]')) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    setActiveGameSuspended(open && shell.getState() === 'match');
+    refreshGameScale();
+    if (open) {
+      unreadChat = 0;
+      updateChatBadge();
+      shellRoot.querySelector('[data-chat-input]')?.focus();
+    } else if (shell.getState() === 'match') {
+      const menu = shellRoot.querySelector('[data-game-menu]');
+      if (menu?.hidden !== false) {
+        const game = getActivePhaserGame();
+        if (game && !chatOpen) clearGameplayKeysSuspended(game);
+      }
+    } else {
+      const game = getActivePhaserGame();
+      if (game) clearGameplayKeysSuspended(game);
+    }
   }
 
-  function showOnlinePlaying() {
-    if (cpuFlow) cpuFlow.hidden = true;
-    const onlineRoom = document.querySelector('[data-online-room]');
-    if (onlineRoom) onlineRoom.hidden = true;
-    if (matchResult) matchResult.hidden = true;
-    if (matchStage) matchStage.hidden = false;
+  function updateChatBadge() {
+    for (const badge of shellRoot.querySelectorAll('[data-chat-badge], [data-chat-badge-match]')) {
+      badge.hidden = unreadChat <= 0;
+      badge.textContent = unreadChat > 9 ? '9+' : String(unreadChat);
+    }
+  }
+
+  function updateChatToggleVisibility() {
+    const show =
+      Boolean(chatRoomId) &&
+      (shell.getState() === 'room' ||
+        shell.getState() === 'match' ||
+        shell.getState() === 'results' ||
+        shell.getState() === 'connectingMatch');
+    for (const btn of shellRoot.querySelectorAll('[data-chat-toggle]')) {
+      btn.hidden = !show || shell.getState() === 'match';
+    }
+    const quick = shellRoot.querySelector('[data-chat-quick]');
+    if (quick) quick.hidden = shell.getState() !== 'match';
+  }
+
+  function appendShellChat(msg) {
+    const key = chatMessageDedupeKey(msg);
+    if (seenChatKeys.has(key)) return;
+    seenChatKeys.add(key);
+    const list = shellRoot.querySelector('[data-chat-list]');
+    const empty = shellRoot.querySelector('[data-chat-empty]');
+    if (!list) return;
+    if (empty) empty.hidden = true;
+    const li = document.createElement('li');
+    const meta = document.createElement('span');
+    meta.style.color = 'var(--accent)';
+    meta.style.fontWeight = '600';
+    const label = msg.displayLabel || msg.displayName || msg.userId?.slice?.(0, 8) || 'Jugador';
+    meta.textContent = `${label}: `;
+    li.append(meta, document.createTextNode(String(msg.body ?? '')));
+    list.appendChild(li);
+    list.scrollTop = list.scrollHeight;
+    if (!chatOpen) {
+      unreadChat += 1;
+      updateChatBadge();
+    }
   }
 
   function updateMuteButton(refreshVolume = false) {
+    const muteBtn = shellRoot.querySelector('[data-mute]');
     if (!muteBtn) return;
     const muted = isSoundMuted();
     const label = muted ? 'Sonido' : 'Silenciar';
-    const aria = muted ? 'Activar sonido' : 'Silenciar sonido';
-    muteBtn.setAttribute('aria-label', aria);
+    muteBtn.setAttribute('aria-label', muted ? 'Activar sonido' : 'Silenciar sonido');
     muteBtn.setAttribute('title', label);
     muteBtn.classList.toggle('match-hud__icon-btn--active', muted);
-
     const onIcon = muteBtn.querySelector('[data-mute-icon-on]');
     const offIcon = muteBtn.querySelector('[data-mute-icon-off]');
     const labelEl = muteBtn.querySelector('[data-mute-label]');
     if (onIcon) onIcon.hidden = muted;
     if (offIcon) offIcon.hidden = !muted;
     if (labelEl) labelEl.textContent = label;
-
     if (refreshVolume) {
       void import('../game/audio/matchAudio').then((mod) => mod.refreshAmbientVolume());
     }
-  }
-
-  function updateFullscreenButton() {
-    if (!fullscreenBtn) return;
-    const active = isFullscreenActive();
-    const label = active ? 'Salir' : 'Pantalla completa';
-    fullscreenBtn.setAttribute('aria-label', label);
-    fullscreenBtn.setAttribute('title', label);
-    fullscreenBtn.classList.toggle('match-hud__icon-btn--active', active);
-
-    const enterIcon = fullscreenBtn.querySelector('[data-fullscreen-icon-enter]');
-    const exitIcon = fullscreenBtn.querySelector('[data-fullscreen-icon-exit]');
-    const labelEl = fullscreenBtn.querySelector('[data-fullscreen-label]');
-    if (enterIcon) enterIcon.hidden = active;
-    if (exitIcon) exitIcon.hidden = !active;
-    if (labelEl) labelEl.textContent = label;
-  }
-
-  function readControlsPanelPref() {
-    try {
-      const stored = localStorage.getItem(CONTROLS_PANEL_KEY);
-      if (stored === null) return window.matchMedia('(min-width: 640px)').matches;
-      return stored === 'true';
-    } catch {
-      return true;
-    }
-  }
-
-  function setControlsPanelOpen(open) {
-    if (!controlsPanel || !controlsToggle) return;
-    controlsPanel.hidden = !open;
-    controlsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    controlsToggle.classList.toggle('match-hud__icon-btn--active', open);
-    try {
-      localStorage.setItem(CONTROLS_PANEL_KEY, open ? 'true' : 'false');
-    } catch {
-      // ignore
-    }
+    const menuSound = shellRoot.querySelector('[data-menu-sound]');
+    if (menuSound) menuSound.textContent = muted ? 'Activar sonido' : 'Silenciar sonido';
   }
 
   function setStoppageState(label, hint) {
+    const stoppageEl = shellRoot.querySelector('[data-stoppage]');
     if (stoppageEl) stoppageEl.textContent = label || 'En juego';
-    if (controlsHint && hint) controlsHint.textContent = hint;
+    const helpHint = shellRoot.querySelector('[data-controls-help-hint]');
+    if (helpHint && hint) helpHint.textContent = hint;
+  }
+
+  function setConnQuality(rttMs) {
+    const el = shellRoot.querySelector('[data-conn-quality]');
+    if (!el) return;
+    if (typeof rttMs !== 'number') {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    let quality = 'buena';
+    if (rttMs > 180) quality = 'débil';
+    else if (rttMs > 100) quality = 'estable';
+    el.textContent = `Conexión: ${Math.round(rttMs)} ms · ${quality}`;
   }
 
   async function stopActiveMatch() {
@@ -332,7 +236,6 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
       await stopInFlight;
       return;
     }
-
     stopInFlight = (async () => {
       const [{ destroyGame }, { stopMatchAudio }] = await Promise.all([
         import('../game/main'),
@@ -343,11 +246,14 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
     })().finally(() => {
       stopInFlight = null;
     });
-
     await stopInFlight;
   }
 
   async function teardownPlayPage() {
+    health.dispose();
+    fsWire.dispose();
+    shell.dispose();
+    setChatVisible(false);
     const [{ destroyGame }, { stopMatchAudio, disposeMatchAudio }] = await Promise.all([
       import('../game/main'),
       import('../game/audio/matchAudio'),
@@ -357,63 +263,13 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
     disposeMatchAudio();
     unbindMatchEnded();
     unbindStoppage();
-    for (const unsub of playUnsubscribes.splice(0)) {
-      unsub();
-    }
-    for (const unsub of matchChannelUnsubscribes.splice(0)) {
-      unsub();
-    }
-  }
-
-  function wireMatchControls() {
-    wireFullscreenScaleRefresh();
-
-    if (!isFullscreenSupported()) {
-      fullscreenBtn?.setAttribute('disabled', 'true');
-      if (fullscreenHint) fullscreenHint.hidden = false;
-    }
-
-    fullscreenBtn?.addEventListener('click', async () => {
-      if (!matchStage) return;
-      try {
-        await toggleFullscreen(matchStage);
-        updateFullscreenButton();
-      } catch {
-        if (fullscreenHint) fullscreenHint.hidden = false;
-      }
-    });
-
-    document.addEventListener('fullscreenchange', updateFullscreenButton);
-    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-
-    muteBtn?.addEventListener('click', async () => {
-      const { unlockMatchAudio } = await import('../game/audio/matchAudio');
-      unlockMatchAudio();
-      setSoundMuted(!isSoundMuted());
-      updateMuteButton(true);
-    });
-
-    controlsToggle?.addEventListener('click', () => {
-      const open = controlsToggle.getAttribute('aria-expanded') !== 'true';
-      setControlsPanelOpen(open);
-    });
-
-    setControlsPanelOpen(readControlsPanelPref());
-    updateMuteButton();
-    updateFullscreenButton();
+    for (const unsub of playUnsubscribes.splice(0)) unsub();
+    for (const unsub of matchChannelUnsubscribes.splice(0)) unsub();
   }
 
   function showResultPanel(detail) {
-    if (playMode === 'online') {
-      if (matchStage) matchStage.hidden = true;
-      const onlineRoom = document.querySelector('[data-online-room]');
-      if (onlineRoom) onlineRoom.hidden = true;
-      if (matchResult) matchResult.hidden = false;
-      void stopActiveMatch();
-    } else {
-      showPhase('result');
-      void stopActiveMatch();
-    }
+    shell.setState('results');
+    void stopActiveMatch();
     window.dispatchEvent(
       new CustomEvent('golazo:show-result', {
         detail: {
@@ -433,43 +289,73 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
 
   async function submitMatchResult(detail) {
     showResultPanel(detail);
-
     if (submittedMatchIds.has(detail.localMatchId)) return;
     if (submitInFlight) return;
-
     if (!currentUser) {
       updateResultPanelSyncState('guest');
       return;
     }
-
-    if (!isInsForgeConfigured || !insforge) {
-      updateResultPanelSyncState('local');
-      return;
-    }
-
     submitInFlight = true;
     updateResultPanelSyncState('pending');
-
     try {
-      const { data, error } = await insforge.functions.invoke('record-match-result', {
-        body: {
-          homeTeamId: detail.homeTeamId,
-          awayTeamId: detail.awayTeamId,
-          homeScore: detail.homeScore,
-          awayScore: detail.awayScore,
-          durationSeconds: detail.durationSeconds,
-        },
-      });
-
-      if (!error) {
+      let synced = false;
+      let matchId = null;
+      const gameServerUrl = getPublicGameServerUrl();
+      if (gameServerUrl) {
+        const resolved = await resolveOnlineAccessToken();
+        if (resolved.token) {
+          try {
+            const res = await fetch(`${toHttpUrl(gameServerUrl)}/record-result`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${resolved.token}`,
+              },
+              body: JSON.stringify({
+                homeTeamId: detail.homeTeamId,
+                awayTeamId: detail.awayTeamId,
+                homeScore: detail.homeScore,
+                awayScore: detail.awayScore,
+                durationSeconds: detail.durationSeconds,
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json().catch(() => null);
+              synced = true;
+              if (data && typeof data === 'object' && data.matchId) {
+                matchId = String(data.matchId);
+              }
+            }
+          } catch {
+            // Fall through.
+          }
+        }
+      }
+      if (!synced && !gameServerUrl && isInsForgeConfigured && insforge) {
+        const { data, error } = await insforge.functions.invoke('record-match-result', {
+          body: {
+            homeTeamId: detail.homeTeamId,
+            awayTeamId: detail.awayTeamId,
+            homeScore: detail.homeScore,
+            awayScore: detail.awayScore,
+            durationSeconds: detail.durationSeconds,
+          },
+        });
+        if (!error) {
+          synced = true;
+          if (data && typeof data === 'object' && 'matchId' in data) {
+            matchId = String(data.matchId);
+          }
+        }
+      }
+      if (synced) {
         submittedMatchIds.add(detail.localMatchId);
-        if (data && typeof data === 'object' && 'matchId' in data) {
-          activeMatchId = String(data.matchId);
+        if (matchId) {
+          activeMatchId = matchId;
           await subscribeToMatchChannel(activeMatchId);
         }
       }
-
-      updateResultPanelSyncState(error ? 'offline' : 'synced');
+      updateResultPanelSyncState(synced ? 'synced' : gameServerUrl || isInsForgeConfigured ? 'offline' : 'local');
     } finally {
       submitInFlight = false;
     }
@@ -477,21 +363,11 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
 
   async function subscribeToMatchChannel(matchId) {
     if (!isRealtimeAvailable()) return;
-
-    for (const unsub of matchChannelUnsubscribes.splice(0)) {
-      unsub();
-    }
-
+    for (const unsub of matchChannelUnsubscribes.splice(0)) unsub();
     const channel = CHANNELS.match(matchId);
     const result = await subscribe(channel);
     if (!result.ok) return;
-
-    matchChannelUnsubscribes.push(
-      onEvent('match_joined', () => {
-        // scaffold for future multiplayer
-      }),
-    );
-
+    matchChannelUnsubscribes.push(onEvent('match_joined', () => {}));
     matchChannelUnsubscribes.push(
       onEvent('match_finished', (payload) => {
         if (String(payload.matchId) === matchId) {
@@ -530,62 +406,206 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
     }
   }
 
-  async function restartMatch() {
+  async function abandonMatch() {
     await stopActiveMatch();
     unbindMatchEnded();
     unbindStoppage();
-    if (playMode === 'online') {
-      if (matchStage) matchStage.hidden = true;
-      if (matchResult) matchResult.hidden = true;
-      const onlineRoom = document.querySelector('[data-online-room]');
-      if (onlineRoom) onlineRoom.hidden = false;
-      return;
+    setChatVisible(false);
+    if (shell.getMatchMode() === 'online') {
+      window.dispatchEvent(new CustomEvent('golazo:shell-abandon-match'));
+      shell.setState('hub');
+      shell.setHubSubview('online');
+    } else {
+      shell.setMatchMode('cpu');
+      shell.setState('hub');
+      shell.setHubSubview('cpuPreview');
     }
-    showPhase('preview');
+  }
+
+  async function goToHub() {
+    await stopActiveMatch();
+    unbindMatchEnded();
+    unbindStoppage();
+    setChatVisible(false);
+    shell.setMatchMode(null);
+    shell.setHubSubview('cards');
+    shell.setState('hub');
+  }
+
+  async function enterHub(withFullscreen) {
+    if (withFullscreen && isFullscreenSupported()) {
+      const ok = await enterFullscreen(shellRoot);
+      if (!ok) shell.setCssImmersive(true);
+    } else {
+      shell.setCssImmersive(true);
+    }
+    health.start();
+    shell.setState('hub');
+    shell.setHubSubview('cards');
+    updateReenterChip(isShellFullscreen(shellRoot));
+  }
+
+  function wireShellChrome() {
+    shellRoot.querySelector('[data-enter-game]')?.addEventListener('click', () => {
+      void enterHub(true);
+    });
+    shellRoot.querySelector('[data-enter-without-fs]')?.addEventListener('click', () => {
+      void enterHub(false);
+    });
+    shellRoot.querySelector('[data-reenter-fs]')?.addEventListener('click', async () => {
+      const ok = await enterFullscreen(shellRoot);
+      if (!ok) shell.setCssImmersive(true);
+      updateReenterChip(isShellFullscreen(shellRoot));
+    });
+
+    shellRoot.querySelector('[data-hub-card="cpu"]')?.addEventListener('click', () => {
+      shell.setMatchMode('cpu');
+      shell.setHubSubview('cpuSelect');
+    });
+    shellRoot.querySelector('[data-hub-card="online"]')?.addEventListener('click', () => {
+      shell.setMatchMode('online');
+      shell.setHubSubview('online');
+      window.dispatchEvent(new CustomEvent('golazo:play-mode', { detail: { mode: 'online' } }));
+    });
+    shellRoot.querySelector('[data-hub-back]')?.addEventListener('click', () => {
+      shell.setHubSubview('cards');
+      shell.setMatchMode(null);
+    });
+    shellRoot.querySelector('[data-hub-back-preview]')?.addEventListener('click', () => {
+      shell.setHubSubview('cpuSelect');
+    });
+    shellRoot.querySelector('[data-hub-back-online]')?.addEventListener('click', () => {
+      shell.setHubSubview('cards');
+      shell.setMatchMode(null);
+    });
+    shellRoot.querySelector('[data-results-to-hub]')?.addEventListener('click', () => {
+      void goToHub();
+    });
+    shellRoot.querySelector('[data-shell-error-hub]')?.addEventListener('click', () => {
+      void goToHub();
+    });
+    shellRoot.querySelector('[data-shell-error-retry]')?.addEventListener('click', () => {
+      shell.setState('hub');
+      shell.setHubSubview('online');
+      window.dispatchEvent(new CustomEvent('golazo:shell-retry-session'));
+    });
+
+    for (const btn of shellRoot.querySelectorAll('[data-chat-toggle], [data-chat-toggle-match]')) {
+      btn.addEventListener('click', () => setChatVisible(!chatOpen));
+    }
+    shellRoot.querySelector('[data-chat-close]')?.addEventListener('click', () => setChatVisible(false));
+
+    shellRoot.querySelector('[data-chat-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = shellRoot.querySelector('[data-chat-input]');
+      const message = input?.value?.trim() ?? '';
+      if (!message || !chatRoomId) return;
+      const errEl = shellRoot.querySelector('[data-chat-error]');
+      if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
+      }
+      const result = await sendRoomChat(chatRoomId, message);
+      if (!result.ok) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = result.error.message;
+        }
+        return;
+      }
+      if (input) input.value = '';
+    });
+
+    for (const btn of shellRoot.querySelectorAll('[data-chat-quick-msg]')) {
+      btn.addEventListener('click', async () => {
+        const message = btn.getAttribute('data-chat-quick-msg');
+        if (!message || !chatRoomId) return;
+        await sendRoomChat(chatRoomId, message);
+      });
+    }
+
+    shellRoot.querySelector('[data-match-menu]')?.addEventListener('click', () => {
+      const menu = shellRoot.querySelector('[data-game-menu]');
+      if (menu) menu.hidden = false;
+      setActiveGameSuspended(true);
+    });
+    shellRoot.querySelector('[data-menu-resume]')?.addEventListener('click', () => {
+      const menu = shellRoot.querySelector('[data-game-menu]');
+      if (menu) menu.hidden = true;
+      if (!chatOpen) {
+        const game = getActivePhaserGame();
+        if (game) clearGameplayKeysSuspended(game);
+      }
+    });
+    shellRoot.querySelector('[data-menu-controls]')?.addEventListener('click', () => {
+      const help = shellRoot.querySelector('[data-controls-help]');
+      if (help) help.hidden = false;
+    });
+    shellRoot.querySelector('[data-controls-help-close]')?.addEventListener('click', () => {
+      const help = shellRoot.querySelector('[data-controls-help]');
+      if (help) help.hidden = true;
+    });
+    shellRoot.querySelector('[data-menu-sound]')?.addEventListener('click', async () => {
+      const { unlockMatchAudio } = await import('../game/audio/matchAudio');
+      unlockMatchAudio();
+      setSoundMuted(!isSoundMuted());
+      updateMuteButton(true);
+    });
+    shellRoot.querySelector('[data-menu-fullscreen]')?.addEventListener('click', async () => {
+      await enterFullscreen(shellRoot);
+      updateReenterChip(isShellFullscreen(shellRoot));
+    });
+    shellRoot.querySelector('[data-menu-abandon]')?.addEventListener('click', () => {
+      const confirm = shellRoot.querySelector('[data-abandon-confirm]');
+      if (confirm) confirm.hidden = false;
+    });
+    shellRoot.querySelector('[data-abandon-confirm-no]')?.addEventListener('click', () => {
+      const confirm = shellRoot.querySelector('[data-abandon-confirm]');
+      if (confirm) confirm.hidden = true;
+    });
+    shellRoot.querySelector('[data-abandon-confirm-yes]')?.addEventListener('click', () => {
+      const confirm = shellRoot.querySelector('[data-abandon-confirm]');
+      const menu = shellRoot.querySelector('[data-game-menu]');
+      if (confirm) confirm.hidden = true;
+      if (menu) menu.hidden = true;
+      void abandonMatch();
+    });
+
+    shellRoot.querySelector('[data-mute]')?.addEventListener('click', async () => {
+      const { unlockMatchAudio } = await import('../game/audio/matchAudio');
+      unlockMatchAudio();
+      setSoundMuted(!isSoundMuted());
+      updateMuteButton(true);
+    });
+
+    updateMuteButton();
   }
 
   function initPlayFlow() {
-    const savedTeam = getSelectedTeam();
-    showPhase(savedTeam ? 'select' : 'select');
-
-    for (const btn of playModeBtns) {
-      btn.addEventListener('click', () => {
-        setPlayMode(btn.getAttribute('data-play-mode-btn') || 'cpu');
-        if (playMode === 'cpu') showPhase('select');
-      });
-    }
-    setPlayMode('cpu');
-
     window.addEventListener('golazo:team-selected', () => {
-      if (playMode === 'cpu') showPhase('preview');
+      if (shell.getMatchMode() === 'cpu') {
+        const preview = shellRoot.querySelector('[data-match-preview]');
+        if (preview) preview.hidden = false;
+        shell.setHubSubview('cpuPreview');
+      }
     });
 
     window.addEventListener('golazo:start-match', async (event) => {
-      if (playMode !== 'cpu') return;
-      if (stopInFlight) {
-        await stopInFlight;
-      }
-
+      if (shell.getMatchMode() !== 'cpu') return;
+      if (stopInFlight) await stopInFlight;
       const setup = event.detail;
-      showPhase('playing');
+      shell.setState('match');
+      updateChatToggleVisibility();
 
       const clockEl = document.getElementById('match-clock');
-      if (clockEl) {
-        clockEl.textContent = formatMatchClock(setup.durationSeconds);
-      }
-
+      if (clockEl) clockEl.textContent = formatMatchClock(setup.durationSeconds);
       const modeEl = document.getElementById('match-mode');
-      if (modeEl) {
-        modeEl.textContent = formatModeLabel(setup.formatId ?? '5v5');
-      }
-
+      if (modeEl) modeEl.textContent = formatModeLabel(setup.formatId ?? '5v5');
       setStoppageState('En juego', 'En juego: controla tu jugador y busca el gol.');
-
       const homeName = document.getElementById('hud-home-name');
       const awayName = document.getElementById('hud-away-name');
       if (homeName) homeName.textContent = getTeamName(setup.homeTeamId);
       if (awayName) awayName.textContent = getTeamName(setup.awayTeamId);
-
       const scoreHome = document.getElementById('score-home');
       const scoreAway = document.getElementById('score-away');
       if (scoreHome) scoreHome.textContent = '0';
@@ -597,54 +617,65 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
       ]);
       unlockMatchAudio();
       startGame('game-container', setup);
-
       bindStoppage();
-      bindMatchEnded((e) => {
-        const detail = e.detail;
-        submitMatchResult(detail);
-      });
+      bindMatchEnded((e) => submitMatchResult(e.detail));
     });
 
     window.addEventListener('golazo:online-match-start', async (event) => {
-      if (playMode !== 'online') return;
-      if (stopInFlight) {
-        await stopInFlight;
+      if (shell.getMatchMode() !== 'online' && shell.getState() !== 'room' && shell.getState() !== 'connectingMatch') {
+        shell.setMatchMode('online');
       }
-
+      if (stopInFlight) await stopInFlight;
       const detail = event.detail;
       if (!detail?.roomId) return;
 
-      const { resolveOnlineAccessToken } = await import('../lib/match/onlineAuth');
+      if (!getPublicGameServerUrl()) {
+        setStoppageState(
+          'Servidor no configurado',
+          'Falta PUBLIC_GAME_SERVER_URL. No se puede conectar al partido online.',
+        );
+        window.dispatchEvent(
+          new CustomEvent('golazo:online-conn', {
+            detail: { status: 'error', detail: 'PUBLIC_GAME_SERVER_URL no configurada', at: Date.now() },
+          }),
+        );
+        return;
+      }
+
       const resolved = await resolveOnlineAccessToken();
       if (!resolved.token) {
         setStoppageState(
           'Sesión requerida',
           resolved.reason ?? 'No hay access token para conectar al partido online.',
         );
+        window.dispatchEvent(
+          new CustomEvent('golazo:online-conn', {
+            detail: { status: 'error', detail: resolved.reason ?? 'Sin sesión', at: Date.now() },
+          }),
+        );
         return;
       }
 
-      showOnlinePlaying();
+      chatRoomId = detail.roomId;
+      shell.setMatchMode('online');
+      shell.setState('connectingMatch');
+      updateChatToggleVisibility();
 
       const clockEl = document.getElementById('match-clock');
-      if (clockEl) {
-        clockEl.textContent = formatMatchClock(detail.durationSeconds ?? DEFAULT_DURATION);
-      }
-
+      if (clockEl) clockEl.textContent = formatMatchClock(detail.durationSeconds ?? DEFAULT_DURATION);
       const modeEl = document.getElementById('match-mode');
       if (modeEl) modeEl.textContent = '11v11 Online · conectando';
-
       setStoppageState('Conectando', 'Conectando al servidor de partida…');
-
       const homeName = document.getElementById('hud-home-name');
       const awayName = document.getElementById('hud-away-name');
       if (homeName) homeName.textContent = getTeamName(detail.homeTeamId);
       if (awayName) awayName.textContent = getTeamName(detail.awayTeamId);
-
       const scoreHome = document.getElementById('score-home');
       const scoreAway = document.getElementById('score-away');
       if (scoreHome) scoreHome.textContent = '0';
       if (scoreAway) scoreAway.textContent = '0';
+
+      shell.setState('match');
 
       const [{ startOnlineGame }, { unlockMatchAudio }] = await Promise.all([
         import('../game/online/main'),
@@ -652,60 +683,106 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
       ]);
       unlockMatchAudio();
       startOnlineGame('game-container', detail);
-
       bindStoppage();
       bindMatchEnded((e) => {
-        // Online results: show UI only — do not trust client scores for ranking yet.
         showResultPanel(e.detail);
         updateResultPanelSyncState('local');
       });
     });
 
-    window.addEventListener('golazo:online-match-finished', (event) => {
-      if (playMode !== 'online') return;
-      const detail = event.detail;
-      if (!detail) return;
-      // Scene also emits golazo:match-ended; this is a belt-and-suspenders HUD hook.
-    });
-
     window.addEventListener('golazo:online-conn', (event) => {
-      if (playMode !== 'online') return;
+      if (shell.getMatchMode() !== 'online') return;
       const status = event.detail?.status;
       const modeEl = document.getElementById('match-mode');
-      if (!modeEl || !status) return;
-      if (status === 'playing') modeEl.textContent = '11v11 Online';
-      else if (status === 'joined') modeEl.textContent = '11v11 Online · en sala';
-      else if (status === 'error') modeEl.textContent = '11v11 Online · error';
+      if (modeEl && status) {
+        if (status === 'playing') modeEl.textContent = '11v11 Online';
+        else if (status === 'joined') modeEl.textContent = '11v11 Online · en sala';
+        else if (status === 'error') modeEl.textContent = '11v11 Online · error';
+      }
+      if (status === 'error' || status === 'closed') {
+        if (event.detail?.detail) {
+          setStoppageState('Error de conexión', String(event.detail.detail));
+        }
+        void stopActiveMatch();
+        shell.setState('hub');
+        shell.setHubSubview('online');
+      }
     });
 
     window.addEventListener('golazo:online-ping', (event) => {
-      if (playMode !== 'online') return;
-      const rtt = event.detail?.rttMs;
-      const stoppage = document.querySelector('[data-stoppage]');
-      if (stoppage && typeof rtt === 'number' && stoppage.textContent === 'En juego') {
-        // keep stoppage label; ping is shown in-scene
+      if (shell.getMatchMode() !== 'online') return;
+      setConnQuality(event.detail?.rttMs);
+    });
+
+    window.addEventListener('golazo:online-ui-state', (event) => {
+      const onlineState = event.detail?.state;
+      const hasActive = Boolean(event.detail?.hasActiveRoom);
+      const badge = shellRoot.querySelector('[data-online-active-badge]');
+      if (badge) badge.hidden = !hasActive;
+
+      if (event.detail?.roomId) {
+        chatRoomId = event.detail.roomId;
+      }
+
+      if (typeof onlineState === 'string') {
+        const mapped = mapOnlineUiToShell(onlineState, shell.getState());
+        if (mapped === 'room') {
+          shell.setMatchMode('online');
+          shell.setState('room');
+        } else if (mapped === 'connectingMatch' && shell.getState() !== 'match') {
+          shell.setState('connectingMatch');
+        } else if (mapped === 'recoverableError' && shell.getState() === 'hub') {
+          shell.setState('recoverableError');
+          const msg = shellRoot.querySelector('[data-shell-error-msg]');
+          if (msg && event.detail?.errorMsg) msg.textContent = event.detail.errorMsg;
+        } else if (
+          (onlineState === 'authenticatedIdle' ||
+            onlineState === 'guest' ||
+            onlineState === 'activeRoom') &&
+          shell.getState() === 'room'
+        ) {
+          shell.setState('hub');
+          shell.setHubSubview('online');
+        }
+      }
+      updateChatToggleVisibility();
+    });
+
+    window.addEventListener('golazo:room-chat', (event) => {
+      if (event.detail) {
+        const msg = event.detail;
+        appendShellChat({
+          ...msg,
+          userId: msg.userId,
+          body: msg.body,
+          displayLabel: msg.displayName,
+        });
       }
     });
 
     window.addEventListener('golazo:restart-match', () => {
-      void restartMatch();
-    });
-
-    window.addEventListener('golazo:match-needs-penalties', () => {
-      // PenaltyScene stub: ties register as draws in phase 1
+      void (async () => {
+        await stopActiveMatch();
+        unbindMatchEnded();
+        unbindStoppage();
+        if (shell.getMatchMode() === 'online') {
+          shell.setState('hub');
+          shell.setHubSubview('online');
+          return;
+        }
+        shell.setState('hub');
+        shell.setHubSubview('cpuPreview');
+      })();
     });
   }
 
   async function wirePlayRealtime() {
     if (!isRealtimeAvailable()) return;
-
     const lobbyResult = await subscribe(CHANNELS.LOBBY);
     if (!lobbyResult.ok) return;
-
     let lobbyMembers = lobbyResult.members.map((m) => ({ presenceId: m.presenceId }));
     renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
     document.querySelector('[data-lobby-empty]')?.remove();
-
     playUnsubscribes.push(
       onPresenceJoin(({ member, meta }) => {
         if (meta.channel !== CHANNELS.LOBBY) return;
@@ -713,7 +790,6 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
         renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
       }),
     );
-
     playUnsubscribes.push(
       onPresenceLeave(({ member, meta }) => {
         if (meta.channel !== CHANNELS.LOBBY) return;
@@ -721,14 +797,12 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
         renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
       }),
     );
-
     playUnsubscribes.push(
       onEvent('match_created', (payload) => {
         document.querySelector('[data-lobby-empty]')?.remove();
         appendLobbyMatch(payload, '[data-lobby-matches]');
       }),
     );
-
     playUnsubscribes.push(
       onEvent('match_finished', (payload) => {
         removeLobbyMatch(String(payload.matchId), '[data-lobby-matches]');
@@ -737,38 +811,37 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
   }
 
   async function wirePlaySession() {
-    const sessionEl = document.querySelector('[data-play-session]');
-    if (!sessionEl) return;
-
+    const sessionEl = shellRoot.querySelector('[data-play-session]');
+    const bootStatus = shellRoot.querySelector('[data-boot-status]');
     const { fetchProfile } = await import('../lib/profile/store');
 
     subscribeAuth(async (state) => {
       currentUser = state.user;
-
       if (state.phase === 'hydrating' || state.phase === 'refreshing' || state.loading) {
-        sessionEl.textContent = 'Comprobando sesión…';
-        sessionEl.hidden = false;
+        if (bootStatus) bootStatus.textContent = 'Comprobando sesión…';
+        if (sessionEl) {
+          sessionEl.textContent = 'Comprobando sesión…';
+        }
         return;
       }
-
       if (state.user) {
         const profile = await fetchProfile(state.user.id);
         const name = profile?.display_name ?? state.user.name ?? 'Jugador';
-        sessionEl.textContent = `Jugando como ${name}`;
-        sessionEl.hidden = false;
-        return;
+        if (sessionEl) sessionEl.textContent = `Jugando como ${name}`;
+      } else if (sessionEl) {
+        sessionEl.innerHTML =
+          'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login">Inicia sesión</a> para Online 1v1 y guardar progreso.';
       }
-
-      sessionEl.innerHTML =
-        'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login">Inicia sesión</a> para Online 1v1 y guardar progreso.';
-      sessionEl.hidden = false;
     });
 
     await hydrateSession();
     currentUser = getAuthState().user;
+    if (shell.getState() === 'boot') {
+      shell.setState('entry');
+    }
   }
 
-  wireMatchControls();
+  wireShellChrome();
   wirePlaySession();
   initPlayFlow();
   wirePlayRealtime();

@@ -5,9 +5,10 @@ import FlagSprite from '../components/FlagSprite.astro';
 
 interface Props {
   title?: string;
+  immersive?: boolean;
 }
 
-const { title = 'Golazo Rush' } = Astro.props;
+const { title = 'Golazo Rush', immersive = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -24,16 +25,26 @@ const { title = 'Golazo Rush' } = Astro.props;
     />
     <title>{title}</title>
   </head>
-  <body>
+  <body class:list={[{ 'layout--immersive': immersive }]}>
     <FlagSprite />
-    <div class="container">
-      <SiteNav />
-      <main>
-        <slot />
-      </main>
-      <footer class="site-footer">
-        <small>JainaGam3r45 · JiferCloud Hosting</small>
-      </footer>
-    </div>
+    {
+      immersive ? (
+        <div class="layout-immersive">
+          <main>
+            <slot />
+          </main>
+        </div>
+      ) : (
+        <div class="container">
+          <SiteNav />
+          <main>
+            <slot />
+          </main>
+          <footer class="site-footer">
+            <small>JainaGam3r45 · JiferCloud Hosting</small>
+          </footer>
+        </div>
+      )
+    }
   </body>
 </html>

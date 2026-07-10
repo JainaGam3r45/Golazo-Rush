@@ -1,0 +1,207 @@
+---
+import type { Team } from '../lib/mock/teams';
+import LobbyPanel from './LobbyPanel.astro';
+import TeamSelector from './TeamSelector.astro';
+import MatchPreview from './MatchPreview.astro';
+import MatchResultPanel from './MatchResultPanel.astro';
+import OnlineRoomPanel from './OnlineRoomPanel.astro';
+import GameChatDrawer from './GameChatDrawer.astro';
+import GameMenuOverlay from './GameMenuOverlay.astro';
+import { DEFAULT_DURATION, DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
+import { formatMatchClock } from '../lib/match/formatMatchClock';
+
+interface Props {
+  teams: Team[];
+  teamNames: Record<string, string>;
+}
+
+const { teams, teamNames } = Astro.props;
+const initialClock = formatMatchClock(DEFAULT_DURATION);
+---
+
+<div id="game-shell" class="game-shell" data-shell-state="boot" data-match-mode="" data-hub-subview="cards">
+  <div class="game-shell__chrome">
+    <button type="button" class="game-shell__reenter-fs" data-reenter-fs hidden>
+      Volver a pantalla completa
+    </button>
+    <button
+      type="button"
+      class="match-hud__icon-btn game-chat__toggle"
+      data-chat-toggle
+      aria-expanded="false"
+      title="Chat"
+      hidden
+    >
+      <span>Chat</span>
+      <span class="game-chat__badge" data-chat-badge hidden>0</span>
+    </button>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="boot">
+    <div class="shell-entry">
+      <p class="shell-entry__brand">Golazo Rush</p>
+      <p class="shell-entry__status" data-boot-status>Comprobando sesión…</p>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="entry" hidden>
+    <div class="shell-entry">
+      <p class="shell-entry__brand">Golazo Rush</p>
+      <p class="shell-entry__status" data-entry-status>Listo para jugar</p>
+      <div class="shell-entry__actions">
+        <button type="button" class="btn" data-enter-game>ENTRAR AL JUEGO</button>
+        <button type="button" class="btn-outline" data-enter-without-fs>
+          Continuar sin pantalla completa
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="hub" hidden>
+    <div class="shell-hub">
+      <header class="shell-hub__header">
+        <h1 class="shell-hub__title">Jugar</h1>
+        <p class="shell-hub__session" data-play-session aria-live="polite"></p>
+      </header>
+
+      <div data-hub-subview="cards">
+        <div class="shell-hub__cards">
+          <button type="button" class="shell-hub__card" data-hub-card="cpu">
+            <span class="shell-hub__card-title">Contra bots</span>
+            <span class="shell-hub__card-desc">Partido rápido individual</span>
+          </button>
+          <button type="button" class="shell-hub__card" data-hub-card="online">
+            <span class="shell-hub__card-title">Online 1v1</span>
+            <span class="shell-hub__card-desc">Compite contra otro jugador</span>
+            <span class="shell-hub__card-meta">Requiere cuenta</span>
+            <span class="shell-hub__badge" data-online-active-badge hidden>Sala en curso</span>
+          </button>
+        </div>
+      </div>
+
+      <div data-hub-subview="cpuSelect" hidden>
+        <button type="button" class="btn-outline shell-hub__back" data-hub-back>← Volver</button>
+        <div data-cpu-flow>
+          <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
+        </div>
+      </div>
+
+      <div data-hub-subview="cpuPreview" hidden>
+        <button type="button" class="btn-outline shell-hub__back" data-hub-back-preview>← Volver</button>
+        <MatchPreview teams={teams} />
+      </div>
+
+      <div data-hub-subview="online" hidden>
+        <button type="button" class="btn-outline shell-hub__back" data-hub-back-online>← Volver</button>
+        <div class="shell-hub__online-layout">
+          <div data-online-slot-hub></div>
+          <aside class="shell-hub__side">
+            <div class="shell-health" data-server-health>
+              <p class="shell-health__label">Servidor de partida</p>
+              <p class="shell-health__value" data-health-value data-health="unknown">Comprobando…</p>
+            </div>
+            <section class="play-lobby" data-play-lobby>
+              <LobbyPanel compact />
+            </section>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="room" hidden>
+    <div class="shell-hub">
+      <div data-online-slot-room></div>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="connectingMatch" hidden>
+    <div class="shell-connecting">
+      <p class="shell-connecting__title">Conectando al partido…</p>
+      <p class="shell-entry__status">Espera un momento</p>
+    </div>
+  </div>
+
+  <div class="game-shell__panel game-shell__panel--match" data-shell-panel="match" hidden>
+    <div id="match-stage" class="match-stage">
+      <div class="match-hud" id="match-hud">
+        <div class="match-hud__top">
+          <p class="match-hud__mode" id="match-mode">11v11 Contra bots</p>
+          <p class="match-hud__stoppage" id="match-stoppage" data-stoppage>En juego</p>
+          <div class="match-hud__actions">
+            <button
+              type="button"
+              class="match-hud__icon-btn game-chat__toggle"
+              data-chat-toggle-match
+              aria-expanded="false"
+              title="Chat"
+            >
+              <span>Chat</span>
+              <span class="game-chat__badge" data-chat-badge-match hidden>0</span>
+            </button>
+            <button
+              type="button"
+              class="match-hud__icon-btn"
+              data-mute
+              aria-label="Silenciar sonido"
+              title="Silenciar"
+            >
+              <svg class="match-hud__icon" data-mute-icon-on viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
+                <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M16 9.5a4 4 0 010 5M18.5 7a7 7 0 010 10"></path>
+              </svg>
+              <svg class="match-hud__icon" data-mute-icon-off hidden viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 10v4h3l5 4V6L7 10H4z"></path>
+                <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" d="M17 10l4 4M21 10l-4 4"></path>
+              </svg>
+              <span class="match-hud__icon-label" data-mute-label>Silenciar</span>
+            </button>
+            <button type="button" class="match-hud__icon-btn" data-match-menu aria-label="Menú" title="Menú">
+              <span class="match-hud__icon-label">Menú</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="match-hud__scoreboard">
+          <span class="match-hud__team-name" id="hud-home-name">Local</span>
+          <span class="match-hud__score"><span id="score-home">0</span></span>
+          <span class="match-hud__divider" aria-hidden="true">·</span>
+          <span class="match-hud__clock" id="match-clock">{initialClock}</span>
+          <span class="match-hud__divider" aria-hidden="true">·</span>
+          <span class="match-hud__score"><span id="score-away">0</span></span>
+          <span class="match-hud__team-name" id="hud-away-name">Visitante</span>
+        </div>
+
+        <p class="match-hud__conn" data-conn-quality hidden>Conexión: —</p>
+      </div>
+
+      <div id="game-container" class="game-container"></div>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="results" hidden>
+    <div class="shell-hub">
+      <MatchResultPanel />
+      <button type="button" class="btn shell-hub__back" data-results-to-hub>Volver al menú</button>
+    </div>
+  </div>
+
+  <div class="game-shell__panel" data-shell-panel="recoverableError" hidden>
+    <div class="shell-error">
+      <h2 class="shell-error__title">Algo falló</h2>
+      <p class="shell-entry__status" data-shell-error-msg>No se pudo completar la acción.</p>
+      <button type="button" class="btn" data-shell-error-retry>Reintentar</button>
+      <button type="button" class="btn-outline" data-shell-error-hub>Volver al menú</button>
+    </div>
+  </div>
+
+  <!-- Single OnlineRoomPanel instance; relocated between hub/room slots by shell controller -->
+  <div data-online-room-mount>
+    <OnlineRoomPanel teams={teams} />
+  </div>
+
+  <div id="play-data" data-team-names={JSON.stringify(teamNames)} hidden></div>
+
+  <GameChatDrawer />
+  <GameMenuOverlay />
+</div>
