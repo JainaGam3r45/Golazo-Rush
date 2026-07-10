@@ -182,7 +182,7 @@ export class OnlineMatchScene extends Phaser.Scene {
 
     updateScoreOverlay(0, 0);
     updateMatchClock(this.setup.durationSeconds);
-    updateConnHud('5v5 Online · conectando');
+    updateConnHud('11v11 Online · conectando');
     emitHudStoppage('Conectando', 'Conectando al servidor de partida…');
 
     this.client = createOnlineGameClient(
@@ -190,17 +190,24 @@ export class OnlineMatchScene extends Phaser.Scene {
         roomId: this.onlineDetail.roomId,
         matchSessionToken: this.onlineDetail.matchSessionToken,
         playerSide: this.setup.playerSide,
+        durationSeconds: this.setup.durationSeconds,
+        homeFormationId: this.onlineDetail.homeFormationId,
+        awayFormationId: this.onlineDetail.awayFormationId,
+        homeTeamId: this.onlineDetail.homeTeamId,
+        awayTeamId: this.onlineDetail.awayTeamId,
+        homeLineup: this.onlineDetail.homeLineup,
+        awayLineup: this.onlineDetail.awayLineup,
       },
       {
         onStatus: (status, detail) => {
           const label =
             status === 'playing'
-              ? '5v5 Online'
+              ? '11v11 Online'
               : status === 'joined'
-                ? '5v5 Online · en sala'
+                ? '11v11 Online · en sala'
                 : status === 'connecting' || status === 'authenticating'
-                  ? '5v5 Online · conectando'
-                  : `5v5 Online · ${status}`;
+                  ? '11v11 Online · conectando'
+                  : `11v11 Online · ${status}`;
           updateConnHud(label);
           this.statusText.setText(detail ? `${status}: ${detail}` : status);
           if (status === 'playing') {
@@ -419,16 +426,21 @@ export class OnlineMatchScene extends Phaser.Scene {
   }
 
   private createBall(): void {
-    this.ballShadow = this.add.ellipse(551, 336, 22, 9, 0x000000, 0.32);
+    this.ballShadow = this.add.ellipse(551, 336, 28, 11, 0x000000, 0.4);
+    this.ballShadow.setDepth(1);
     const g = this.add.graphics();
+    g.fillStyle(0x0a0f0a, 0.35);
+    g.fillCircle(1, 2, BALL_RADIUS + 3);
     g.fillStyle(0xffffff, 1);
-    g.fillCircle(0, 0, BALL_RADIUS);
+    g.fillCircle(0, 0, BALL_RADIUS + 2);
+    g.lineStyle(2, 0x39ff14, 0.85);
+    g.strokeCircle(0, 0, BALL_RADIUS + 2);
     g.fillStyle(0x1a1a1a, 1);
-    g.fillCircle(0, -5, 3.2);
-    g.fillCircle(5, 2, 2.8);
-    g.fillCircle(-5, 2, 2.8);
+    g.fillCircle(0, -5, 3.4);
+    g.fillCircle(5, 2, 3);
+    g.fillCircle(-5, 2, 3);
     this.ballGfx = this.add.container(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, [g]);
-    this.ballGfx.setDepth(2);
+    this.ballGfx.setDepth(5);
   }
 
   private drawPitch(): void {
@@ -515,6 +527,6 @@ export function buildOnlineMatchSetup(detail: OnlineMatchStartDetail): MatchSetu
     playerSide,
     formationId: playerSide === 'home' ? homeFormationId : awayFormationId,
     opponentFormationId: playerSide === 'home' ? awayFormationId : homeFormationId,
-    formatId: '5v5',
+    formatId: '11v11',
   };
 }

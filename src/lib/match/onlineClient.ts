@@ -31,6 +31,13 @@ export type OnlineClientOptions = {
   sendFutureInputTypes?: boolean;
   pingIntervalMs?: number;
   inputHz?: number;
+  durationSeconds?: number;
+  homeFormationId?: string;
+  awayFormationId?: string;
+  homeTeamId?: string;
+  awayTeamId?: string;
+  homeLineup?: Array<{ nx: number; ny: number; role?: string }>;
+  awayLineup?: Array<{ nx: number; ny: number; role?: string }>;
 };
 
 export type OnlineClientHandlers = {
@@ -65,7 +72,9 @@ export type OnlineMatchStartDetail = {
   durationSeconds: number;
   playerSide: 'home' | 'away';
   localMatchId?: string;
-  formatId?: '5v5';
+  formatId?: '5v5' | '11v11';
+  homeLineup?: Array<{ nx: number; ny: number; role?: string }>;
+  awayLineup?: Array<{ nx: number; ny: number; role?: string }>;
 };
 
 function emitStatus(
@@ -139,7 +148,17 @@ export function createOnlineGameClient(
     if (matchJoinSent) return;
     if (status !== 'joined' && status !== 'playing') return;
     matchJoinSent = true;
-    send({ t: 'matchJoin', side: playerSide });
+    send({
+      t: 'matchJoin',
+      side: playerSide,
+      ...(typeof options.durationSeconds === 'number' ? { durationSeconds: options.durationSeconds } : {}),
+      ...(options.homeFormationId ? { homeFormationId: options.homeFormationId } : {}),
+      ...(options.awayFormationId ? { awayFormationId: options.awayFormationId } : {}),
+      ...(options.homeTeamId ? { homeTeamId: options.homeTeamId } : {}),
+      ...(options.awayTeamId ? { awayTeamId: options.awayTeamId } : {}),
+      ...(options.homeLineup ? { homeLineup: options.homeLineup } : {}),
+      ...(options.awayLineup ? { awayLineup: options.awayLineup } : {}),
+    });
   }
 
   function flushInput(force = false) {
@@ -153,7 +172,18 @@ export function createOnlineGameClient(
     lastSent = { ...buttons };
     const axis = buttonsToAxis(buttons);
 
-    send({ t: 'probeInput', seq, x: axis.x, y: axis.y });
+    send({
+      t: 'probeInput',
+      seq,
+      x: axis.x,
+      y: axis.y,
+      buttons,
+      sprint: buttons.sprint,
+      shoot: buttons.shoot,
+      pass: buttons.pass,
+      clear: buttons.clear,
+      tackle: buttons.tackle,
+    });
 
     if (sendFutureInputTypes && sawPoseSnap) {
       const aim = pendingAim;

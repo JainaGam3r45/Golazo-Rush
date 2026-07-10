@@ -68,17 +68,30 @@ export type ClientPingMsg = {
   clientTime: number;
 };
 
-/** Current game-server probe input: axis in [-1, 1]. */
+/** Current game-server probe input: axis in [-1, 1] plus action buttons. */
 export type ClientProbeInputMsg = {
   t: 'probeInput';
   seq: number;
   x: number;
   y: number;
+  buttons?: OnlineInputButtons;
+  sprint?: boolean;
+  shoot?: boolean;
+  pass?: boolean;
+  clear?: boolean;
+  tackle?: boolean;
 };
 
 export type ClientMatchJoinMsg = {
   t: 'matchJoin';
   side: 'home' | 'away';
+  durationSeconds?: number;
+  homeFormationId?: string;
+  awayFormationId?: string;
+  homeTeamId?: string;
+  awayTeamId?: string;
+  homeLineup?: Array<{ nx: number; ny: number; role?: string }>;
+  awayLineup?: Array<{ nx: number; ny: number; role?: string }>;
 };
 
 /** Future button-based input when server supports it. */
