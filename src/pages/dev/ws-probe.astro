@@ -1,0 +1,195 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="WS Probe — Golazo Rush">
+  <section class="ws-probe">
+    <h1 class="section-title">Diagnóstico WebSocket</h1>
+    <p class="ws-probe__lead">
+      Página de desarrollo (sin menú). Abre dos pestañas para probar dos clientes contra
+      <code>PUBLIC_GAME_SERVER_URL</code>.
+    </p>
+
+    <form class="ws-probe__form" data-ws-form>
+      <label>
+        <span>URL del servidor</span>
+        <input type="url" name="url" data-ws-url placeholder="wss://… o https://…" required />
+      </label>
+      <label>
+        <span>roomId</span>
+        <input type="text" name="roomId" data-ws-room value="probe-room" required />
+      </label>
+      <label>
+        <span>Access token (opcional / inyección)</span>
+        <input type="password" name="token" data-ws-token autocomplete="off" placeholder="JWT…" />
+      </label>
+      <label>
+        <span>Cliente</span>
+        <select data-ws-client>
+          <option value="A">Cliente A</option>
+          <option value="B">Cliente B</option>
+        </select>
+      </label>
+      <div class="ws-probe__actions">
+        <button type="submit" class="btn" data-ws-connect>Conectar</button>
+        <button type="button" class="btn-outline" data-ws-disconnect>Desconectar</button>
+        <button type="button" class="btn-outline" data-ws-ping>Ping</button>
+        <button type="button" class="btn-outline" data-ws-input>Enviar probeInput</button>
+      </div>
+    </form>
+
+    <p class="ws-probe__status" data-ws-status>Estado: idle</p>
+    <p class="ws-probe__ping" data-ws-ping-label>Ping: —</p>
+    <p class="ws-probe__token-note" data-ws-token-note></p>
+    <pre class="ws-probe__log" data-ws-log></pre>
+  </section>
+</Layout>
+
+<style>
+  .ws-probe {
+    max-width: 720px;
+    margin: 2rem auto;
+    padding: 0 1rem 3rem;
+  }
+  .ws-probe__lead {
+    color: var(--muted, #8a9a8a);
+    margin-bottom: 1.5rem;
+  }
+  .ws-probe__form {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .ws-probe__form label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+  }
+  .ws-probe__form input,
+  .ws-probe__form select {
+    padding: 0.55rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid #2a3a2a;
+    background: #0f160f;
+    color: #e8ffe8;
+  }
+  .ws-probe__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .ws-probe__status,
+  .ws-probe__ping,
+  .ws-probe__token-note {
+    margin: 0.75rem 0 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+  }
+  .ws-probe__log {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    min-height: 220px;
+    max-height: 420px;
+    overflow: auto;
+    background: #0a100a;
+    border: 1px solid #243024;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+</style>
+
+<script>
+  import { createOnlineGameClient } from '../../lib/match/onlineClient';
+  import { injectOnlineAccessToken, resolveOnlineAccessToken } from '../../lib/match/onlineAuth';
+  import { getPublicGameServerUrl, emptyButtons } from '../../lib/match/onlineProtocol';
+
+  const form = document.querySelector('[data-ws-form]');
+  const urlInput = document.querySelector('[data-ws-url]');
+  const roomInput = document.querySelector('[data-ws-room]');
+  const tokenInput = document.querySelector('[data-ws-token]');
+  const clientSelect = document.querySelector('[data-ws-client]');
+  const statusEl = document.querySelector('[data-ws-status]');
+  const pingEl = document.querySelector('[data-ws-ping-label]');
+  const tokenNote = document.querySelector('[data-ws-token-note]');
+  const logEl = document.querySelector('[data-ws-log]');
+
+  let client = null;
+  let seq = 0;
+
+  const envUrl = getPublicGameServerUrl();
+  if (urlInput && envUrl) urlInput.value = envUrl;
+
+  function log(line) {
+    if (!logEl) return;
+    const stamp = new Date().toISOString().slice(11, 23);
+    logEl.textContent = `[${stamp}] ${line}\n` + logEl.textContent;
+  }
+
+  void resolveOnlineAccessToken().then((resolved) => {
+    if (tokenNote) {
+      tokenNote.textContent = resolved.reason
+        ? `Token: ${resolved.source} — ${resolved.reason}`
+        : `Token: ${resolved.source}${resolved.token ? ' (disponible)' : ' (ninguno)'}`;
+    }
+    if (resolved.token && tokenInput && !tokenInput.value) {
+      tokenInput.placeholder = 'Token detectado (no se muestra)';
+    }
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    client?.disconnect();
+    client = null;
+
+    const url = urlInput?.value?.trim() || '';
+    const roomId = roomInput?.value?.trim() || 'probe-room';
+    const token = tokenInput?.value?.trim() || null;
+    const label = clientSelect?.value || 'A';
+
+    if (token) injectOnlineAccessToken(token);
+
+    client = createOnlineGameClient(
+      { roomId, serverUrl: url, accessToken: token, dualInput: true },
+      {
+        onStatus: (status, detail) => {
+          if (statusEl) statusEl.textContent = `Estado [${label}]: ${status}${detail ? ` — ${detail}` : ''}`;
+          log(`status ${status}${detail ? ` ${detail}` : ''}`);
+        },
+        onPing: (rtt) => {
+          if (pingEl) pingEl.textContent = `Ping: ${rtt} ms`;
+        },
+        onMessage: (msg) => log(`← ${JSON.stringify(msg)}`),
+        onSnap: (snap) => log(`snap tick=${snap.tick} players=${snap.players.length}`),
+        onError: (message) => log(`error ${message}`),
+      },
+    );
+
+    try {
+      await client.connect();
+      log(`connected as ${label} room=${roomId}`);
+    } catch (err) {
+      log(`connect failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+
+  document.querySelector('[data-ws-disconnect]')?.addEventListener('click', () => {
+    client?.disconnect();
+    client = null;
+    log('disconnected');
+  });
+
+  document.querySelector('[data-ws-ping]')?.addEventListener('click', () => {
+    client?.sendPing();
+    log('→ ping');
+  });
+
+  document.querySelector('[data-ws-input]')?.addEventListener('click', () => {
+    if (!client) return;
+    seq += 1;
+    const buttons = { ...emptyButtons(), right: true, sprint: seq % 2 === 0 };
+    client.setButtons(buttons, 0);
+    log(`→ probeInput via buttons seq~ ${seq} ${JSON.stringify(buttons)}`);
+  });
+</script>

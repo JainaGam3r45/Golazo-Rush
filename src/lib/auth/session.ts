@@ -91,4 +91,20 @@ export async function signOut(): Promise<void> {
   state = { user: null, loading: false };
   sessionResolved = true;
   notify();
+  void import('../match/onlineAuth').then((m) => m.clearOnlineAccessTokenInject());
+}
+
+/** Wait until the first hydrate finishes (`loading` becomes false). */
+export function awaitAuthReady(): Promise<AuthState> {
+  if (sessionResolved && !state.loading) {
+    return Promise.resolve(state);
+  }
+  return new Promise((resolve) => {
+    const unsub = subscribeAuth((next) => {
+      if (!next.loading) {
+        unsub();
+        resolve(next);
+      }
+    });
+  });
 }

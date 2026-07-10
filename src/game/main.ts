@@ -4,6 +4,7 @@ import type { MatchSetup } from '../lib/match/setup';
 import { registerGameScaleRefresh } from '../lib/match/gameBridge';
 import { resetPossession } from './ai/possession';
 import { stopMatchAudio } from './audio/matchAudio';
+import { destroyOnlineGame, isOnlineGameRunning } from './online/main';
 
 let game: Phaser.Game | null = null;
 
@@ -26,6 +27,11 @@ export function startGame(parentId: string, setup: MatchSetup): Phaser.Game | nu
 }
 
 export function destroyGame(): void {
+  // Tear down online instance if present (CPU path must stay isolated otherwise).
+  if (isOnlineGameRunning()) {
+    destroyOnlineGame();
+  }
+
   registerGameScaleRefresh(null);
 
   if (game) {

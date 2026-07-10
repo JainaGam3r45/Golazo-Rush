@@ -577,6 +577,16 @@ const initialClock = formatMatchClock(180);
       const detail = event.detail;
       if (!detail?.roomId) return;
 
+      const { resolveOnlineAccessToken } = await import('../lib/match/onlineAuth');
+      const resolved = await resolveOnlineAccessToken();
+      if (!resolved.token) {
+        setStoppageState(
+          'Sesión requerida',
+          resolved.reason ?? 'No hay access token para conectar al partido online.',
+        );
+        return;
+      }
+
       showOnlinePlaying();
 
       const clockEl = document.getElementById('match-clock');
