@@ -1,4 +1,32 @@
-﻿import { test, expect } from '@playwright/test';
+﻿import { test, expect, type Page } from '@playwright/test';
+
+/** Enter immersive shell without native fullscreen (CSS immersive fallback). */
+async function enterPlayHub(page: Page) {
+  await page.goto('/play');
+  await expect(page.locator('#game-shell')).toBeVisible();
+  await expect(page.locator('[data-enter-without-fs]')).toBeVisible({ timeout: 15_000 });
+  await page.locator('[data-enter-without-fs]').click();
+  await expect(page.locator('[data-shell-panel="hub"]')).toBeVisible();
+}
+
+async function openContraBots(page: Page) {
+  await enterPlayHub(page);
+  await page.locator('[data-hub-card="cpu"]').click();
+  await expect(page.locator('[data-team-selector]')).toBeVisible();
+}
+
+async function openOnlineHub(page: Page) {
+  await enterPlayHub(page);
+  await page.locator('[data-hub-card="online"]').click();
+  await expect(page.locator('[data-online-room]')).toBeVisible();
+}
+
+async function startCpuMatch(page: Page) {
+  await openContraBots(page);
+  await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+  await page.locator('[data-continue-team]').click();
+  await page.locator('[data-play-match]').click();
+}
 
 test.describe('Home', () => {
   test('shows hero title, play link, and ranking nav', async ({ page }) => {
@@ -36,11 +64,25 @@ test.describe('Ranking', () => {
 });
 
 test.describe('Play', () => {
+  test('immersive shell has no site nav or footer', async ({ page }) => {
+    await page.goto('/play');
+    await expect(page.locator('#game-shell')).toBeVisible();
+    await expect(page.locator('.site-nav')).toHaveCount(0);
+    await expect(page.locator('.site-footer')).toHaveCount(0);
+  });
+
   test('does not auto-start the game canvas on load', async ({ page }) => {
     await page.goto('/play');
-
-    await expect(page.getByRole('heading', { level: 1, name: /PARTIDO/i })).toBeVisible();
+    await expect(page.locator('[data-enter-game]')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#game-container canvas')).toHaveCount(0);
+  });
+
+  test('entry requires click; no auto fullscreen', async ({ page }) => {
+    await page.goto('/play');
+    await expect(page.locator('[data-enter-game]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-enter-without-fs]')).toBeVisible();
+    const fs = await page.evaluate(() => Boolean(document.fullscreenElement));
+    expect(fs).toBe(false);
   });
 
   test('keeps zero canvases after 5 seconds idle', async ({ page }) => {
@@ -50,22 +92,14 @@ test.describe('Play', () => {
   });
 
   test('creates exactly one canvas after starting a match', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     const canvas = page.locator('#game-container canvas');
     await expect(canvas).toBeVisible({ timeout: 10_000 });
     await expect(canvas).toHaveCount(1);
   });
 
   test('restart keeps at most one canvas', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
 
     await page.evaluate(() => {
@@ -80,38 +114,27 @@ test.describe('Play', () => {
   });
 
   test('team selector shows flag sprites', async ({ page }) => {
-    await page.goto('/play');
-
-    await expect(page.locator('[data-team-selector]')).toBeVisible();
+    await openContraBots(page);
     const brFlag = page.locator('[data-team-selector] .country-flag__svg use[href="#flag-br"]');
     await expect(brFlag).toBeVisible();
   });
 
-  test('control hints mention new keys in HUD', async ({ page }) => {
-    await page.goto('/play');
-    await expect(page.locator('.play-header__hint')).toContainText(/cómo jugar/i);
-
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
-    const controlsPanel = page.locator('[data-controls-panel]');
-    const controlsToggle = page.locator('[data-controls-toggle]');
-    await expect(controlsToggle).toBeVisible();
-    if ((await controlsToggle.getAttribute('aria-expanded')) !== 'true') {
-      await controlsToggle.click();
-    }
-    await expect(controlsPanel).toBeVisible();
-    await expect(controlsPanel).toContainText(/E/i);
-    await expect(controlsPanel).toContainText(/pase/i);
-    await expect(controlsPanel).toContainText(/Q/i);
-    await expect(controlsPanel).toContainText(/despeje/i);
-    await expect(controlsPanel).toContainText(/F/i);
-    await expect(controlsPanel).toContainText(/entrada/i);
+  test('control hints available via Menú Controles', async ({ page }) => {
+    await startCpuMatch(page);
+    await page.locator('[data-match-menu]').click();
+    await page.locator('[data-menu-controls]').click();
+    const help = page.locator('[data-controls-help]');
+    await expect(help).toBeVisible();
+    await expect(help).toContainText(/E/i);
+    await expect(help).toContainText(/pase/i);
+    await expect(help).toContainText(/Q/i);
+    await expect(help).toContainText(/despeje/i);
+    await expect(help).toContainText(/F/i);
+    await expect(help).toContainText(/entrada/i);
   });
 
   test('preview shows fixed 11v11 format and lineup editor', async ({ page }) => {
-    await page.goto('/play');
+    await openContraBots(page);
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
@@ -122,7 +145,7 @@ test.describe('Play', () => {
   });
 
   test('offers 10, 15, 30, and 45 minute durations', async ({ page }) => {
-    await page.goto('/play');
+    await openContraBots(page);
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
@@ -130,22 +153,21 @@ test.describe('Play', () => {
   });
 
   test('shows the result panel when a match ends', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
+    await startCpuMatch(page);
     await expect(page.locator('#game-container canvas')).toBeVisible({ timeout: 10_000 });
     await page.evaluate(() => {
-      window.dispatchEvent(new CustomEvent('golazo:match-ended', {
-        detail: {
-          localMatchId: 'test-match',
-          homeTeamId: 'brasil',
-          awayTeamId: 'argentina',
-          homeScore: 2,
-          awayScore: 1,
-          durationSeconds: 900,
-        },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('golazo:match-ended', {
+          detail: {
+            localMatchId: 'test-match',
+            homeTeamId: 'brasil',
+            awayTeamId: 'argentina',
+            homeScore: 2,
+            awayScore: 1,
+            durationSeconds: 900,
+          },
+        }),
+      );
     });
 
     await expect(page.locator('[data-match-result]')).toBeVisible();
@@ -153,18 +175,14 @@ test.describe('Play', () => {
   });
 
   test('starts 11v11 match with HUD mode', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
     await expect(page.locator('#match-mode')).toContainText(/11v11/i);
     await expect(page.locator('[data-stoppage]')).toBeVisible();
   });
 
   test('lineup editor is available before kickoff', async ({ page }) => {
-    await page.goto('/play');
+    await openContraBots(page);
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
     await expect(page.locator('[data-preview-mode-badge]')).toContainText(/11v11/i);
@@ -176,9 +194,7 @@ test.describe('Play', () => {
   });
 
   test('full flow: select team, preview, play, canvas visible', async ({ page }) => {
-    await page.goto('/play');
-
-    await expect(page.locator('[data-team-selector]')).toBeVisible();
+    await openContraBots(page);
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
@@ -194,70 +210,44 @@ test.describe('Play', () => {
   });
 
   test('HUD shows Contra bots mode after match starts', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     await expect(page.locator('#match-mode')).toContainText(/11v11.*Contra bots/i);
   });
 
   test('HUD shows control instructions during match', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
-    const controlsPanel = page.locator('[data-controls-panel]');
-    const controlsToggle = page.locator('[data-controls-toggle]');
-    await expect(controlsToggle).toBeVisible();
-
-    if (await controlsPanel.isHidden()) {
-      await controlsToggle.click();
-    }
-    await expect(controlsPanel).toBeVisible();
-    await expect(controlsPanel).toContainText(/WASD/i);
-    await expect(controlsPanel).toContainText(/E/i);
-    await expect(controlsPanel).toContainText(/Q/i);
-    await expect(controlsPanel).toContainText(/F/i);
-    await expect(page.locator('[data-controls-hint]')).toBeVisible();
+    await startCpuMatch(page);
+    await page.locator('[data-match-menu]').click();
+    await page.locator('[data-menu-controls]').click();
+    const help = page.locator('[data-controls-help]');
+    await expect(help).toBeVisible();
+    await expect(help).toContainText(/WASD/i);
+    await expect(help).toContainText(/E/i);
+    await expect(help).toContainText(/Q/i);
+    await expect(help).toContainText(/F/i);
   });
 
   test('guest banner mentions playing as guest', async ({ page }) => {
-    await page.goto('/play');
-
+    await enterPlayHub(page);
     const session = page.locator('[data-play-session]');
     await expect(session).toBeVisible({ timeout: 10_000 });
     await expect(session).toContainText(/invitado/i);
   });
 
   test('match clock uses clean M:SS format', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     const clock = page.locator('#match-clock');
     await expect(clock).toBeVisible();
     await expect(clock).toHaveText(/^\d+:\d{2}$/);
   });
 
-  test('match HUD shows fullscreen and mute controls', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
-    await expect(page.locator('[data-fullscreen]')).toBeVisible();
+  test('match HUD shows menu and mute controls', async ({ page }) => {
+    await startCpuMatch(page);
+    await expect(page.locator('[data-match-menu]')).toBeVisible();
     await expect(page.locator('[data-mute]')).toBeVisible();
   });
 
   test('mute toggles label and persists preference', async ({ page }) => {
-    await page.goto('/play');
-    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
-    await page.locator('[data-continue-team]').click();
-    await page.locator('[data-play-match]').click();
-
+    await startCpuMatch(page);
     const muteBtn = page.locator('[data-mute]');
     await expect(muteBtn).toBeVisible();
     const before = await muteBtn.getAttribute('aria-label');
@@ -270,13 +260,24 @@ test.describe('Play', () => {
   });
 
   test('guest can edit lineup before playing', async ({ page }) => {
-    await page.goto('/play');
+    await openContraBots(page);
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
     const editor = page.locator('[data-lineup-editor]');
     await expect(editor).toBeVisible();
     await expect(page.locator('.lineup-editor__chip--you')).toBeVisible();
+  });
+
+  test('canvas stays singular across resize', async ({ page }) => {
+    await startCpuMatch(page);
+    await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
+    await page.setViewportSize({ width: 500, height: 800 });
+    await page.waitForTimeout(300);
+    await expect(page.locator('#game-container canvas')).toHaveCount(1);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.waitForTimeout(300);
+    await expect(page.locator('#game-container canvas')).toHaveCount(1);
   });
 });
 
