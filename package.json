@@ -1,7 +1,7 @@
 {
   "name": "golazo-rush",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "JainaGam3r45",
     "url": "https://github.com/JainaGam3r45"
@@ -15,9 +15,13 @@
     "preview": "astro preview",
     "astro": "astro",
     "generate:flags": "node scripts/generate-flag-sprite.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/unit/roomRules.test.ts tests/unit/onlineClient.test.ts tests/unit/onlineAuth.test.ts",
+    "test:game-sim": "pnpm --filter @golazo-rush/game-sim test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:mp": "node --test tests/multiplayer/**/*.test.mjs",
+    "mp:acceptance": "node tools/mp-acceptance/run.mjs"
   },
   "dependencies": {
     "@insforge/sdk": "^1.4.3",
