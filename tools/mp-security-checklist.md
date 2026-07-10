@@ -12,7 +12,7 @@ Authoritative checklist. **No secrets** in this file. Verify before shipping onl
 ## Database / RPC (private rooms)
 
 - [ ] `SECURITY DEFINER` functions pin `search_path` (e.g. `pg_catalog, public`) — no mutable path.
-- [ ] `EXECUTE` on mutating RPCs (create/join/leave/ready/start/cancel/finish) granted to `project_admin` (or service role) only as designed; clients go through edge functions / controlled paths.
+- [ ] Admin RPCs with `p_user_id` stay `project_admin` only (game-server / edge). Client entry points are `*_auth` RPCs that use `auth.uid()` with no user-id param; `GRANT EXECUTE` to `authenticated` only.
 - [ ] `is_room_member` (or equivalent read helper) available to `authenticated` only as needed for RLS/realtime.
 - [ ] Create / join / leave / ready / start are **atomic** (single transaction or equivalent race-safe logic).
 - [ ] Enforce max **2** players per room (`ROOM_FULL` / equivalent).

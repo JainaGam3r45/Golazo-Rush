@@ -1,13 +1,24 @@
+import { hydrateSession } from '../auth/session';
 import { insforge, isInsForgeConfigured } from '../insforge';
 import { resolveOnlineAccessToken } from './onlineAuth';
 import { getPublicGameServerUrl } from './onlineProtocol';
 import type { FormationId } from './formations';
 import type { RoomChatMessage, RoomSnapshot } from './roomTypes';
+import {
+  ROOM_ERROR_MESSAGES,
+  buildRoomRpcCall,
+  mapRoomRpcErrorMessage,
+  selectRoomTransport,
+  type PrivateRoomError,
+} from './privateRoomRpc';
 
-export type PrivateRoomError = {
-  code: string;
-  message: string;
-};
+export type { PrivateRoomError, RoomTransport, RoomRpcCall } from './privateRoomRpc';
+export {
+  ROOM_ERROR_MESSAGES,
+  buildRoomRpcCall,
+  mapRoomRpcErrorMessage,
+  selectRoomTransport,
+} from './privateRoomRpc';
 
 type InvokeResult<T> =
   | { ok: true; data: T }
@@ -43,13 +54,64 @@ function toInvokeError(
   };
 }
 
+async function ensureSessionForRpc(): Promise<PrivateRoomError | null> {
+  const user = await hydrateSession();
+  if (!user) {
+    return { code: 'UNAUTHORIZED', message: ROOM_ERROR_MESSAGES.UNAUTHORIZED };
+  }
+
+  const { token, reason } = await resolveOnlineAccessToken();
+  if (!token) {
+    return {
+      code: 'UNAUTHORIZED',
+      message: reason ?? ROOM_ERROR_MESSAGES.UNAUTHORIZED,
+    };
+  }
+
+  return null;
+}
+
+async function invokeViaRpc<T>(body: Record<string, unknown>): Promise<InvokeResult<T>> {
+  if (!isInsForgeConfigured || !insforge) {
+    return {
+      ok: false,
+      error: { code: 'NOT_CONFIGURED', message: ROOM_ERROR_MESSAGES.NOT_CONFIGURED },
+    };
+  }
+
+  const sessionError = await ensureSessionForRpc();
+  if (sessionError) {
+    return { ok: false, error: sessionError };
+  }
+
+  const action = typeof body.action === 'string' ? body.action : '';
+  const call = buildRoomRpcCall(action, body);
+  if ('error' in call) {
+    return { ok: false, error: call.error };
+  }
+
+  const { data, error } = await insforge.database.rpc(call.fn, call.args);
+
+  if (error) {
+    const anyErr = error as { message?: string; code?: string };
+    return {
+      ok: false,
+      error: mapRoomRpcErrorMessage(anyErr.message ?? anyErr.code),
+    };
+  }
+
+  if (call.shape === 'message') {
+    return { ok: true, data: { message: data } as T };
+  }
+  if (call.shape === 'ok') {
+    return { ok: true, data: { ok: true } as T };
+  }
+  return { ok: true, data: { room: data } as T };
+}
+
 /**
- * Prefer game-server when PUBLIC_GAME_SERVER_URL is set:
- * POST `${PUBLIC_GAME_SERVER_URL}/room` with the same action body as the
- * InsForge `private-room` function and `Authorization: Bearer <accessToken>`.
- *
- * Token from `resolveOnlineAccessToken` (SDK session / refresh). On 401, refresh once and retry.
- * Otherwise falls back to `insforge.functions.invoke('private-room')`.
+ * Optional Compute path: POST `${PUBLIC_GAME_SERVER_URL}/room` with Bearer token.
+ * Used only when InsForge client is not configured and a public game-server URL is set.
  */
 async function invokeViaGameServer<T>(
   body: Record<string, unknown>,
@@ -79,7 +141,7 @@ async function invokeViaGameServer<T>(
       body: JSON.stringify(body),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'No se pudo contactar el servidor de salas';
+    const message = err instanceof Error ? err.message : ROOM_ERROR_MESSAGES.NETWORK_ERROR;
     return {
       ok: false,
       error: { code: 'NETWORK_ERROR', message },
@@ -122,47 +184,7 @@ async function invokeViaGameServer<T>(
       ok: false,
       error: {
         code: err.code ?? 'ROOM_ERROR',
-        message: err.error ?? 'Error de sala',
-      },
-    };
-  }
-
-  return { ok: true, data: data as T };
-}
-
-async function invokeViaInsForge<T>(body: Record<string, unknown>): Promise<InvokeResult<T>> {
-  if (!isInsForgeConfigured || !insforge) {
-    return {
-      ok: false,
-      error: { code: 'NOT_CONFIGURED', message: 'InsForge no está configurado' },
-    };
-  }
-
-  const { data, error } = await insforge.functions.invoke('private-room', { body });
-
-  if (error) {
-    const anyErr = error as {
-      message?: string;
-      statusCode?: number;
-      context?: { body?: unknown; json?: unknown };
-    };
-    const payload = parseErrorPayload(anyErr.context?.body ?? anyErr.context?.json);
-    return {
-      ok: false,
-      error: toInvokeError(
-        payload,
-        payload?.error ?? anyErr.message ?? 'No se pudo completar la acción',
-      ),
-    };
-  }
-
-  if (data && typeof data === 'object' && 'error' in data) {
-    const err = data as { error?: string; code?: string };
-    return {
-      ok: false,
-      error: {
-        code: err.code ?? 'ROOM_ERROR',
-        message: err.error ?? 'Error de sala',
+        message: err.error ?? ROOM_ERROR_MESSAGES.ROOM_ERROR,
       },
     };
   }
@@ -172,10 +194,23 @@ async function invokeViaInsForge<T>(body: Record<string, unknown>): Promise<Invo
 
 async function invokeRoom<T>(body: Record<string, unknown>): Promise<InvokeResult<T>> {
   const gameServerUrl = getPublicGameServerUrl();
-  if (gameServerUrl) {
+  const transport = selectRoomTransport({
+    insforgeConfigured: isInsForgeConfigured,
+    gameServerUrl,
+  });
+
+  if (transport === 'rpc') {
+    return invokeViaRpc<T>(body);
+  }
+
+  if (transport === 'game-server' && gameServerUrl) {
     return invokeViaGameServer<T>(body, gameServerUrl);
   }
-  return invokeViaInsForge<T>(body);
+
+  return {
+    ok: false,
+    error: { code: 'NOT_CONFIGURED', message: ROOM_ERROR_MESSAGES.NOT_CONFIGURED },
+  };
 }
 
 export async function createPrivateRoom(input: {

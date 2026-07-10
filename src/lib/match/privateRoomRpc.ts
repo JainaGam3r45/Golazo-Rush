@@ -1,0 +1,204 @@
+export type PrivateRoomError = {
+  code: string;
+  message: string;
+};
+
+export type RoomTransport = 'rpc' | 'game-server' | 'none';
+
+export type RoomRpcCall = {
+  fn: string;
+  args: Record<string, unknown>;
+  shape: 'room' | 'message' | 'ok';
+};
+
+const ROOM_RPC_CODES =
+  /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED)\b/;
+
+export const ROOM_ERROR_MESSAGES: Record<string, string> = {
+  UNAUTHORIZED: 'Debes iniciar sesión',
+  ALREADY_IN_ROOM: 'Ya estás en una sala activa',
+  INVALID_DURATION: 'Duración no válida',
+  INVALID_FORMATION: 'Formación no válida',
+  INVALID_TEAM: 'Selección no válida',
+  INVALID_CODE: 'Código de sala no válido',
+  ROOM_NOT_FOUND: 'Sala no encontrada',
+  ROOM_CLOSED: 'La sala ya no está disponible',
+  ROOM_EXPIRED: 'La sala expiró',
+  ROOM_FULL: 'La sala ya tiene dos jugadores',
+  TEAM_TAKEN: 'Esa selección ya está ocupada',
+  ROOM_LOCKED: 'La sala no admite cambios ahora',
+  NOT_A_MEMBER: 'No eres miembro de esta sala',
+  NEED_OPPONENT: 'Espera a que se una un rival',
+  LOADOUT_INCOMPLETE: 'Elige selección y formación antes de listo',
+  NOT_READY: 'Ambos jugadores deben estar listos',
+  NOT_HOST: 'Solo el anfitrión puede iniciar',
+  START_CONFLICT: 'No se pudo iniciar el partido',
+  EMPTY_MESSAGE: 'El mensaje está vacío',
+  MESSAGE_TOO_LONG: 'El mensaje es demasiado largo',
+  RATE_LIMITED: 'Espera un momento antes de enviar otro mensaje',
+  ROOM_CODE_COLLISION: 'No se pudo generar un código de sala',
+  ROOM_CREATE_FAILED: 'No se pudo crear la sala',
+  INTERNAL_ERROR: 'Error interno del servidor',
+  NOT_CONFIGURED: 'InsForge no está configurado',
+  NETWORK_ERROR: 'No se pudo contactar el servidor de salas',
+  SERVER_UNAVAILABLE: 'Servidor de salas no disponible',
+  INVOKE_ERROR: 'No se pudo completar la acción',
+  ROOM_ERROR: 'Error de sala',
+};
+
+/**
+ * Primary path is authenticated DB RPC via SDK.
+ * Optional Compute game-server only when PUBLIC_GAME_SERVER_URL is set and InsForge is not.
+ */
+export function selectRoomTransport(options: {
+  insforgeConfigured: boolean;
+  gameServerUrl: string | null;
+}): RoomTransport {
+  if (options.insforgeConfigured) return 'rpc';
+  if (options.gameServerUrl) return 'game-server';
+  return 'none';
+}
+
+export function mapRoomRpcErrorMessage(raw: string | null | undefined): PrivateRoomError {
+  const text = raw ?? '';
+  const codeMatch = text.match(ROOM_RPC_CODES);
+  const code = codeMatch?.[1] ?? 'INTERNAL_ERROR';
+  return {
+    code,
+    message: ROOM_ERROR_MESSAGES[code] ?? ROOM_ERROR_MESSAGES.INTERNAL_ERROR,
+  };
+}
+
+export function buildRoomRpcCall(
+  action: string,
+  body: Record<string, unknown>,
+): RoomRpcCall | { error: PrivateRoomError } {
+  switch (action) {
+    case 'create': {
+      if (typeof body.teamId !== 'string' || !body.teamId) {
+        return { error: { code: 'INVALID_TEAM', message: ROOM_ERROR_MESSAGES.INVALID_TEAM } };
+      }
+      return {
+        fn: 'create_private_room_auth',
+        args: {
+          p_team_id: body.teamId,
+          p_formation_id: (body.formationId as string | undefined) ?? '4-4-2',
+          p_duration_seconds: (body.durationSeconds as number | undefined) ?? 180,
+        },
+        shape: 'room',
+      };
+    }
+    case 'join': {
+      if (typeof body.code !== 'string' || !body.code) {
+        return { error: { code: 'INVALID_CODE', message: ROOM_ERROR_MESSAGES.INVALID_CODE } };
+      }
+      if (typeof body.teamId !== 'string' || !body.teamId) {
+        return { error: { code: 'INVALID_TEAM', message: ROOM_ERROR_MESSAGES.INVALID_TEAM } };
+      }
+      return {
+        fn: 'join_private_room_auth',
+        args: {
+          p_code: body.code,
+          p_team_id: body.teamId,
+          p_formation_id: (body.formationId as string | undefined) ?? '4-4-2',
+        },
+        shape: 'room',
+      };
+    }
+    case 'leave': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      return {
+        fn: 'leave_private_room_auth',
+        args: { p_room_id: body.roomId },
+        shape: 'room',
+      };
+    }
+    case 'loadout': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      if (!body.teamId && !body.formationId) {
+        return { error: { code: 'INVALID_TEAM', message: ROOM_ERROR_MESSAGES.INVALID_TEAM } };
+      }
+      return {
+        fn: 'update_room_loadout_auth',
+        args: {
+          p_room_id: body.roomId,
+          p_team_id: (body.teamId as string | undefined) ?? null,
+          p_formation_id: (body.formationId as string | undefined) ?? null,
+        },
+        shape: 'room',
+      };
+    }
+    case 'ready': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      if (typeof body.ready !== 'boolean') {
+        return { error: { code: 'INVALID_ACTION', message: 'ready requerido' } };
+      }
+      return {
+        fn: 'set_room_ready_auth',
+        args: { p_room_id: body.roomId, p_ready: body.ready },
+        shape: 'room',
+      };
+    }
+    case 'start': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      return {
+        fn: 'start_private_room_auth',
+        args: { p_room_id: body.roomId },
+        shape: 'room',
+      };
+    }
+    case 'chat': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      if (typeof body.message !== 'string') {
+        return { error: { code: 'EMPTY_MESSAGE', message: ROOM_ERROR_MESSAGES.EMPTY_MESSAGE } };
+      }
+      const trimmed = body.message.trim();
+      if (!trimmed) {
+        return { error: { code: 'EMPTY_MESSAGE', message: ROOM_ERROR_MESSAGES.EMPTY_MESSAGE } };
+      }
+      if (trimmed.length > 200) {
+        return { error: { code: 'MESSAGE_TOO_LONG', message: ROOM_ERROR_MESSAGES.MESSAGE_TOO_LONG } };
+      }
+      return {
+        fn: 'publish_room_chat_auth',
+        args: {
+          p_room_id: body.roomId,
+          p_body: trimmed.replace(/[<>]/g, ''),
+        },
+        shape: 'message',
+      };
+    }
+    case 'get': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      return {
+        fn: 'get_private_room_auth',
+        args: { p_room_id: body.roomId },
+        shape: 'room',
+      };
+    }
+    case 'touch': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      return {
+        fn: 'touch_room_presence_auth',
+        args: { p_room_id: body.roomId },
+        shape: 'ok',
+      };
+    }
+    default:
+      return { error: { code: 'INVALID_ACTION', message: 'action no válida' } };
+  }
+}
