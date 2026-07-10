@@ -6,12 +6,12 @@ import MatchPreview from '../components/MatchPreview.astro';
 import MatchResultPanel from '../components/MatchResultPanel.astro';
 import OnlineRoomPanel from '../components/OnlineRoomPanel.astro';
 import { getTeams } from '../lib/data/teams';
-import { DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
+import { DEFAULT_DURATION, DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
 import { formatMatchClock } from '../lib/match/formatMatchClock';
 
 const teams = await getTeams();
 const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
-const initialClock = formatMatchClock(180);
+const initialClock = formatMatchClock(DEFAULT_DURATION);
 ---
 
 <Layout title="Golazo Rush — Jugar">
@@ -51,10 +51,10 @@ const initialClock = formatMatchClock(180);
   <div data-cpu-flow>
     <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
     <MatchPreview teams={teams} />
-    <MatchResultPanel />
   </div>
 
   <OnlineRoomPanel teams={teams} />
+  <MatchResultPanel />
 
   <div id="match-stage" class="match-stage" hidden>
     <div class="match-hud" id="match-hud">
@@ -406,6 +406,8 @@ const initialClock = formatMatchClock(180);
   function showResultPanel(detail) {
     if (playMode === 'online') {
       if (matchStage) matchStage.hidden = true;
+      const onlineRoom = document.querySelector('[data-online-room]');
+      if (onlineRoom) onlineRoom.hidden = true;
       if (matchResult) matchResult.hidden = false;
       void stopActiveMatch();
     } else {
@@ -419,6 +421,7 @@ const initialClock = formatMatchClock(180);
           awayTeamName: getTeamName(detail.awayTeamId),
           homeScore: detail.homeScore,
           awayScore: detail.awayScore,
+          durationSeconds: detail.durationSeconds,
         },
       }),
     );
@@ -531,6 +534,13 @@ const initialClock = formatMatchClock(180);
     await stopActiveMatch();
     unbindMatchEnded();
     unbindStoppage();
+    if (playMode === 'online') {
+      if (matchStage) matchStage.hidden = true;
+      if (matchResult) matchResult.hidden = true;
+      const onlineRoom = document.querySelector('[data-online-room]');
+      if (onlineRoom) onlineRoom.hidden = false;
+      return;
+    }
     showPhase('preview');
   }
 
@@ -618,7 +628,7 @@ const initialClock = formatMatchClock(180);
 
       const clockEl = document.getElementById('match-clock');
       if (clockEl) {
-        clockEl.textContent = formatMatchClock(detail.durationSeconds ?? 180);
+        clockEl.textContent = formatMatchClock(detail.durationSeconds ?? DEFAULT_DURATION);
       }
 
       const modeEl = document.getElementById('match-mode');

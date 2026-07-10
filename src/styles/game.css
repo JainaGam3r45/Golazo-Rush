@@ -672,6 +672,12 @@
   font-weight: 600;
 }
 
+.match-result__duration {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
 .match-result__sync {
   margin: 0 0 1.25rem;
   font-size: 0.875rem;

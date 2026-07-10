@@ -47,14 +47,14 @@ describe('privateRoomApi auth RPC mapping', () => {
     const create = buildRoomRpcCall('create', {
       teamId: 'arg',
       formationId: '4-3-3',
-      durationSeconds: 120,
+      durationSeconds: 900,
     });
     assert.ok(!('error' in create));
     assert.equal(create.fn, 'create_private_room_auth');
     assert.deepEqual(create.args, {
       p_team_id: 'arg',
       p_formation_id: '4-3-3',
-      p_duration_seconds: 120,
+      p_duration_seconds: 900,
     });
     assert.equal(create.shape, 'room');
 

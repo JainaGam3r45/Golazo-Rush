@@ -17,6 +17,7 @@
   </div>
 
   <p class="match-result__outcome" data-result-outcome></p>
+  <p class="match-result__duration" data-result-duration></p>
   <p class="match-result__sync" data-result-sync aria-live="polite"></p>
 
   <div class="match-result__actions">
@@ -37,6 +38,7 @@
     const homeScore = section.querySelector('[data-result-home-score]');
     const awayScore = section.querySelector('[data-result-away-score]');
     const outcome = section.querySelector('[data-result-outcome]');
+    const duration = section.querySelector('[data-result-duration]');
     const syncEl = section.querySelector('[data-result-sync]');
     const restartBtn = section.querySelector('[data-restart-match]');
 
@@ -51,12 +53,18 @@
 
       if (outcome) {
         if (detail.homeScore > detail.awayScore) {
-          outcome.textContent = `Victoria de ${detail.homeTeamName}`;
+          outcome.textContent = `${detail.homeTeamName} se lleva la victoria`;
         } else if (detail.awayScore > detail.homeScore) {
-          outcome.textContent = `Victoria de ${detail.awayTeamName}`;
+          outcome.textContent = `${detail.awayTeamName} se lleva la victoria`;
         } else {
-          outcome.textContent = 'Empate';
+          outcome.textContent = 'El partido termina empatado';
         }
+      }
+      if (duration) {
+        const minutes = Math.round(Number(detail.durationSeconds) / 60);
+        duration.textContent = Number.isFinite(minutes) && minutes > 0
+          ? `Duración: ${minutes} min`
+          : '';
       }
 
       if (syncEl) syncEl.textContent = '';

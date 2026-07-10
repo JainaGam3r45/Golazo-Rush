@@ -121,6 +121,37 @@ test.describe('Play', () => {
     await expect(page.locator('.lineup-editor__chip')).toHaveCount(10);
   });
 
+  test('offers 10, 15, 30, and 45 minute durations', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+
+    await expect(page.locator('[data-duration]')).toHaveText(['10 min', '15 min', '30 min', '45 min']);
+  });
+
+  test('shows the result panel when a match ends', async ({ page }) => {
+    await page.goto('/play');
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+    await expect(page.locator('#game-container canvas')).toBeVisible({ timeout: 10_000 });
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('golazo:match-ended', {
+        detail: {
+          localMatchId: 'test-match',
+          homeTeamId: 'brasil',
+          awayTeamId: 'argentina',
+          homeScore: 2,
+          awayScore: 1,
+          durationSeconds: 900,
+        },
+      }));
+    });
+
+    await expect(page.locator('[data-match-result]')).toBeVisible();
+    await expect(page.locator('[data-result-duration]')).toHaveText('Duración: 15 min');
+  });
+
   test('starts 11v11 match with HUD mode', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
