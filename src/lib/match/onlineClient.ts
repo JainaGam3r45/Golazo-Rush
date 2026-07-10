@@ -184,26 +184,46 @@ export function createOnlineGameClient(
     inputTimer = setInterval(() => flushInput(false), interval);
   }
 
-  function tearDownSocket(markClosedByUser: boolean) {
+  function tearDownSocket(markClosedByUser: boolean): Promise<void> {
     clearTimers();
     const current = socket;
     socket = null;
-    if (!current) return;
+    if (!current) return Promise.resolve();
     if (markClosedByUser) closedByUser = true;
-    try {
-      current.onopen = null;
-      current.onmessage = null;
-      current.onerror = null;
-      current.onclose = null;
+
+    return new Promise((resolve) => {
+      const finish = () => {
+        try {
+          current.onopen = null;
+          current.onmessage = null;
+          current.onerror = null;
+          current.onclose = null;
+        } catch {
+          // ignore
+        }
+        resolve();
+      };
+
       if (
-        current.readyState === WebSocket.OPEN ||
-        current.readyState === WebSocket.CONNECTING
+        current.readyState === WebSocket.CLOSED ||
+        current.readyState === WebSocket.CLOSING
       ) {
-        current.close();
+        finish();
+        return;
       }
-    } catch {
-      // ignore
-    }
+
+      const timer = setTimeout(finish, 1500);
+      current.onclose = () => {
+        clearTimeout(timer);
+        finish();
+      };
+      try {
+        current.close();
+      } catch {
+        clearTimeout(timer);
+        finish();
+      }
+    });
   }
 
   async function resolveToken(forceRefresh = false): Promise<string> {
@@ -300,7 +320,7 @@ export function createOnlineGameClient(
   }
 
   async function reauthWithFreshToken(): Promise<void> {
-    tearDownSocket(false);
+    await tearDownSocket(false);
     setStatus('authenticating', 'Renovando sesión…');
     try {
       const token = await resolveToken(true);
@@ -404,7 +424,7 @@ export function createOnlineGameClient(
     if (connectLock) return connectLock;
 
     connectLock = (async () => {
-      tearDownSocket(false);
+      await tearDownSocket(false);
       authRetryUsed = false;
       matchJoinSent = false;
       sawPoseSnap = false;
@@ -421,7 +441,7 @@ export function createOnlineGameClient(
   function disconnect() {
     closedByUser = true;
     socketGeneration += 1;
-    tearDownSocket(true);
+    void tearDownSocket(true);
     setStatus('closed');
   }
 
