@@ -72,6 +72,26 @@ describe('privateRoomApi auth RPC mapping', () => {
     assert.equal(start.fn, 'start_private_room_auth');
   });
 
+  it('maps active room recovery RPCs', () => {
+    const getActive = buildRoomRpcCall('getActive', {});
+    assert.ok(!('error' in getActive));
+    assert.equal(getActive.fn, 'get_active_room_auth');
+
+    const recover = buildRoomRpcCall('recoverActive', {});
+    assert.ok(!('error' in recover));
+    assert.equal(recover.fn, 'recover_active_room_auth');
+
+    const leave = buildRoomRpcCall('leaveActive', {});
+    assert.ok(!('error' in leave));
+    assert.equal(leave.fn, 'leave_active_room_auth');
+  });
+
+  it('maps ALREADY_IN_ROOM to resume/abandon copy', () => {
+    const err = mapRoomRpcErrorMessage('ERROR: ALREADY_IN_ROOM');
+    assert.equal(err.code, 'ALREADY_IN_ROOM');
+    assert.match(err.message, /Reanúdala|abandónala/);
+  });
+
   it('maps chat to publish_room_chat_auth and sanitizes body', () => {
     const chat = buildRoomRpcCall('chat', {
       roomId: '11111111-1111-1111-1111-111111111111',
@@ -101,7 +121,7 @@ describe('privateRoomApi RPC error mapping', () => {
   it('extracts SQL exception codes from PostgREST messages', () => {
     assert.deepEqual(mapRoomRpcErrorMessage('P0001: ROOM_FULL'), {
       code: 'ROOM_FULL',
-      message: 'La sala ya tiene dos jugadores',
+      message: 'La sala ya está llena.',
     });
     assert.equal(mapRoomRpcErrorMessage('RATE_LIMITED').code, 'RATE_LIMITED');
     assert.equal(mapRoomRpcErrorMessage('something else').code, 'INTERNAL_ERROR');

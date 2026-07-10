@@ -39,7 +39,7 @@ test.describe('Play', () => {
   test('does not auto-start the game canvas on load', async ({ page }) => {
     await page.goto('/play');
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Partido' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /PARTIDO/i })).toBeVisible();
     await expect(page.locator('#game-container canvas')).toHaveCount(0);
   });
 
@@ -87,13 +87,27 @@ test.describe('Play', () => {
     await expect(brFlag).toBeVisible();
   });
 
-  test('control hints mention new keys', async ({ page }) => {
+  test('control hints mention new keys in HUD', async ({ page }) => {
     await page.goto('/play');
+    await expect(page.locator('.play-header__hint')).toContainText(/cómo jugar/i);
 
-    const hint = page.locator('.play-header__hint');
-    await expect(hint).toContainText(/E.*pase/i);
-    await expect(hint).toContainText(/Q.*despeje/i);
-    await expect(hint).toContainText(/F.*entrada/i);
+    await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
+    await page.locator('[data-continue-team]').click();
+    await page.locator('[data-play-match]').click();
+
+    const controlsPanel = page.locator('[data-controls-panel]');
+    const controlsToggle = page.locator('[data-controls-toggle]');
+    await expect(controlsToggle).toBeVisible();
+    if ((await controlsToggle.getAttribute('aria-expanded')) !== 'true') {
+      await controlsToggle.click();
+    }
+    await expect(controlsPanel).toBeVisible();
+    await expect(controlsPanel).toContainText(/E/i);
+    await expect(controlsPanel).toContainText(/pase/i);
+    await expect(controlsPanel).toContainText(/Q/i);
+    await expect(controlsPanel).toContainText(/despeje/i);
+    await expect(controlsPanel).toContainText(/F/i);
+    await expect(controlsPanel).toContainText(/entrada/i);
   });
 
   test('preview shows format selector for 5v5 and 11v11', async ({ page }) => {
@@ -149,13 +163,13 @@ test.describe('Play', () => {
     await expect(gameContainer.locator('canvas')).toHaveCount(1);
   });
 
-  test('HUD shows CPU mode after match starts', async ({ page }) => {
+  test('HUD shows Contra bots mode after match starts', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
     await page.locator('[data-play-match]').click();
 
-    await expect(page.locator('#match-mode')).toContainText(/5v5.*CPU/i);
+    await expect(page.locator('#match-mode')).toContainText(/5v5.*Contra bots/i);
   });
 
   test('HUD shows control instructions during match', async ({ page }) => {

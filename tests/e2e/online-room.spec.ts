@@ -7,10 +7,12 @@ test.describe('Online mode gate', () => {
     await page.locator('[data-play-mode-btn="online"]').click();
 
     await expect(page.locator('[data-online-room]')).toBeVisible();
-    await expect(page.locator('[data-online-auth-cta]')).toBeVisible();
-    await expect(page.locator('[data-online-auth-cta]').getByRole('link', { name: 'Iniciar sesión' })).toBeVisible();
-    await expect(page.locator('[data-online-entry]')).toBeHidden();
+    await expect(page.locator('[data-online-view="guest"]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-online-view="guest"]').getByRole('link', { name: 'Iniciar sesión' })).toBeVisible();
+    await expect(page.locator('[data-online-create]')).toBeHidden();
+    await expect(page.locator('[data-online-join]')).toBeHidden();
     await expect(page.locator('[data-cpu-flow]')).toBeHidden();
+    await expect(page.locator('[data-play-lobby]')).toBeVisible();
   });
 
   test('cpu mode remains available after toggling online', async ({ page }) => {
@@ -21,6 +23,7 @@ test.describe('Online mode gate', () => {
     await page.locator('[data-play-mode-btn="cpu"]').click();
     await expect(page.locator('[data-cpu-flow]')).toBeVisible();
     await expect(page.locator('[data-online-room]')).toBeHidden();
-    await expect(page.getByRole('heading', { level: 1, name: 'Partido' })).toBeVisible();
+    await expect(page.locator('[data-play-lobby]')).toBeHidden();
+    await expect(page.getByRole('heading', { level: 1, name: /PARTIDO/i })).toBeVisible();
   });
 });
