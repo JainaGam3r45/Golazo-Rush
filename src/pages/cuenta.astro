@@ -11,20 +11,21 @@ const teamsJson = JSON.stringify(teams);
   <section class="account-page" data-account-page data-teams={teamsJson}>
     <header class="account-page__header">
       <h1 class="section-title">Mi cuenta</h1>
+      <p class="account-page__lead">Tu perfil y selección favorita.</p>
     </header>
 
-    <div class="account-page__guest card" data-account-guest hidden>
+    <div class="account-page__guest" data-account-guest hidden>
       <p>Inicia sesión para guardar tu selección y ver tu perfil.</p>
       <div class="account-page__guest-actions">
         <a href="/login" class="btn">Entrar</a>
         <a href="/register" class="btn-outline">Crear cuenta</a>
       </div>
       <p class="account-page__guest-hint">
-        <a href="/play" class="nav-link">Puedes jugar sin cuenta</a>
+        <a href="/play" class="nav-link">Jugar Contra bots sin cuenta</a>
       </p>
     </div>
 
-    <div class="account-page__profile card" data-account-profile hidden>
+    <div class="account-page__profile" data-account-profile hidden>
       <dl class="account-page__details">
         <div>
           <dt>Nombre</dt>
@@ -48,8 +49,10 @@ const teamsJson = JSON.stringify(teams);
 
       <div class="account-page__actions">
         <a href="/play" class="btn">Ir a jugar</a>
-        <button type="button" class="btn-outline" data-account-logout>Salir</button>
       </div>
+      <p class="account-page__logout-row">
+        <button type="button" class="account-page__logout" data-account-logout>Cerrar sesión</button>
+      </p>
     </div>
   </section>
 </Layout>

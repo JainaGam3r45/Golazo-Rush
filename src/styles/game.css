@@ -1,26 +1,76 @@
 /* Play mode switch */
 .play-mode {
-  display: flex;
-  gap: 0.5rem;
-  max-width: 640px;
-  margin: 0 auto 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+  max-width: 720px;
+  margin: 0 auto 1.5rem;
 }
 
+@media (min-width: 640px) {
+  .play-mode {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.play-mode__card,
 .play-mode__btn {
-  flex: 1;
-  padding: 0.65rem 1rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 1.1rem 1.15rem;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
   font: inherit;
+  text-align: left;
   cursor: pointer;
+  min-height: 5.5rem;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
+.play-mode__card-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: inherit;
+}
+
+.play-mode__card-desc {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.play-mode__card-meta {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.play-mode__badge {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim, var(--accent));
+  padding: 0.15rem 0.4rem;
+}
+
+.play-mode__card--active,
 .play-mode__btn--active {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--text);
   background: var(--bg-elevated);
-  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.play-mode__card--active .play-mode__card-title,
+.play-mode__btn--active .play-mode__card-title {
+  color: var(--accent);
 }
 
 /* Team selector */

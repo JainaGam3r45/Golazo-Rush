@@ -11,79 +11,89 @@ const { teams } = Astro.props;
 ---
 
 <section class="online-room" data-online-room hidden data-teams={JSON.stringify(teams)}>
-  <div class="online-room__gate" data-online-gate>
-    <h2 class="online-room__title">Jugar online</h2>
-    <p class="online-room__lead">
-      Salas privadas 1v1. Cada jugador controla un futbolista; el resto del equipo lo mueven bots.
-    </p>
-
-    <div class="online-room__auth-loading" data-online-auth-loading hidden>
-      <p>Comprobando sesión…</p>
+  <div class="online-room__panel" data-online-view="hydratingSession" hidden>
+    <div class="online-room__skeleton" aria-busy="true" aria-live="polite">
+      <div class="online-room__skel-line"></div>
+      <div class="online-room__skel-line online-room__skel-line--short"></div>
     </div>
+    <p class="online-room__muted">Comprobando sesión…</p>
+  </div>
 
-    <div class="online-room__auth-cta" data-online-auth-cta hidden>
-      <p>Para crear o unirte a una sala online necesitas una cuenta.</p>
+  <div class="online-room__panel" data-online-view="guest" hidden>
+    <h2 class="online-room__title">Online 1v1</h2>
+    <p class="online-room__lead">Compite contra otro jugador. Requiere una cuenta.</p>
+    <div class="online-room__cta">
       <a class="btn" href="/login">Iniciar sesión</a>
       <a class="btn-outline" href="/register">Crear cuenta</a>
     </div>
+  </div>
 
-    <div class="online-room__token-error" data-online-token-error hidden>
-      <p data-online-token-error-text>
-        No se pudo obtener el access token de tu sesión. Vuelve a iniciar sesión o recarga la página.
-      </p>
-      <button type="button" class="btn-outline" data-online-token-retry>Reintentar</button>
-    </div>
-
-    <div class="online-room__entry" data-online-entry hidden>
-      <div class="online-room__entry-grid">
-        <div class="online-room__card">
-          <h3>Crear sala</h3>
-          <p>Genera un código e invita a un rival.</p>
-          <label class="online-room__field">
-            <span>Duración</span>
-            <select data-online-duration>
-              {
-                ALLOWED_DURATIONS.map((seconds) => (
-                  <option value={seconds} selected={seconds === 180}>
-                    {seconds / 60} min
-                  </option>
-                ))
-              }
-            </select>
-          </label>
-          <button type="button" class="btn" data-online-create>Crear sala privada</button>
-        </div>
-
-        <div class="online-room__card">
-          <h3>Unirse con código</h3>
-          <p>Introduce el código de 6 caracteres.</p>
-          <label class="online-room__field">
-            <span>Código</span>
-            <input
-              type="text"
-              data-online-code
-              maxlength="6"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="ABC123"
-            />
-          </label>
-          <button type="button" class="btn" data-online-join>Entrar a la sala</button>
-        </div>
-      </div>
-      <p class="online-room__error" data-online-entry-error hidden></p>
+  <div class="online-room__panel" data-online-view="recoverableError" hidden>
+    <h2 class="online-room__title">Sesión</h2>
+    <p class="online-room__error" data-online-error-msg role="alert"></p>
+    <div class="online-room__cta">
+      <button type="button" class="btn" data-online-retry-session>Reintentar sesión</button>
+      <a class="btn-outline" href="/login">Iniciar sesión</a>
     </div>
   </div>
 
-  <div class="online-room__lobby" data-online-lobby hidden>
+  <div class="online-room__panel" data-online-view="checkingActiveRoom" hidden>
+    <p class="online-room__muted" aria-live="polite">Buscando sala activa…</p>
+  </div>
+
+  <div class="online-room__panel" data-online-view="authenticatedIdle" hidden>
+    <h2 class="online-room__title">Online 1v1</h2>
+    <p class="online-room__lead">Crea una sala privada o únete con un código de 6 caracteres.</p>
+    <div class="online-room__entry-grid">
+      <div class="online-room__card">
+        <h3>Crear sala</h3>
+        <label class="online-room__field">
+          <span>Duración</span>
+          <select data-online-duration>
+            {
+              ALLOWED_DURATIONS.map((seconds) => (
+                <option value={seconds} selected={seconds === 180}>
+                  {seconds / 60} min
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <button type="button" class="btn" data-online-create>Crear sala privada</button>
+      </div>
+      <div class="online-room__card">
+        <h3>Unirse con código</h3>
+        <label class="online-room__field">
+          <span>Código</span>
+          <input type="text" data-online-code maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" />
+        </label>
+        <button type="button" class="btn" data-online-join>Entrar a la sala</button>
+      </div>
+    </div>
+    <p class="online-room__error" data-online-entry-error hidden role="alert"></p>
+  </div>
+
+  <div class="online-room__panel" data-online-view="activeRoom" hidden>
+    <h2 class="online-room__title">Sala activa</h2>
+    <p class="online-room__code" data-active-room-code>—</p>
+    <p class="online-room__status" data-active-room-status>—</p>
+    <p class="online-room__muted" data-active-room-meta></p>
+    <div class="online-room__cta">
+      <button type="button" class="btn" data-online-resume>Reanudar sala</button>
+      <button type="button" class="btn-outline" data-online-abandon>Abandonar sala</button>
+    </div>
+  </div>
+
+  <div class="online-room__panel" data-online-view="roomLobby" hidden>
     <header class="online-room__lobby-head">
       <div>
         <p class="online-room__code-label">Código de sala</p>
         <p class="online-room__code" data-online-room-code>—</p>
+        <button type="button" class="btn-outline online-room__copy" data-online-copy-code>Copiar</button>
       </div>
-      <div class="online-room__status-wrap">
-        <p class="online-room__status" data-online-status>Esperando rival</p>
-        <p class="online-room__presence" data-online-presence>Presencia: —</p>
+      <div>
+        <p class="online-room__status" data-online-status>—</p>
+        <p class="online-room__presence" data-online-presence>—</p>
       </div>
       <button type="button" class="btn-outline" data-online-leave>Abandonar</button>
     </header>
@@ -91,39 +101,34 @@ const { teams } = Astro.props;
     <div class="online-room__players" data-online-players>
       <article class="online-room__player-card" data-online-slot="home">
         <p class="online-room__slot">Local</p>
-        <p class="online-room__player-name" data-slot-name>—</p>
-        <p class="online-room__player-team" data-slot-team>Sin selección</p>
-        <p class="online-room__player-formation" data-slot-formation>—</p>
-        <p class="online-room__player-ready" data-slot-ready>No listo</p>
-        <p class="online-room__player-conn" data-slot-conn></p>
+        <p data-slot-name>—</p>
+        <p data-slot-team>—</p>
+        <p data-slot-formation>—</p>
+        <p data-slot-ready>—</p>
+        <p data-slot-conn></p>
       </article>
       <article class="online-room__player-card" data-online-slot="away">
         <p class="online-room__slot">Visitante</p>
-        <p class="online-room__player-name" data-slot-name>Esperando…</p>
-        <p class="online-room__player-team" data-slot-team>—</p>
-        <p class="online-room__player-formation" data-slot-formation>—</p>
-        <p class="online-room__player-ready" data-slot-ready>—</p>
-        <p class="online-room__player-conn" data-slot-conn></p>
+        <p data-slot-name>Esperando…</p>
+        <p data-slot-team>—</p>
+        <p data-slot-formation>—</p>
+        <p data-slot-ready>—</p>
+        <p data-slot-conn></p>
       </article>
     </div>
 
-    <div class="online-room__config" data-online-config>
+    <div class="online-room__config">
       <h3>Tu configuración</h3>
-      <div class="online-room__teams" data-online-team-selector role="listbox" aria-label="Selección">
+      <div class="online-room__teams" data-online-team-selector>
         {
           teams.map((team) => (
-            <button
-              type="button"
-              class="online-room__team-btn"
-              data-online-team={team.id}
-              title={team.name}
-            >
+            <button type="button" class="online-room__team-btn" data-online-team={team.id} title={team.name}>
               {team.code}
             </button>
           ))
         }
       </div>
-      <div class="online-room__formations" role="radiogroup" aria-label="Formación">
+      <div class="online-room__formations">
         {
           FORMATION_IDS.map((id) => (
             <button type="button" class="online-room__formation-btn" data-online-formation={id}>
@@ -136,311 +141,108 @@ const { teams } = Astro.props;
         <button type="button" class="btn" data-online-ready>Listo</button>
         <button type="button" class="btn-outline" data-online-start hidden>Iniciar cuenta regresiva</button>
       </div>
-      <p class="online-room__hint" data-online-hint>
-        Cuando ambos estén listos, el anfitrión inicia la cuenta regresiva y se conecta el partido online (5v5).
-      </p>
-      <p class="online-room__error" data-online-lobby-error hidden></p>
+      <p class="online-room__hint" data-online-hint></p>
+      <p class="online-room__error" data-online-lobby-error hidden role="alert"></p>
       <p class="online-room__countdown" data-online-countdown hidden></p>
     </div>
 
-    <div class="online-room__chat" data-online-chat>
+    <div class="online-room__chat">
       <h3>Chat de sala</h3>
       <ul class="online-room__chat-list" data-online-chat-list>
         <li class="online-room__chat-empty" data-online-chat-empty>Aún no hay mensajes.</li>
       </ul>
       <form class="online-room__chat-form" data-online-chat-form>
-        <input
-          type="text"
-          maxlength="200"
-          data-online-chat-input
-          placeholder="Escribe un mensaje…"
-          autocomplete="off"
-        />
+        <input type="text" maxlength="200" data-online-chat-input placeholder="Escribe un mensaje…" autocomplete="off" />
         <button type="submit" class="btn">Enviar</button>
       </form>
-      <p class="online-room__error" data-online-chat-error hidden></p>
+      <p class="online-room__error" data-online-chat-error hidden role="alert"></p>
     </div>
+  </div>
+
+  <div class="online-room__panel" data-online-view="creatingRoom" hidden>
+    <p class="online-room__muted" aria-live="polite">Creando sala…</p>
+  </div>
+  <div class="online-room__panel" data-online-view="joiningRoom" hidden>
+    <p class="online-room__muted" aria-live="polite">Entrando a la sala…</p>
+  </div>
+  <div class="online-room__panel" data-online-view="connectingMatch" hidden>
+    <p class="online-room__muted" aria-live="polite">Conectando al partido…</p>
   </div>
 </section>
 
 <style>
-  .online-room {
-    margin: 1.5rem 0 2rem;
+  .online-room { margin: 1.25rem 0 2rem; min-height: 12rem; }
+  .online-room__title { margin: 0 0 0.5rem; font-family: var(--font-display); color: var(--accent); }
+  .online-room__lead, .online-room__muted, .online-room__hint { margin: 0 0 1rem; color: var(--text-muted); line-height: 1.45; }
+  .online-room__cta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .online-room__entry-grid { display: grid; gap: 1rem; }
+  @media (min-width: 720px) { .online-room__entry-grid { grid-template-columns: 1fr 1fr; } }
+  .online-room__card { padding: 1rem; background: var(--bg-elevated); border: 1px solid var(--border); }
+  .online-room__card h3 { margin: 0 0 0.75rem; font-family: var(--font-display); color: var(--accent); }
+  .online-room__field { display: grid; gap: 0.35rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
+  .online-room__field input, .online-room__field select, .online-room__chat-form input {
+    padding: 0.55rem 0.7rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; width: 100%;
   }
-
-  .online-room__title {
-    margin: 0 0 0.5rem;
-    font-family: var(--font-display);
-    color: var(--accent);
-    letter-spacing: 0.04em;
+  .online-room__code { margin: 0.15rem 0; font-family: var(--font-display); font-size: 1.75rem; letter-spacing: 0.18em; color: var(--accent); }
+  .online-room__code-label { margin: 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .online-room__lobby-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .online-room__players { display: grid; gap: 0.75rem; margin-bottom: 1.25rem; }
+  @media (min-width: 720px) { .online-room__players { grid-template-columns: 1fr 1fr; } }
+  .online-room__player-card { padding: 1rem; border: 1px solid var(--border); background: var(--bg-elevated); }
+  .online-room__player-card--self { border-color: var(--accent-dim); }
+  .online-room__player-card--ready { border-color: var(--accent); }
+  .online-room__slot { margin: 0 0 0.35rem; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); }
+  .online-room__teams, .online-room__formations { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .online-room__team-btn, .online-room__formation-btn {
+    padding: 0.4rem 0.65rem; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font: inherit;
   }
-
-  .online-room__lead,
-  .online-room__hint {
-    margin: 0 0 1rem;
-    color: var(--text-muted);
-    line-height: 1.45;
+  .online-room__team-btn--active, .online-room__formation-btn--active {
+    border-color: var(--accent); color: var(--accent); background: var(--bg-elevated);
   }
-
-  .online-room__auth-cta,
-  .online-room__auth-loading,
-  .online-room__token-error {
-    display: grid;
-    gap: 0.75rem;
-    max-width: 22rem;
-    padding: 1rem;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-  }
-
-  .online-room__auth-cta p,
-  .online-room__auth-loading p,
-  .online-room__token-error p {
-    margin: 0;
-  }
-
-  .online-room__entry-grid {
-    display: grid;
-    gap: 1rem;
-  }
-
-  @media (min-width: 720px) {
-    .online-room__entry-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  .online-room__card {
-    padding: 1rem;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-  }
-
-  .online-room__card h3 {
-    margin: 0 0 0.35rem;
-    font-family: var(--font-display);
-    color: var(--accent);
-  }
-
-  .online-room__card p {
-    margin: 0 0 0.75rem;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
-
-  .online-room__field {
-    display: grid;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  .online-room__field input,
-  .online-room__field select,
-  .online-room__chat-form input {
-    padding: 0.55rem 0.7rem;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-  }
-
-  .online-room__lobby-head {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-  }
-
-  .online-room__code-label {
-    margin: 0;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-
-  .online-room__code {
-    margin: 0.15rem 0 0;
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    letter-spacing: 0.18em;
-    color: var(--accent);
-  }
-
-  .online-room__status {
-    margin: 0;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .online-room__presence {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-  }
-
-  .online-room__players {
-    display: grid;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-  }
-
-  @media (min-width: 720px) {
-    .online-room__players {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  .online-room__player-card {
-    padding: 1rem;
-    border: 1px solid var(--border);
-    background: var(--bg-elevated);
-  }
-
-  .online-room__player-card--self {
-    border-color: var(--accent-dim);
-    box-shadow: 0 0 12px var(--accent-glow);
-  }
-
-  .online-room__player-card--ready {
-    border-color: var(--accent);
-  }
-
-  .online-room__slot {
-    margin: 0 0 0.35rem;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-
-  .online-room__player-name {
-    margin: 0 0 0.35rem;
-    font-family: var(--font-display);
-    font-size: 1.15rem;
-  }
-
-  .online-room__player-team,
-  .online-room__player-formation,
-  .online-room__player-ready,
-  .online-room__player-conn {
-    margin: 0.15rem 0 0;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-  }
-
-  .online-room__config h3,
-  .online-room__chat h3 {
-    margin: 0 0 0.75rem;
-    font-family: var(--font-display);
-    color: var(--accent);
-  }
-
-  .online-room__teams,
-  .online-room__formations {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .online-room__team-btn,
-  .online-room__formation-btn {
-    padding: 0.4rem 0.65rem;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    font: inherit;
-  }
-
-  .online-room__team-btn--active,
-  .online-room__formation-btn--active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--bg-elevated);
-  }
-
-  .online-room__team-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
-  .online-room__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .online-room__error {
-    margin: 0.5rem 0 0;
-    color: #ff7b7b;
-    font-size: 0.9rem;
-  }
-
-  .online-room__countdown {
-    margin: 0.75rem 0 0;
-    font-family: var(--font-display);
-    font-size: 1.25rem;
-    color: var(--accent);
-  }
-
-  .online-room__chat {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-  }
-
+  .online-room__team-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .online-room__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .online-room__error { margin: 0.5rem 0 0; color: #ff7b7b; font-size: 0.9rem; }
+  .online-room__countdown { margin: 0.75rem 0 0; font-family: var(--font-display); color: var(--accent); }
+  .online-room__chat { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
   .online-room__chat-list {
-    list-style: none;
-    margin: 0 0 0.75rem;
-    padding: 0.75rem;
-    min-height: 7rem;
-    max-height: 12rem;
-    overflow: auto;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
+    list-style: none; margin: 0 0 0.75rem; padding: 0.75rem; min-height: 6rem; max-height: 12rem; overflow: auto;
+    background: var(--bg-elevated); border: 1px solid var(--border);
   }
-
-  .online-room__chat-empty,
-  .online-room__chat-list li {
-    margin: 0 0 0.4rem;
-    font-size: 0.9rem;
-    line-height: 1.4;
-  }
-
-  .online-room__chat-meta {
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .online-room__chat-form {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.5rem;
+  .online-room__chat-form { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
+  .online-room__skel-line { height: 0.85rem; margin-bottom: 0.5rem; background: var(--bg-elevated); border-radius: 4px; }
+  .online-room__skel-line--short { width: 40%; }
+  .online-room__copy { margin-top: 0.35rem; }
+  @media (max-width: 640px) {
+    .online-room__cta .btn, .online-room__cta .btn-outline, .online-room__card .btn { width: 100%; }
   }
 </style>
 
 <script>
-  import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
+  import {
+    awaitAuthReady,
+    ensureAccessToken,
+    getAuthState,
+    hydrateSession,
+    refreshSessionOnce,
+    setSignOutCleanup,
+    subscribeAuth,
+  } from '../lib/auth/session';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
   import { DEFAULT_FORMATION, type FormationId, isFormationId } from '../lib/match/formations';
   import {
     createPrivateRoom,
     joinPrivateRoom,
     leavePrivateRoom,
+    leaveActivePrivateRoom,
+    recoverActivePrivateRoom,
     updateRoomLoadout,
     setRoomReady,
     startPrivateRoom,
     sendRoomChat,
     touchRoomPresence,
   } from '../lib/match/privateRoomApi';
-  import { resolveOnlineAccessToken } from '../lib/match/onlineAuth';
   import { roomStatusLabel, type RoomSnapshot, type RoomChatMessage } from '../lib/match/roomTypes';
+  import { deriveOnlineUiState, needsAbandonConfirm, type OnlineUiState } from '../lib/match/onlineUiState';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
     subscribe,
@@ -448,6 +250,7 @@ const { teams } = Astro.props;
     onPresenceJoin,
     onPresenceLeave,
     isRealtimeAvailable,
+    cleanup as cleanupRealtime,
   } from '../lib/realtime/client';
 
   function wireOnlineRoom() {
@@ -456,160 +259,85 @@ const { teams } = Astro.props;
     root.dataset.wired = '1';
 
     const teams = JSON.parse(root.dataset.teams ?? '[]') as Array<{ id: string; name: string; code: string }>;
-    const gate = root.querySelector<HTMLElement>('[data-online-gate]');
-    const authLoading = root.querySelector<HTMLElement>('[data-online-auth-loading]');
-    const authCta = root.querySelector<HTMLElement>('[data-online-auth-cta]');
-    const tokenError = root.querySelector<HTMLElement>('[data-online-token-error]');
-    const tokenErrorText = root.querySelector<HTMLElement>('[data-online-token-error-text]');
-    const entry = root.querySelector<HTMLElement>('[data-online-entry]');
-    const lobby = root.querySelector<HTMLElement>('[data-online-lobby]');
-    const entryError = root.querySelector<HTMLElement>('[data-online-entry-error]');
-    const lobbyError = root.querySelector<HTMLElement>('[data-online-lobby-error]');
-    const chatError = root.querySelector<HTMLElement>('[data-online-chat-error]');
-    const codeEl = root.querySelector<HTMLElement>('[data-online-room-code]');
-    const statusEl = root.querySelector<HTMLElement>('[data-online-status]');
-    const presenceEl = root.querySelector<HTMLElement>('[data-online-presence]');
-    const hintEl = root.querySelector<HTMLElement>('[data-online-hint]');
-    const countdownEl = root.querySelector<HTMLElement>('[data-online-countdown]');
-    const chatList = root.querySelector<HTMLElement>('[data-online-chat-list]');
-    const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
-    const chatForm = root.querySelector<HTMLFormElement>('[data-online-chat-form]');
-    const chatInput = root.querySelector<HTMLInputElement>('[data-online-chat-input]');
-    const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
-    const durationSelect = root.querySelector<HTMLSelectElement>('[data-online-duration]');
-    const readyBtn = root.querySelector<HTMLButtonElement>('[data-online-ready]');
-    const startBtn = root.querySelector<HTMLButtonElement>('[data-online-start]');
+    const views = Array.from(root.querySelectorAll<HTMLElement>('[data-online-view]'));
 
     let room: RoomSnapshot | null = null;
+    let pendingActive: RoomSnapshot | null = null;
+    let inLobby = false;
+    let checkingActive = false;
+    let busyAction: 'create' | 'join' | null = null;
+    let matchConnecting = false;
+    let matchActive = false;
+    let errorKind: 'recoverable' | 'fatal' | null = null;
+    let errorMsg = '';
     let myFormation: FormationId = DEFAULT_FORMATION;
     let myTeamId = getSelectedTeam() || teams[0]?.id || 'brasil';
     let presenceIds = new Set<string>();
     let roomUnsubs: Array<() => void> = [];
     let touchTimer: number | null = null;
     let countdownTimer: number | null = null;
-    let busy = false;
-    let gateEpoch = 0;
-    let tokenReady = false;
+    let uiState: OnlineUiState = 'hydratingSession';
 
     function teamName(id: string | null) {
       if (!id) return 'Sin selección';
       return teams.find((t) => t.id === id)?.name ?? id;
     }
 
-    function showError(el: HTMLElement | null, message: string | null) {
+    function setError(el: HTMLElement | null, message: string | null) {
       if (!el) return;
-      if (!message) {
-        el.hidden = true;
-        el.textContent = '';
-        return;
-      }
-      el.hidden = false;
-      el.textContent = message;
+      el.hidden = !message;
+      el.textContent = message ?? '';
     }
 
-    function resetToGate() {
-      clearRoomRealtime();
-      room = null;
-      presenceIds.clear();
-      tokenReady = false;
-      if (chatList) {
-        chatList.querySelectorAll('li:not([data-online-chat-empty])').forEach((n) => n.remove());
-        if (chatEmpty) chatEmpty.hidden = false;
+    function showView(state: OnlineUiState) {
+      uiState = state;
+      for (const view of views) {
+        view.hidden = view.dataset.onlineView !== state;
       }
-      if (countdownEl) countdownEl.hidden = true;
-      if (lobby) lobby.hidden = true;
-      if (gate) gate.hidden = false;
+      window.dispatchEvent(
+        new CustomEvent('golazo:online-ui-state', {
+          detail: { state, hasActiveRoom: Boolean(pendingActive || (room && !inLobby)) },
+        }),
+      );
     }
 
-    async function setGateMode() {
-      const epoch = ++gateEpoch;
-      const inLobby = Boolean(room);
-
-      if (!inLobby) {
-        if (gate) gate.hidden = false;
-        if (lobby) lobby.hidden = true;
-      }
-
+    function renderUi() {
       const auth = getAuthState();
-      if (!inLobby) {
-        if (authLoading) authLoading.hidden = !auth.loading;
-        if (authCta) authCta.hidden = true;
-        if (tokenError) tokenError.hidden = true;
-        if (entry) entry.hidden = true;
-      }
+      const hasToken = Boolean(auth.accessToken);
+      const next = deriveOnlineUiState({
+        sessionPhase: auth.phase,
+        hasToken,
+        checkingActive,
+        room: inLobby ? room : pendingActive,
+        inLobby,
+        busyAction,
+        matchConnecting,
+        matchActive,
+        errorKind: errorKind ?? (auth.phase === 'expired' || (auth.user && !hasToken && auth.sessionReady) ? 'recoverable' : null),
+      });
 
-      if (auth.loading) {
-        if (!inLobby) tokenReady = false;
-        return;
-      }
-
-      if (!auth.user) {
-        tokenReady = false;
-        if (inLobby) resetToGate();
-        if (authCta) authCta.hidden = false;
-        if (authLoading) authLoading.hidden = true;
-        if (tokenError) tokenError.hidden = true;
-        if (entry) entry.hidden = true;
-        if (gate) gate.hidden = false;
-        if (lobby) lobby.hidden = true;
-        return;
-      }
-
-      if (!inLobby && authLoading) {
-        authLoading.hidden = false;
-        const loadingCopy = authLoading.querySelector('p');
-        if (loadingCopy) loadingCopy.textContent = 'Preparando acceso online…';
-      }
-
-      const resolved = await resolveOnlineAccessToken();
-      if (epoch !== gateEpoch) return;
-
-      if (authLoading) authLoading.hidden = true;
-
-      if (!resolved.token) {
-        tokenReady = false;
-        if (inLobby) {
-          showError(
-            lobbyError,
-            resolved.reason ??
-              'No se pudo obtener el access token de tu sesión. Vuelve a iniciar sesión o recarga la página.',
-          );
-          return;
+      if (next === 'recoverableError') {
+        const msgEl = root.querySelector<HTMLElement>('[data-online-error-msg]');
+        if (msgEl) {
+          msgEl.textContent =
+            errorMsg || auth.tokenError || 'La sesión expiró. Vuelve a iniciar sesión.';
         }
-        if (tokenErrorText) {
-          tokenErrorText.textContent =
-            resolved.reason ??
-            'No se pudo obtener el access token de tu sesión. Vuelve a iniciar sesión o recarga la página.';
+      }
+
+      if (next === 'activeRoom' && pendingActive) {
+        const codeEl = root.querySelector('[data-active-room-code]');
+        const statusEl = root.querySelector('[data-active-room-status]');
+        const metaEl = root.querySelector('[data-active-room-meta]');
+        if (codeEl) codeEl.textContent = pendingActive.code;
+        if (statusEl) statusEl.textContent = roomStatusLabel(pendingActive.status);
+        if (metaEl) {
+          metaEl.textContent = pendingActive.players
+            .map((p) => teamName(p.teamId))
+            .join(' · ');
         }
-        if (tokenError) tokenError.hidden = false;
-        if (entry) entry.hidden = true;
-        return;
       }
 
-      tokenReady = true;
-      if (tokenError) tokenError.hidden = true;
-      showError(lobbyError, null);
-
-      if (room && lobby) {
-        if (gate) gate.hidden = true;
-        lobby.hidden = false;
-        if (entry) entry.hidden = true;
-        return;
-      }
-
-      if (entry) entry.hidden = false;
-    }
-
-    async function ensureOnlineToken(): Promise<boolean> {
-      const resolved = await resolveOnlineAccessToken();
-      tokenReady = Boolean(resolved.token);
-      if (!resolved.token) {
-        showError(
-          entryError,
-          resolved.reason ?? 'No hay access token. Inicia sesión e inténtalo de nuevo.',
-        );
-      }
-      return tokenReady;
+      showView(next);
     }
 
     function clearRoomRealtime() {
@@ -624,40 +352,31 @@ const { teams } = Astro.props;
       }
     }
 
-    function dispatchOnlineMatchStart() {
-      if (!room || !tokenReady) return;
-      const me = getAuthState().user?.id;
-      if (!me) {
-        showError(lobbyError, 'Sesión no disponible. Vuelve a iniciar sesión.');
-        return;
-      }
-      const home = room.players.find((p) => p.slot === 'home');
-      const away = room.players.find((p) => p.slot === 'away');
-      if (!home || !away || !home.teamId || !away.teamId) {
-        showError(lobbyError, 'Faltan selecciones para iniciar el partido online.');
-        return;
-      }
-      const playerSide: 'home' | 'away' =
-        home.userId === me ? 'home' : away.userId === me ? 'away' : 'home';
-
-      window.dispatchEvent(
-        new CustomEvent('golazo:online-match-start', {
-          detail: {
-            roomId: room.id,
-            code: room.code,
-            matchSessionToken: null,
-            homeTeamId: home.teamId,
-            awayTeamId: away.teamId,
-            homeFormationId: home.formationId,
-            awayFormationId: away.formationId,
-            durationSeconds: room.durationSeconds,
-            playerSide,
-            formatId: '5v5',
-            localMatchId: `online-${room.id}`,
-          },
-        }),
-      );
+    function resetOnlineLocal() {
+      clearRoomRealtime();
+      room = null;
+      pendingActive = null;
+      inLobby = false;
+      matchConnecting = false;
+      matchActive = false;
+      busyAction = null;
+      presenceIds.clear();
+      const chatList = root.querySelector('[data-online-chat-list]');
+      chatList?.querySelectorAll('li:not([data-online-chat-empty])').forEach((n) => n.remove());
+      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
+      if (chatEmpty) chatEmpty.hidden = false;
+      const countdownEl = root.querySelector<HTMLElement>('[data-online-countdown]');
+      if (countdownEl) countdownEl.hidden = true;
     }
+
+    setSignOutCleanup(() => {
+      resetOnlineLocal();
+      try {
+        cleanupRealtime();
+      } catch {
+        // ignore
+      }
+    });
 
     function renderSlots() {
       if (!room) return;
@@ -671,10 +390,8 @@ const { teams } = Astro.props;
         const formationEl = card.querySelector('[data-slot-formation]');
         const readyEl = card.querySelector('[data-slot-ready]');
         const connEl = card.querySelector('[data-slot-conn]');
-
         card.classList.toggle('online-room__player-card--self', Boolean(player && player.userId === me));
         card.classList.toggle('online-room__player-card--ready', Boolean(player?.ready));
-
         if (!player) {
           if (nameEl) nameEl.textContent = slot === 'away' ? 'Esperando…' : '—';
           if (teamEl) teamEl.textContent = '—';
@@ -683,14 +400,12 @@ const { teams } = Astro.props;
           if (connEl) connEl.textContent = '';
           continue;
         }
-
         const label = player.displayName || player.username || player.userId.slice(0, 8);
         if (nameEl) nameEl.textContent = player.userId === me ? `${label} (tú)` : label;
         if (teamEl) teamEl.textContent = teamName(player.teamId);
         if (formationEl) formationEl.textContent = player.formationId;
         if (readyEl) readyEl.textContent = player.ready ? 'Listo' : 'No listo';
-        const online = presenceIds.has(player.userId);
-        if (connEl) connEl.textContent = online ? 'Conectado' : 'Desconectado';
+        if (connEl) connEl.textContent = presenceIds.has(player.userId) ? 'Conectado' : 'Desconectado';
       }
     }
 
@@ -700,117 +415,86 @@ const { teams } = Astro.props;
       const mine = room.players.find((p) => p.userId === me);
       if (mine?.teamId) myTeamId = mine.teamId;
       if (mine?.formationId && isFormationId(mine.formationId)) myFormation = mine.formationId;
-
       const taken = new Set(
         room.players.filter((p) => p.userId !== me && p.teamId).map((p) => p.teamId as string),
       );
-
       for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-team]')) {
         const id = btn.dataset.onlineTeam ?? '';
         btn.classList.toggle('online-room__team-btn--active', id === myTeamId);
         btn.disabled = taken.has(id);
       }
       for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-formation]')) {
-        const id = btn.dataset.onlineFormation ?? '';
-        btn.classList.toggle('online-room__formation-btn--active', id === myFormation);
+        btn.classList.toggle('online-room__formation-btn--active', btn.dataset.onlineFormation === myFormation);
       }
-
-      const isHost = room.hostUserId === me;
-      const bothReady = room.status === 'ready';
+      const readyBtn = root.querySelector<HTMLButtonElement>('[data-online-ready]');
+      const startBtn = root.querySelector<HTMLButtonElement>('[data-online-start]');
+      const statusEl = root.querySelector('[data-online-status]');
+      const presenceEl = root.querySelector('[data-online-presence]');
       if (readyBtn) {
         readyBtn.textContent = mine?.ready ? 'Cancelar listo' : 'Listo';
         readyBtn.disabled = room.status === 'starting' || room.status === 'playing';
       }
       if (startBtn) {
-        startBtn.hidden = !(isHost && bothReady);
-        startBtn.disabled = busy;
+        startBtn.hidden = !(room.hostUserId === me && room.status === 'ready');
       }
-
-      const missingOpponent = room.players.length < 2;
-      if (statusEl) {
-        statusEl.textContent = roomStatusLabel(room.status, {
-          disconnected: !missingOpponent && presenceIds.size < room.players.length,
-        });
-      }
-      if (presenceEl) {
-        presenceEl.textContent = `Presencia: ${presenceIds.size}/${room.players.length} en vivo`;
-      }
-      if (hintEl && room.status === 'starting') {
-        hintEl.textContent =
-          'Cuenta regresiva en marcha. Al terminar se conectará el servidor de partida.';
-      }
-    }
-
-    function applyRoom(next: RoomSnapshot) {
-      const wasStarting = room?.status === 'starting';
-      room = next;
-      if (codeEl) codeEl.textContent = next.code;
-      if (gate) gate.hidden = true;
-      if (lobby) lobby.hidden = false;
-      renderSlots();
-      renderConfig();
-      if (next.status === 'starting' && !wasStarting && !countdownTimer) {
-        // Fallback if room_starting realtime event was missed (e.g. host race).
-        if (countdownEl) {
-          countdownEl.hidden = false;
-          let left = 5;
-          countdownEl.textContent = `El partido comienza en… ${left}`;
-          countdownTimer = window.setInterval(() => {
-            left -= 1;
-            if (left <= 0) {
-              countdownEl.textContent = '¡A jugar!';
-              if (countdownTimer) window.clearInterval(countdownTimer);
-              countdownTimer = null;
-              dispatchOnlineMatchStart();
-              return;
-            }
-            countdownEl.textContent = `El partido comienza en… ${left}`;
-          }, 1000);
-        }
-      }
+      if (statusEl) statusEl.textContent = roomStatusLabel(room.status);
+      if (presenceEl) presenceEl.textContent = `Presencia: ${presenceIds.size}/${room.players.length}`;
+      const codeEl = root.querySelector('[data-online-room-code]');
+      if (codeEl) codeEl.textContent = room.code;
     }
 
     async function bindRoomRealtime(roomId: string) {
       clearRoomRealtime();
       if (!isRealtimeAvailable()) return;
-
       const channel = CHANNELS.room(roomId);
       const sub = await subscribe(channel);
       presenceIds = new Set(
-        (sub.members ?? [])
-          .filter((m) => m.type === 'user')
-          .map((m) => m.presenceId),
+        (sub.members ?? []).filter((m) => m.type === 'user').map((m) => m.presenceId),
       );
-      renderSlots();
-      renderConfig();
-
       roomUnsubs.push(
         onEvent('room_updated', (payload) => {
           if (!payload || payload.id !== roomId) return;
-          applyRoom(payload as unknown as RoomSnapshot);
+          room = payload as unknown as RoomSnapshot;
+          renderSlots();
+          renderConfig();
         }),
       );
       roomUnsubs.push(
         onEvent('room_starting', (payload) => {
           if (!payload || payload.roomId !== roomId) return;
-          const seconds = Number(payload.countdownSeconds ?? 5);
-          if (countdownEl) {
-            countdownEl.hidden = false;
-            let left = seconds;
+          const countdownEl = root.querySelector<HTMLElement>('[data-online-countdown]');
+          if (!countdownEl) return;
+          countdownEl.hidden = false;
+          let left = Number(payload.countdownSeconds ?? 5);
+          countdownEl.textContent = `El partido comienza en… ${left}`;
+          if (countdownTimer) window.clearInterval(countdownTimer);
+          countdownTimer = window.setInterval(() => {
+            left -= 1;
+            if (left <= 0) {
+              countdownEl.textContent = 'Conectando…';
+              if (countdownTimer) window.clearInterval(countdownTimer);
+              countdownTimer = null;
+              matchConnecting = true;
+              renderUi();
+              const me = getAuthState().user?.id;
+              const mine = room?.players.find((p) => p.userId === me);
+              window.dispatchEvent(
+                new CustomEvent('golazo:online-match-start', {
+                  detail: {
+                    roomId,
+                    playerSide: mine?.slot === 'away' ? 'away' : 'home',
+                    homeTeamId: room?.players.find((p) => p.slot === 'home')?.teamId,
+                    awayTeamId: room?.players.find((p) => p.slot === 'away')?.teamId,
+                    homeFormationId: room?.players.find((p) => p.slot === 'home')?.formationId,
+                    awayFormationId: room?.players.find((p) => p.slot === 'away')?.formationId,
+                    durationSeconds: room?.durationSeconds ?? 180,
+                  },
+                }),
+              );
+              return;
+            }
             countdownEl.textContent = `El partido comienza en… ${left}`;
-            if (countdownTimer) window.clearInterval(countdownTimer);
-            countdownTimer = window.setInterval(() => {
-              left -= 1;
-              if (left <= 0) {
-                countdownEl.textContent = '¡A jugar!';
-                if (countdownTimer) window.clearInterval(countdownTimer);
-                countdownTimer = null;
-                dispatchOnlineMatchStart();
-                return;
-              }
-              countdownEl.textContent = `El partido comienza en… ${left}`;
-            }, 1000);
-          }
+          }, 1000);
         }),
       );
       roomUnsubs.push(
@@ -835,159 +519,236 @@ const { teams } = Astro.props;
           renderConfig();
         }),
       );
-
       touchTimer = window.setInterval(() => {
         void touchRoomPresence(roomId);
       }, 60_000);
     }
 
     function appendChat(msg: RoomChatMessage) {
+      const chatList = root.querySelector('[data-online-chat-list]');
+      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
       if (!chatList) return;
       if (chatEmpty) chatEmpty.hidden = true;
       const li = document.createElement('li');
       const who = room?.players.find((p) => p.userId === msg.userId);
       const label = who?.displayName || who?.username || msg.userId.slice(0, 8);
       const meta = document.createElement('span');
-      meta.className = 'online-room__chat-meta';
+      meta.style.color = 'var(--accent)';
+      meta.style.fontWeight = '600';
       meta.textContent = `${label}: `;
-      const body = document.createTextNode(msg.body);
-      li.append(meta, body);
+      li.append(meta, document.createTextNode(msg.body));
       chatList.appendChild(li);
       chatList.scrollTop = chatList.scrollHeight;
     }
 
-    async function enterRoom(next: RoomSnapshot) {
-      applyRoom(next);
-      showError(entryError, null);
-      showError(lobbyError, null);
+    async function enterLobby(next: RoomSnapshot) {
+      room = next;
+      pendingActive = null;
+      inLobby = true;
+      errorKind = null;
+      errorMsg = '';
+      busyAction = null;
       await bindRoomRealtime(next.id);
+      renderSlots();
+      renderConfig();
+      renderUi();
+    }
+
+    async function checkActiveRoom() {
+      const auth = getAuthState();
+      if (!auth.user || !auth.accessToken) {
+        checkingActive = false;
+        renderUi();
+        return;
+      }
+      checkingActive = true;
+      renderUi();
+      const result = await recoverActivePrivateRoom();
+      checkingActive = false;
+      if (result.ok && result.data.room) {
+        pendingActive = result.data.room;
+        inLobby = false;
+        room = null;
+      } else {
+        pendingActive = null;
+      }
+      renderUi();
+    }
+
+    async function syncSessionGate() {
+      await awaitAuthReady();
+      await ensureAccessToken();
+      const auth = getAuthState();
+      if (auth.user && auth.accessToken) {
+        errorKind = null;
+        await checkActiveRoom();
+      } else {
+        pendingActive = null;
+        renderUi();
+      }
     }
 
     root.querySelector('[data-online-create]')?.addEventListener('click', async () => {
-      if (busy) return;
-      if (!(await ensureOnlineToken())) return;
-      busy = true;
-      showError(entryError, null);
-      const durationSeconds = Number(durationSelect?.value ?? 180);
+      if (busyAction) return;
+      busyAction = 'create';
+      setError(root.querySelector('[data-online-entry-error]'), null);
+      renderUi();
+      const durationSelect = root.querySelector<HTMLSelectElement>('[data-online-duration]');
       const result = await createPrivateRoom({
         teamId: myTeamId,
         formationId: myFormation,
-        durationSeconds,
+        durationSeconds: Number(durationSelect?.value ?? 180),
       });
-      busy = false;
+      busyAction = null;
       if (!result.ok) {
-        showError(entryError, result.error.message);
+        if (result.error.code === 'ALREADY_IN_ROOM') {
+          await checkActiveRoom();
+          return;
+        }
+        setError(root.querySelector('[data-online-entry-error]'), result.error.message);
+        renderUi();
         return;
       }
-      await enterRoom(result.data.room);
+      await enterLobby(result.data.room);
     });
 
     root.querySelector('[data-online-join]')?.addEventListener('click', async () => {
-      if (busy) return;
-      if (!(await ensureOnlineToken())) return;
-      busy = true;
-      showError(entryError, null);
+      if (busyAction) return;
+      busyAction = 'join';
+      setError(root.querySelector('[data-online-entry-error]'), null);
+      renderUi();
+      const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
       const code = (codeInput?.value ?? '').trim().toUpperCase();
-      const result = await joinPrivateRoom({
-        code,
-        teamId: myTeamId,
-        formationId: myFormation,
-      });
-      busy = false;
+      if (codeInput) codeInput.value = code;
+      const result = await joinPrivateRoom({ code, teamId: myTeamId, formationId: myFormation });
+      busyAction = null;
       if (!result.ok) {
-        showError(entryError, result.error.message);
+        if (result.error.code === 'ALREADY_IN_ROOM') {
+          await checkActiveRoom();
+          return;
+        }
+        setError(root.querySelector('[data-online-entry-error]'), result.error.message);
+        renderUi();
         return;
       }
-      await enterRoom(result.data.room);
+      await enterLobby(result.data.room);
     });
 
-    root.querySelector('[data-online-token-retry]')?.addEventListener('click', () => {
-      void resolveOnlineAccessToken({ forceRefresh: true }).then(() => setGateMode());
+    root.querySelector('[data-online-resume]')?.addEventListener('click', async () => {
+      if (!pendingActive) return;
+      await enterLobby(pendingActive);
     });
 
-    root.querySelector('[data-online-leave]')?.addEventListener('click', async () => {
-      if (!room || busy) return;
-      busy = true;
-      const roomId = room.id;
-      await leavePrivateRoom(roomId);
-      busy = false;
-      resetToGate();
-      void setGateMode();
+    async function abandonFlow(fromLobby: boolean) {
+      const target = fromLobby ? room : pendingActive;
+      if (!target) return;
+      if (needsAbandonConfirm(target.status)) {
+        const ok = window.confirm('¿Abandonar el partido en curso?');
+        if (!ok) return;
+      }
+      if (fromLobby && room) {
+        await leavePrivateRoom(room.id);
+      } else {
+        await leaveActivePrivateRoom();
+      }
+      resetOnlineLocal();
+      renderUi();
+    }
+
+    root.querySelector('[data-online-abandon]')?.addEventListener('click', () => {
+      void abandonFlow(false);
+    });
+    root.querySelector('[data-online-leave]')?.addEventListener('click', () => {
+      void abandonFlow(true);
+    });
+
+    root.querySelector('[data-online-retry-session]')?.addEventListener('click', async () => {
+      errorKind = null;
+      errorMsg = '';
+      await refreshSessionOnce();
+      await syncSessionGate();
+    });
+
+    root.querySelector('[data-online-copy-code]')?.addEventListener('click', async () => {
+      if (!room?.code) return;
+      try {
+        await navigator.clipboard.writeText(room.code);
+      } catch {
+        // ignore
+      }
     });
 
     for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-team]')) {
       btn.addEventListener('click', async () => {
-        if (!room || busy || btn.disabled) return;
+        if (!room || btn.disabled) return;
         const teamId = btn.dataset.onlineTeam;
         if (!teamId) return;
-        busy = true;
         const result = await updateRoomLoadout({ roomId: room.id, teamId });
-        busy = false;
         if (!result.ok) {
-          showError(lobbyError, result.error.message);
+          setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
           return;
         }
         myTeamId = teamId;
-        applyRoom(result.data.room);
+        room = result.data.room;
+        renderSlots();
+        renderConfig();
       });
     }
 
     for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-formation]')) {
       btn.addEventListener('click', async () => {
-        if (!room || busy) return;
+        if (!room) return;
         const formationId = btn.dataset.onlineFormation as FormationId;
         if (!isFormationId(formationId)) return;
-        busy = true;
         const result = await updateRoomLoadout({ roomId: room.id, formationId });
-        busy = false;
         if (!result.ok) {
-          showError(lobbyError, result.error.message);
+          setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
           return;
         }
         myFormation = formationId;
-        applyRoom(result.data.room);
+        room = result.data.room;
+        renderSlots();
+        renderConfig();
       });
     }
 
-    readyBtn?.addEventListener('click', async () => {
-      if (!room || busy) return;
+    root.querySelector('[data-online-ready]')?.addEventListener('click', async () => {
+      if (!room) return;
       const me = getAuthState().user?.id;
       const mine = room.players.find((p) => p.userId === me);
-      busy = true;
       const result = await setRoomReady(room.id, !mine?.ready);
-      busy = false;
       if (!result.ok) {
-        showError(lobbyError, result.error.message);
+        setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
         return;
       }
-      applyRoom(result.data.room);
+      room = result.data.room;
+      renderSlots();
+      renderConfig();
     });
 
-    startBtn?.addEventListener('click', async () => {
-      if (!room || busy) return;
-      busy = true;
+    root.querySelector('[data-online-start]')?.addEventListener('click', async () => {
+      if (!room) return;
       const result = await startPrivateRoom(room.id);
-      busy = false;
       if (!result.ok) {
-        showError(lobbyError, result.error.message);
+        setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
         return;
       }
-      applyRoom(result.data.room);
+      room = result.data.room;
+      renderConfig();
     });
 
-    chatForm?.addEventListener('submit', async (event) => {
+    root.querySelector('[data-online-chat-form]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!room || busy) return;
-      const message = chatInput?.value ?? '';
-      busy = true;
-      showError(chatError, null);
+      if (!room) return;
+      const input = root.querySelector<HTMLInputElement>('[data-online-chat-input]');
+      const message = input?.value ?? '';
+      setError(root.querySelector('[data-online-chat-error]'), null);
       const result = await sendRoomChat(room.id, message);
-      busy = false;
       if (!result.ok) {
-        showError(chatError, result.error.message);
+        setError(root.querySelector('[data-online-chat-error]'), result.error.message);
         return;
       }
-      if (chatInput) chatInput.value = '';
+      if (input) input.value = '';
       if (result.data.message) appendChat(result.data.message);
     });
 
@@ -995,7 +756,7 @@ const { teams } = Astro.props;
       const mode = event.detail?.mode;
       root.hidden = mode !== 'online';
       if (mode === 'online') {
-        void hydrateSession().then(() => setGateMode());
+        void syncSessionGate();
       }
     }) as EventListener);
 
@@ -1003,14 +764,22 @@ const { teams } = Astro.props;
       if (event.detail?.teamId) myTeamId = event.detail.teamId;
     }) as EventListener);
 
-    subscribeAuth((state) => {
-      if (!state.user && room) {
-        resetToGate();
+    window.addEventListener('golazo:online-conn', ((event: CustomEvent<{ status: string }>) => {
+      if (event.detail?.status === 'connected') {
+        matchConnecting = false;
+        matchActive = true;
+        renderUi();
       }
-      if (!root.hidden) void setGateMode();
+    }) as EventListener);
+
+    subscribeAuth(() => {
+      if (!root.hidden) renderUi();
     });
 
-    void hydrateSession().then(() => setGateMode());
+    void hydrateSession().then(() => {
+      if (!root.hidden) void syncSessionGate();
+      else renderUi();
+    });
   }
 
   wireOnlineRoom();

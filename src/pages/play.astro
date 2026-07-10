@@ -16,19 +16,33 @@ const initialClock = formatMatchClock(180);
 
 <Layout title="Golazo Rush — Jugar">
   <section class="play-header">
-    <h1 class="section-title">Partido</h1>
-    <p class="play-header__hint">
-      Elige tu selección, el formato (5v5 o 11v11) y la formación. WASD para moverte · Shift sprint · Espacio tiro · E pase · Q despeje · F entrada.
-    </p>
-    <p class="play-session" data-play-session hidden></p>
+    <h1 class="section-title">PARTIDO</h1>
+    <p class="play-header__hint">Elige cómo jugar y prepara tu equipo.</p>
+    <p class="play-session" data-play-session hidden aria-live="polite"></p>
   </section>
 
   <div class="play-mode" data-play-mode role="tablist" aria-label="Modo de juego">
-    <button type="button" class="play-mode__btn play-mode__btn--active" data-play-mode-btn="cpu" role="tab" aria-selected="true">
-      vs CPU
+    <button
+      type="button"
+      class="play-mode__card play-mode__card--active"
+      data-play-mode-btn="cpu"
+      role="tab"
+      aria-selected="true"
+    >
+      <span class="play-mode__card-title">Contra bots</span>
+      <span class="play-mode__card-desc">Partido rápido individual</span>
     </button>
-    <button type="button" class="play-mode__btn" data-play-mode-btn="online" role="tab" aria-selected="false">
-      Online
+    <button
+      type="button"
+      class="play-mode__card"
+      data-play-mode-btn="online"
+      role="tab"
+      aria-selected="false"
+    >
+      <span class="play-mode__card-title">Online 1v1</span>
+      <span class="play-mode__card-desc">Compite contra otro jugador</span>
+      <span class="play-mode__card-meta">Requiere cuenta</span>
+      <span class="play-mode__badge" data-online-active-badge hidden>Sala en curso</span>
     </button>
   </div>
 
@@ -45,7 +59,7 @@ const initialClock = formatMatchClock(180);
   <div id="match-stage" class="match-stage" hidden>
     <div class="match-hud" id="match-hud">
       <div class="match-hud__top">
-        <p class="match-hud__mode" id="match-mode">5v5 vs CPU</p>
+        <p class="match-hud__mode" id="match-mode">5v5 Contra bots</p>
         <p class="match-hud__stoppage" id="match-stoppage" data-stoppage>En juego</p>
         <div class="match-hud__actions">
           <button
@@ -136,8 +150,11 @@ const initialClock = formatMatchClock(180);
     <div id="game-container" class="game-container"></div>
   </div>
 
-  <section class="play-lobby">
-    <LobbyPanel compact />
+  <section class="play-lobby" data-play-lobby hidden>
+    <details class="play-lobby__details">
+      <summary class="play-lobby__summary">Actividad online</summary>
+      <LobbyPanel compact />
+    </details>
   </section>
 </Layout>
 
@@ -203,14 +220,19 @@ const initialClock = formatMatchClock(180);
     return teamNames[id] ?? id;
   }
 
+  const playLobby = document.querySelector('[data-play-lobby]');
+  const onlineActiveBadge = document.querySelector('[data-online-active-badge]');
+
   function setPlayMode(mode) {
     playMode = mode === 'online' ? 'online' : 'cpu';
     for (const btn of playModeBtns) {
       const active = btn.getAttribute('data-play-mode-btn') === playMode;
+      btn.classList.toggle('play-mode__card--active', active);
       btn.classList.toggle('play-mode__btn--active', active);
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     }
     if (cpuFlow) cpuFlow.hidden = playMode !== 'cpu';
+    if (playLobby) playLobby.hidden = playMode !== 'online';
     if (playMode === 'online') {
       if (matchStage) matchStage.hidden = true;
       void stopActiveMatch();
@@ -219,6 +241,11 @@ const initialClock = formatMatchClock(180);
     }
     window.dispatchEvent(new CustomEvent('golazo:play-mode', { detail: { mode: playMode } }));
   }
+
+  window.addEventListener('golazo:online-ui-state', (event) => {
+    const hasActive = Boolean(event.detail?.hasActiveRoom);
+    if (onlineActiveBadge) onlineActiveBadge.hidden = !hasActive;
+  });
 
   function showPhase(phase) {
     if (playMode !== 'cpu') return;
@@ -708,7 +735,7 @@ const initialClock = formatMatchClock(180);
     subscribeAuth(async (state) => {
       currentUser = state.user;
 
-      if (state.loading) {
+      if (state.phase === 'hydrating' || state.phase === 'refreshing' || state.loading) {
         sessionEl.textContent = 'Comprobando sesión…';
         sessionEl.hidden = false;
         return;
@@ -722,8 +749,8 @@ const initialClock = formatMatchClock(180);
         return;
       }
 
-      sessionEl.textContent =
-        'Puedes jugar como invitado contra bots. Inicia sesión para guardar tu progreso.';
+      sessionEl.innerHTML =
+        'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login">Inicia sesión</a> para Online 1v1 y guardar progreso.';
       sessionEl.hidden = false;
     });
 

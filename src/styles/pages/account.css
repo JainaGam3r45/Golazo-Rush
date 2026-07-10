@@ -5,7 +5,18 @@
 }
 
 .account-page__header .section-title {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.account-page__lead {
+  margin: 0 0 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.account-page__guest,
+.account-page__profile {
+  padding: 0;
 }
 
 .account-page__subtitle {
@@ -81,4 +92,23 @@
   gap: 0.75rem;
   margin-top: 1.5rem;
   flex-wrap: wrap;
+}
+
+.account-page__logout-row {
+  margin: 1.25rem 0 0;
+}
+
+.account-page__logout {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.account-page__logout:hover {
+  color: var(--text);
 }

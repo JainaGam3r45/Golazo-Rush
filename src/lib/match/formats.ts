@@ -43,7 +43,7 @@ export function getMatchFormat(id: MatchFormatId): MatchFormatPreset {
 export function formatModeLabel(formatId: MatchFormatId): string {
   const format = MATCH_FORMATS[formatId];
   if (format.experimental) {
-    return `${format.shortLabel} vs CPU · experimental`;
+    return `${format.shortLabel} Contra bots · experimental`;
   }
-  return `${format.shortLabel} vs CPU`;
+  return `${format.shortLabel} Contra bots`;
 }
