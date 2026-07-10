@@ -20,6 +20,7 @@ import {
   parseMatchSnap,
   parseServerMessage,
   toWsUrl,
+  toHttpUrl,
   buttonsToAxis,
 } from '../../src/lib/match/onlineProtocol.ts';
 
@@ -180,5 +181,8 @@ describe('online protocol parsing', () => {
     assert.equal(toWsUrl('https://example.com/game/'), 'wss://example.com/game');
     assert.equal(toWsUrl('http://localhost:8080'), 'ws://localhost:8080');
     assert.equal(toWsUrl('wss://already'), 'wss://already');
+    assert.equal(toHttpUrl('wss://example.com/game/'), 'https://example.com/game');
+    assert.equal(toHttpUrl('ws://localhost:8080'), 'http://localhost:8080');
+    assert.equal(toHttpUrl('https://already'), 'https://already');
   });
 });

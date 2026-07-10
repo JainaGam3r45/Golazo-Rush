@@ -7,6 +7,7 @@ import { createLogger } from '../src/logger.js';
 import { createTestAuthVerifier } from '../src/auth.js';
 import { createGameServer } from '../src/server.js';
 import { createGameSimMatchHost } from '../src/matchHost.js';
+import { createMatch } from '../../../packages/game-sim/src/index.ts';
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -85,7 +86,7 @@ describe('game-sim match host', () => {
       config,
       log,
       authVerifier: createTestAuthVerifier('unused'),
-      matchHost: createGameSimMatchHost(),
+      matchHost: createGameSimMatchHost(createMatch),
       persistResult: async (result) => {
         persisted.push(result);
         return { ok: true, matchId: 'test-match' };

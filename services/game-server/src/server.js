@@ -106,6 +106,80 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
       return;
     }
 
+    // Local/bot match results — mirrors broken edge function record-match-result.
+    if (
+      req.method === 'POST' &&
+      (url.pathname === '/record-result' || url.pathname === '/api/record-result')
+    ) {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      if (!token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized', code: 'UNAUTHORIZED' }));
+        return;
+      }
+      const user = await auth.verify(token).catch(() => null);
+      if (!user?.userId) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized', code: 'UNAUTHORIZED' }));
+        return;
+      }
+
+      const chunks = [];
+      let size = 0;
+      try {
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > config.maxMessageBytes * 16) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'payload_too_large', code: 'PAYLOAD_TOO_LARGE' }));
+            return;
+          }
+          chunks.push(chunk);
+        }
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'bad_request', code: 'BAD_REQUEST' }));
+        return;
+      }
+
+      let body;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'invalid_json', code: 'BAD_REQUEST' }));
+        return;
+      }
+
+      const result = await persist({
+        homeTeamId: body?.homeTeamId,
+        awayTeamId: body?.awayTeamId,
+        homeScore: body?.homeScore,
+        awayScore: body?.awayScore,
+        durationSeconds: body?.durationSeconds,
+        decidedBy: 'local',
+      });
+
+      if (!result?.ok) {
+        const status = result?.reason === 'missing_admin_credentials' ? 503 : 400;
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: result?.reason || 'persist_failed', code: 'PERSIST_FAILED' }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          matchId: result.matchId,
+          homeScore: body.homeScore,
+          awayScore: body.awayScore,
+          winnerTeamId: result.winnerTeamId ?? null,
+        }),
+      );
+      return;
+    }
+
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'not_found' }));
   });

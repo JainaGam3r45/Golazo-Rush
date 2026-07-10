@@ -48,7 +48,7 @@ export function createResultPersister({ config, log }) {
       return { ok: false, reason: 'invalid_scores' };
     }
 
-    const durationSeconds = result.durationSeconds ?? 900,
+    const durationSeconds = result.durationSeconds ?? 900;
     const admin = createAdminClient({
       baseUrl: config.insforgeBaseUrl,
       apiKey: config.insforgeApiKey,
@@ -72,7 +72,7 @@ export function createResultPersister({ config, log }) {
             away_score: result.awayScore,
             status: 'finished',
             winner_team_id: winnerTeamId,
-            decided_by: 'online',
+            decided_by: result.decidedBy === 'local' ? 'local' : 'online',
             duration_seconds: durationSeconds,
             started_at: new Date(Date.now() - durationSeconds * 1000).toISOString(),
             ended_at: new Date().toISOString(),

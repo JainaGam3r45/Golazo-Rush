@@ -1,7 +1,7 @@
 import { ensureAccessToken, hydrateSession } from '../auth/session';
 import { insforge, isInsForgeConfigured } from '../insforge';
 import { resolveOnlineAccessToken } from './onlineAuth';
-import { getPublicGameServerUrl } from './onlineProtocol';
+import { getPublicGameServerUrl, toHttpUrl } from './onlineProtocol';
 import type { FormationId } from './formations';
 import type { RoomChatMessage, RoomSnapshot } from './roomTypes';
 import {
@@ -25,7 +25,7 @@ type InvokeResult<T> =
   | { ok: false; error: PrivateRoomError };
 
 function roomHttpBase(serverUrl: string): string {
-  return serverUrl.trim().replace(/\/+$/, '');
+  return toHttpUrl(serverUrl);
 }
 
 function parseErrorPayload(raw: unknown): { code?: string; error?: string } | null {

@@ -1,5 +1,3 @@
-import { createMatch } from '../../../packages/game-sim/src/index.ts';
-
 /**
  * @typedef {object} MatchInput
  * @property {number} seq
@@ -85,9 +83,10 @@ function toWireSnapshot(simSnap) {
 
 /**
  * Authoritative host backed by @golazo-rush/game-sim (5v5, 1 human/side, bots fill).
+ * @param {typeof import('../../../packages/game-sim/src/index.ts').createMatch} createMatch
  * @returns {MatchHost}
  */
-export function createGameSimMatchHost() {
+export function createGameSimMatchHost(createMatch) {
   /** @type {Map<string, { match: ReturnType<typeof createMatch>, meta: MatchStartMeta, finishedEmitted: boolean, finishedPayload: object|null }>} */
   const matches = new Map();
 
@@ -223,7 +222,8 @@ export async function loadMatchHost(log, opts = {}) {
     return createStubMatchHost();
   }
   try {
-    const host = createGameSimMatchHost();
+    const mod = await import('../../../packages/game-sim/src/index.ts');
+    const host = createGameSimMatchHost(mod.createMatch);
     log.info('match_host_loaded', { source: 'packages/game-sim' });
     return host;
   } catch (err) {
