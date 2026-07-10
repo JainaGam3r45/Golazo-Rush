@@ -1,0 +1,23 @@
+{
+  "name": "@golazo-rush/game-sim",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Headless 5v5 match simulation for Golazo Rush online MVP",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/match.test.ts tests/possession.test.ts"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

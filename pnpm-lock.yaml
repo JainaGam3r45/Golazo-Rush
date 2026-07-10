@@ -28,6 +28,8 @@ importers:
         specifier: ^3.3.2
         version: 3.3.3
 
+  packages/game-sim: {}
+
 packages:
 
   '@astrojs/compiler-binding-darwin-arm64@0.3.0':

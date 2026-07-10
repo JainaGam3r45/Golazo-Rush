@@ -1,0 +1,15 @@
+# Build context is the repository root (see Dockerfile header).
+# This file is used when building with:
+#   docker build -f services/game-server/Dockerfile .
+node_modules
+**/node_modules
+.git
+.astro
+dist
+.env
+.env.*
+**/.env
+**/.env.*
+playwright-report
+test-results
+tools
