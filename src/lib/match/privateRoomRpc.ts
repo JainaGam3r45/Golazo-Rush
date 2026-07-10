@@ -12,19 +12,20 @@ export type RoomRpcCall = {
 };
 
 const ROOM_RPC_CODES =
-  /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED)\b/;
+  /\b(UNAUTHORIZED|ALREADY_IN_ROOM|ACTIVE_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED|SESSION_EXPIRED)\b/;
 
 export const ROOM_ERROR_MESSAGES: Record<string, string> = {
   UNAUTHORIZED: 'Debes iniciar sesión',
-  ALREADY_IN_ROOM: 'Ya estás en una sala activa',
+  ALREADY_IN_ROOM: 'Tienes una sala activa. Reanúdala o abandónala.',
+  ACTIVE_ROOM: 'Tienes una sala activa. Reanúdala o abandónala.',
   INVALID_DURATION: 'Duración no válida',
   INVALID_FORMATION: 'Formación no válida',
   INVALID_TEAM: 'Selección no válida',
-  INVALID_CODE: 'Código de sala no válido',
-  ROOM_NOT_FOUND: 'Sala no encontrada',
+  INVALID_CODE: 'El código no existe o expiró.',
+  ROOM_NOT_FOUND: 'El código no existe o expiró.',
   ROOM_CLOSED: 'La sala ya no está disponible',
-  ROOM_EXPIRED: 'La sala expiró',
-  ROOM_FULL: 'La sala ya tiene dos jugadores',
+  ROOM_EXPIRED: 'El código no existe o expiró.',
+  ROOM_FULL: 'La sala ya está llena.',
   TEAM_TAKEN: 'Esa selección ya está ocupada',
   ROOM_LOCKED: 'La sala no admite cambios ahora',
   NOT_A_MEMBER: 'No eres miembro de esta sala',
@@ -40,10 +41,11 @@ export const ROOM_ERROR_MESSAGES: Record<string, string> = {
   ROOM_CREATE_FAILED: 'No se pudo crear la sala',
   INTERNAL_ERROR: 'Error interno del servidor',
   NOT_CONFIGURED: 'InsForge no está configurado',
-  NETWORK_ERROR: 'No se pudo contactar el servidor de salas',
-  SERVER_UNAVAILABLE: 'Servidor de salas no disponible',
+  NETWORK_ERROR: 'No se pudo conectar al servidor del partido.',
+  SERVER_UNAVAILABLE: 'No se pudo conectar al servidor del partido.',
   INVOKE_ERROR: 'No se pudo completar la acción',
   ROOM_ERROR: 'Error de sala',
+  SESSION_EXPIRED: 'La sesión expiró. Vuelve a iniciar sesión.',
 };
 
 /**
@@ -196,6 +198,27 @@ export function buildRoomRpcCall(
         fn: 'touch_room_presence_auth',
         args: { p_room_id: body.roomId },
         shape: 'ok',
+      };
+    }
+    case 'getActive': {
+      return {
+        fn: 'get_active_room_auth',
+        args: {},
+        shape: 'room',
+      };
+    }
+    case 'recoverActive': {
+      return {
+        fn: 'recover_active_room_auth',
+        args: {},
+        shape: 'room',
+      };
+    }
+    case 'leaveActive': {
+      return {
+        fn: 'leave_active_room_auth',
+        args: {},
+        shape: 'room',
       };
     }
     default:
