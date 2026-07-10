@@ -12,6 +12,7 @@
 
 import { hydrateSession, subscribeAuth } from '../auth/session';
 import { insforge, isInsForgeConfigured } from '../insforge';
+import { accessTokenFromRefreshPayload, parseBearerToken } from './onlineAuthToken';
 
 export type OnlineTokenSource = 'inject' | 'sdk-session' | 'sdk-refresh' | 'none';
 
@@ -20,6 +21,8 @@ export type OnlineTokenResult = {
   source: OnlineTokenSource;
   reason?: string;
 };
+
+export { parseBearerToken, accessTokenFromRefreshPayload } from './onlineAuthToken';
 
 type ResolveOptions = {
   /** Force `auth.refreshSession()` even if a bearer is already on the HTTP client. */
@@ -54,26 +57,6 @@ subscribeAuth((state) => {
   }
 });
 
-/**
- * Parse a Bearer token from an Authorization header value.
- * Rejects empty values and any token in `rejectTokens` (e.g. the anon key).
- */
-export function parseBearerToken(
-  authorization: string | null | undefined,
-  rejectTokens: ReadonlyArray<string | null | undefined> = [],
-): string | null {
-  if (!authorization || typeof authorization !== 'string') return null;
-  const trimmed = authorization.trim();
-  const match = /^Bearer\s+(\S+)/i.exec(trimmed);
-  if (!match) return null;
-  const token = match[1];
-  if (!token) return null;
-  for (const rejected of rejectTokens) {
-    if (rejected && token === rejected) return null;
-  }
-  return token;
-}
-
 function readTokenFromHttpClient(): string | null {
   if (!insforge) return null;
   try {
@@ -82,17 +65,6 @@ function readTokenFromHttpClient(): string | null {
   } catch {
     return null;
   }
-}
-
-function accessTokenFromRefreshPayload(data: unknown): string | null {
-  if (!data || typeof data !== 'object') return null;
-  const rec = data as Record<string, unknown>;
-  if (typeof rec.accessToken === 'string' && rec.accessToken.trim()) {
-    const token = rec.accessToken.trim();
-    if (anonKey && token === anonKey) return null;
-    return token;
-  }
-  return null;
 }
 
 async function resolveOnce(options: ResolveOptions = {}): Promise<OnlineTokenResult> {
@@ -127,7 +99,7 @@ async function resolveOnce(options: ResolveOptions = {}): Promise<OnlineTokenRes
   try {
     const { data, error } = await insforge.auth.refreshSession();
     if (!error) {
-      const refreshed = accessTokenFromRefreshPayload(data);
+      const refreshed = accessTokenFromRefreshPayload(data, [anonKey]);
       if (refreshed) {
         return { token: refreshed, source: 'sdk-refresh' };
       }
