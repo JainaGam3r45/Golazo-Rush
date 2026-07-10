@@ -59,7 +59,7 @@ const initialClock = formatMatchClock(180);
   <div id="match-stage" class="match-stage" hidden>
     <div class="match-hud" id="match-hud">
       <div class="match-hud__top">
-        <p class="match-hud__mode" id="match-mode">5v5 Contra bots</p>
+        <p class="match-hud__mode" id="match-mode">11v11 Contra bots</p>
         <p class="match-hud__stoppage" id="match-stoppage" data-stoppage>En juego</p>
         <div class="match-hud__actions">
           <button
@@ -622,7 +622,7 @@ const initialClock = formatMatchClock(180);
       }
 
       const modeEl = document.getElementById('match-mode');
-      if (modeEl) modeEl.textContent = '5v5 Online · conectando';
+      if (modeEl) modeEl.textContent = '11v11 Online · conectando';
 
       setStoppageState('Conectando', 'Conectando al servidor de partida…');
 
@@ -663,9 +663,9 @@ const initialClock = formatMatchClock(180);
       const status = event.detail?.status;
       const modeEl = document.getElementById('match-mode');
       if (!modeEl || !status) return;
-      if (status === 'playing') modeEl.textContent = '5v5 Online';
-      else if (status === 'joined') modeEl.textContent = '5v5 Online · en sala';
-      else if (status === 'error') modeEl.textContent = '5v5 Online · error';
+      if (status === 'playing') modeEl.textContent = '11v11 Online';
+      else if (status === 'joined') modeEl.textContent = '11v11 Online · en sala';
+      else if (status === 'error') modeEl.textContent = '11v11 Online · error';
     });
 
     window.addEventListener('golazo:online-ping', (event) => {

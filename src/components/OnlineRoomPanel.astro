@@ -1,6 +1,5 @@
 ---
 import type { Team } from '../lib/mock/teams';
-import { FORMATION_IDS, FORMATIONS } from '../lib/match/formations';
 import { ALLOWED_DURATIONS } from '../lib/match/setup';
 
 interface Props {
@@ -91,9 +90,10 @@ const { teams } = Astro.props;
         <p class="online-room__code" data-online-room-code>—</p>
         <button type="button" class="btn-outline online-room__copy" data-online-copy-code>Copiar</button>
       </div>
-      <div>
+      <div class="online-room__lobby-meta">
         <p class="online-room__status" data-online-status>—</p>
         <p class="online-room__presence" data-online-presence>—</p>
+        <p class="online-room__format-pill">11v11 Online</p>
       </div>
       <button type="button" class="btn-outline" data-online-leave>Abandonar</button>
     </header>
@@ -101,15 +101,15 @@ const { teams } = Astro.props;
     <div class="online-room__players" data-online-players>
       <article class="online-room__player-card" data-online-slot="home">
         <p class="online-room__slot">Local</p>
-        <p data-slot-name>—</p>
+        <p class="online-room__player-name" data-slot-name>—</p>
         <p data-slot-team>—</p>
-        <p data-slot-formation>—</p>
+        <p data-slot-formation>Alineación personalizada</p>
         <p data-slot-ready>—</p>
         <p data-slot-conn></p>
       </article>
       <article class="online-room__player-card" data-online-slot="away">
         <p class="online-room__slot">Visitante</p>
-        <p data-slot-name>Esperando…</p>
+        <p class="online-room__player-name" data-slot-name>Esperando…</p>
         <p data-slot-team>—</p>
         <p data-slot-formation>—</p>
         <p data-slot-ready>—</p>
@@ -117,45 +117,42 @@ const { teams } = Astro.props;
       </article>
     </div>
 
-    <div class="online-room__config">
-      <h3>Tu configuración</h3>
-      <div class="online-room__teams" data-online-team-selector>
-        {
-          teams.map((team) => (
-            <button type="button" class="online-room__team-btn" data-online-team={team.id} title={team.name}>
-              {team.code}
-            </button>
-          ))
-        }
+    <div class="online-room__lobby-grid">
+      <div class="online-room__config">
+        <h3>Tu configuración</h3>
+        <p class="online-room__section-label">Selección</p>
+        <div class="online-room__teams" data-online-team-selector>
+          {
+            teams.map((team) => (
+              <button type="button" class="online-room__team-btn" data-online-team={team.id} title={team.name}>
+                <span class="online-room__team-code">{team.code}</span>
+                <span class="online-room__team-name">{team.name}</span>
+              </button>
+            ))
+          }
+        </div>
+        <p class="online-room__section-label">Alineación 11v11</p>
+        <div class="online-room__lineup" data-online-lineup-editor></div>
+        <div class="online-room__actions">
+          <button type="button" class="btn" data-online-ready>Listo</button>
+          <button type="button" class="btn-outline" data-online-start hidden>Iniciar cuenta regresiva</button>
+        </div>
+        <p class="online-room__hint" data-online-hint></p>
+        <p class="online-room__error" data-online-lobby-error hidden role="alert"></p>
+        <p class="online-room__countdown" data-online-countdown hidden></p>
       </div>
-      <div class="online-room__formations">
-        {
-          FORMATION_IDS.map((id) => (
-            <button type="button" class="online-room__formation-btn" data-online-formation={id}>
-              {FORMATIONS[id].label5v5}
-            </button>
-          ))
-        }
-      </div>
-      <div class="online-room__actions">
-        <button type="button" class="btn" data-online-ready>Listo</button>
-        <button type="button" class="btn-outline" data-online-start hidden>Iniciar cuenta regresiva</button>
-      </div>
-      <p class="online-room__hint" data-online-hint></p>
-      <p class="online-room__error" data-online-lobby-error hidden role="alert"></p>
-      <p class="online-room__countdown" data-online-countdown hidden></p>
-    </div>
 
-    <div class="online-room__chat">
-      <h3>Chat de sala</h3>
-      <ul class="online-room__chat-list" data-online-chat-list>
-        <li class="online-room__chat-empty" data-online-chat-empty>Aún no hay mensajes.</li>
-      </ul>
-      <form class="online-room__chat-form" data-online-chat-form>
-        <input type="text" maxlength="200" data-online-chat-input placeholder="Escribe un mensaje…" autocomplete="off" />
-        <button type="submit" class="btn">Enviar</button>
-      </form>
-      <p class="online-room__error" data-online-chat-error hidden role="alert"></p>
+      <div class="online-room__chat">
+        <h3>Chat de sala</h3>
+        <ul class="online-room__chat-list" data-online-chat-list>
+          <li class="online-room__chat-empty" data-online-chat-empty>Aún no hay mensajes.</li>
+        </ul>
+        <form class="online-room__chat-form" data-online-chat-form>
+          <input type="text" maxlength="200" data-online-chat-input placeholder="Escribe un mensaje…" autocomplete="off" />
+          <button type="submit" class="btn">Enviar</button>
+        </form>
+        <p class="online-room__error" data-online-chat-error hidden role="alert"></p>
+      </div>
     </div>
   </div>
 
@@ -171,49 +168,73 @@ const { teams } = Astro.props;
 </section>
 
 <style>
-  .online-room { margin: 1.25rem 0 2rem; min-height: 12rem; }
-  .online-room__title { margin: 0 0 0.5rem; font-family: var(--font-display); color: var(--accent); }
+  .online-room { margin: 1.25rem 0 2rem; min-height: 14rem; }
+  .online-room__title { margin: 0 0 0.5rem; font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--accent); letter-spacing: 0.04em; }
   .online-room__lead, .online-room__muted, .online-room__hint { margin: 0 0 1rem; color: var(--text-muted); line-height: 1.45; }
   .online-room__cta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .online-room__entry-grid { display: grid; gap: 1rem; }
   @media (min-width: 720px) { .online-room__entry-grid { grid-template-columns: 1fr 1fr; } }
-  .online-room__card { padding: 1rem; background: var(--bg-elevated); border: 1px solid var(--border); }
+  .online-room__card {
+    padding: 1.15rem 1.2rem;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 12%), var(--bg-elevated));
+    border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+  }
   .online-room__card h3 { margin: 0 0 0.75rem; font-family: var(--font-display); color: var(--accent); }
   .online-room__field { display: grid; gap: 0.35rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
   .online-room__field input, .online-room__field select, .online-room__chat-form input {
-    padding: 0.55rem 0.7rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; width: 100%;
+    padding: 0.6rem 0.75rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; width: 100%;
   }
-  .online-room__code { margin: 0.15rem 0; font-family: var(--font-display); font-size: 1.75rem; letter-spacing: 0.18em; color: var(--accent); }
+  .online-room__code { margin: 0.15rem 0; font-family: var(--font-display); font-size: 1.85rem; letter-spacing: 0.18em; color: var(--accent); }
   .online-room__code-label { margin: 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-  .online-room__lobby-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .online-room__lobby-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.15rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .online-room__lobby-meta { display: grid; gap: 0.2rem; }
+  .online-room__format-pill { margin: 0; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
   .online-room__players { display: grid; gap: 0.75rem; margin-bottom: 1.25rem; }
   @media (min-width: 720px) { .online-room__players { grid-template-columns: 1fr 1fr; } }
-  .online-room__player-card { padding: 1rem; border: 1px solid var(--border); background: var(--bg-elevated); }
-  .online-room__player-card--self { border-color: var(--accent-dim); }
+  .online-room__player-card {
+    padding: 1.05rem 1.1rem;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    min-height: 8.5rem;
+  }
+  .online-room__player-card--self { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: inset 3px 0 0 var(--accent); }
   .online-room__player-card--ready { border-color: var(--accent); }
-  .online-room__slot { margin: 0 0 0.35rem; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); }
-  .online-room__teams, .online-room__formations { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-  .online-room__team-btn, .online-room__formation-btn {
-    padding: 0.4rem 0.65rem; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font: inherit;
+  .online-room__slot { margin: 0 0 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .online-room__player-name { margin: 0 0 0.35rem; font-family: var(--font-display); font-size: 1.2rem; color: var(--text); }
+  .online-room__lobby-grid { display: grid; gap: 1.25rem; align-items: start; }
+  @media (min-width: 900px) {
+    .online-room__lobby-grid { grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.9fr); }
+    .online-room__chat { position: sticky; top: 1rem; }
   }
-  .online-room__team-btn--active, .online-room__formation-btn--active {
-    border-color: var(--accent); color: var(--accent); background: var(--bg-elevated);
+  .online-room__section-label { margin: 0.85rem 0 0.45rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+  .online-room__teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.45rem; margin-bottom: 0.5rem; }
+  .online-room__team-btn {
+    display: grid; gap: 0.15rem; padding: 0.55rem 0.6rem; border: 1px solid var(--border);
+    background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left;
   }
+  .online-room__team-code { font-family: var(--font-display); color: var(--accent); font-size: 0.95rem; }
+  .online-room__team-name { font-size: 0.75rem; color: var(--text-muted); line-height: 1.2; }
+  .online-room__team-btn--active { border-color: var(--accent); background: color-mix(in srgb, var(--bg-elevated) 70%, var(--accent) 12%); }
   .online-room__team-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .online-room__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .online-room__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.85rem 0 0.5rem; }
   .online-room__error { margin: 0.5rem 0 0; color: #ff7b7b; font-size: 0.9rem; }
   .online-room__countdown { margin: 0.75rem 0 0; font-family: var(--font-display); color: var(--accent); }
-  .online-room__chat { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .online-room__chat {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+  .online-room__chat h3 { margin: 0 0 0.65rem; font-family: var(--font-display); color: var(--accent); font-size: 1.1rem; }
   .online-room__chat-list {
-    list-style: none; margin: 0 0 0.75rem; padding: 0.75rem; min-height: 6rem; max-height: 12rem; overflow: auto;
-    background: var(--bg-elevated); border: 1px solid var(--border);
+    list-style: none; margin: 0 0 0.75rem; padding: 0.75rem; min-height: 10rem; max-height: 16rem; overflow: auto;
+    background: var(--bg); border: 1px solid var(--border);
   }
   .online-room__chat-form { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
   .online-room__skel-line { height: 0.85rem; margin-bottom: 0.5rem; background: var(--bg-elevated); border-radius: 4px; }
   .online-room__skel-line--short { width: 40%; }
   .online-room__copy { margin-top: 0.35rem; }
   @media (max-width: 640px) {
-    .online-room__cta .btn, .online-room__cta .btn-outline, .online-room__card .btn { width: 100%; }
+    .online-room__cta .btn, .online-room__cta .btn-outline, .online-room__card .btn, .online-room__actions .btn, .online-room__actions .btn-outline { width: 100%; }
   }
 </style>
 
@@ -229,6 +250,8 @@ const { teams } = Astro.props;
   } from '../lib/auth/session';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
   import { DEFAULT_FORMATION, type FormationId, isFormationId } from '../lib/match/formations';
+  import { cloneDefaultLineup, chatMessageDedupeKey, normalizeLineup, type CustomLineup } from '../lib/match/lineup';
+  import { mountLineupEditor, type LineupEditorHandle } from '../lib/match/lineupEditor';
   import {
     createPrivateRoom,
     joinPrivateRoom,
@@ -272,11 +295,36 @@ const { teams } = Astro.props;
     let errorMsg = '';
     let myFormation: FormationId = DEFAULT_FORMATION;
     let myTeamId = getSelectedTeam() || teams[0]?.id || 'brasil';
+    let myLineup: CustomLineup = cloneDefaultLineup();
+    let lineupEditor: LineupEditorHandle | null = null;
     let presenceIds = new Set<string>();
     let roomUnsubs: Array<() => void> = [];
     let touchTimer: number | null = null;
     let countdownTimer: number | null = null;
     let uiState: OnlineUiState = 'hydratingSession';
+    const seenChatKeys = new Set<string>();
+
+    function ensureLineupEditor() {
+      const root = document.querySelector<HTMLElement>('[data-online-lineup-editor]');
+      if (!root) return;
+      if (!lineupEditor) {
+        lineupEditor = mountLineupEditor(root, {
+          initial: myLineup,
+          onChange: (next) => {
+            myLineup = next;
+            void persistLineup();
+          },
+        });
+      } else {
+        lineupEditor.setLineup(myLineup);
+      }
+    }
+
+    async function persistLineup() {
+      if (!room) return;
+      const result = await updateRoomLoadout({ roomId: room.id, lineup: myLineup });
+      if (result.ok) room = result.data.room;
+    }
 
     function teamName(id: string | null) {
       if (!id) return 'Sin selección';
@@ -403,7 +451,7 @@ const { teams } = Astro.props;
         const label = player.displayName || player.username || player.userId.slice(0, 8);
         if (nameEl) nameEl.textContent = player.userId === me ? `${label} (tú)` : label;
         if (teamEl) teamEl.textContent = teamName(player.teamId);
-        if (formationEl) formationEl.textContent = player.formationId;
+        if (formationEl) formationEl.textContent = player.lineup?.length ? 'Alineación lista' : 'Sin alineación';
         if (readyEl) readyEl.textContent = player.ready ? 'Listo' : 'No listo';
         if (connEl) connEl.textContent = presenceIds.has(player.userId) ? 'Conectado' : 'Desconectado';
       }
@@ -415,6 +463,11 @@ const { teams } = Astro.props;
       const mine = room.players.find((p) => p.userId === me);
       if (mine?.teamId) myTeamId = mine.teamId;
       if (mine?.formationId && isFormationId(mine.formationId)) myFormation = mine.formationId;
+      if (mine?.lineup) {
+        const normalized = normalizeLineup(mine.lineup);
+        if (normalized) myLineup = normalized;
+      }
+      ensureLineupEditor();
       const taken = new Set(
         room.players.filter((p) => p.userId !== me && p.teamId).map((p) => p.teamId as string),
       );
@@ -422,9 +475,6 @@ const { teams } = Astro.props;
         const id = btn.dataset.onlineTeam ?? '';
         btn.classList.toggle('online-room__team-btn--active', id === myTeamId);
         btn.disabled = taken.has(id);
-      }
-      for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-formation]')) {
-        btn.classList.toggle('online-room__formation-btn--active', btn.dataset.onlineFormation === myFormation);
       }
       const readyBtn = root.querySelector<HTMLButtonElement>('[data-online-ready]');
       const startBtn = root.querySelector<HTMLButtonElement>('[data-online-start]');
@@ -487,7 +537,10 @@ const { teams } = Astro.props;
                     awayTeamId: room?.players.find((p) => p.slot === 'away')?.teamId,
                     homeFormationId: room?.players.find((p) => p.slot === 'home')?.formationId,
                     awayFormationId: room?.players.find((p) => p.slot === 'away')?.formationId,
+                    homeLineup: room?.players.find((p) => p.slot === 'home')?.lineup ?? cloneDefaultLineup(),
+                    awayLineup: room?.players.find((p) => p.slot === 'away')?.lineup ?? cloneDefaultLineup(),
                     durationSeconds: room?.durationSeconds ?? 180,
+                    formatId: '11v11',
                   },
                 }),
               );
@@ -525,6 +578,9 @@ const { teams } = Astro.props;
     }
 
     function appendChat(msg: RoomChatMessage) {
+      const key = chatMessageDedupeKey(msg);
+      if (seenChatKeys.has(key)) return;
+      seenChatKeys.add(key);
       const chatList = root.querySelector('[data-online-chat-list]');
       const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
       if (!chatList) return;
@@ -548,7 +604,15 @@ const { teams } = Astro.props;
       errorKind = null;
       errorMsg = '';
       busyAction = null;
+      seenChatKeys.clear();
+      const me = getAuthState().user?.id;
+      const mine = next.players.find((p) => p.userId === me);
+      if (mine?.lineup) {
+        const normalized = normalizeLineup(mine.lineup);
+        if (normalized) myLineup = normalized;
+      }
       await bindRoomRealtime(next.id);
+      ensureLineupEditor();
       renderSlots();
       renderConfig();
       renderUi();
@@ -598,6 +662,7 @@ const { teams } = Astro.props;
         teamId: myTeamId,
         formationId: myFormation,
         durationSeconds: Number(durationSelect?.value ?? 180),
+        lineup: myLineup,
       });
       busyAction = null;
       if (!result.ok) {
@@ -620,7 +685,7 @@ const { teams } = Astro.props;
       const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
       const code = (codeInput?.value ?? '').trim().toUpperCase();
       if (codeInput) codeInput.value = code;
-      const result = await joinPrivateRoom({ code, teamId: myTeamId, formationId: myFormation });
+      const result = await joinPrivateRoom({ code, teamId: myTeamId, formationId: myFormation, lineup: myLineup });
       busyAction = null;
       if (!result.ok) {
         if (result.error.code === 'ALREADY_IN_ROOM') {
@@ -683,29 +748,12 @@ const { teams } = Astro.props;
         if (!room || btn.disabled) return;
         const teamId = btn.dataset.onlineTeam;
         if (!teamId) return;
-        const result = await updateRoomLoadout({ roomId: room.id, teamId });
+        const result = await updateRoomLoadout({ roomId: room.id, teamId, lineup: myLineup });
         if (!result.ok) {
           setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
           return;
         }
         myTeamId = teamId;
-        room = result.data.room;
-        renderSlots();
-        renderConfig();
-      });
-    }
-
-    for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-formation]')) {
-      btn.addEventListener('click', async () => {
-        if (!room) return;
-        const formationId = btn.dataset.onlineFormation as FormationId;
-        if (!isFormationId(formationId)) return;
-        const result = await updateRoomLoadout({ roomId: room.id, formationId });
-        if (!result.ok) {
-          setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
-          return;
-        }
-        myFormation = formationId;
         room = result.data.room;
         renderSlots();
         renderConfig();

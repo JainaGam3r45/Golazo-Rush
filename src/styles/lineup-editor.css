@@ -1,0 +1,118 @@
+.lineup-editor {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.lineup-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lineup-editor__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.lineup-editor__pitch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 0.72;
+  max-height: 22rem;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, var(--accent) 40%);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.12)),
+    repeating-linear-gradient(
+      90deg,
+      #1a5c1a 0,
+      #1a5c1a 12.5%,
+      #1e6b1e 12.5%,
+      #1e6b1e 25%
+    );
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.lineup-editor__pitch--dragging {
+  cursor: grabbing;
+}
+
+.lineup-editor__marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  margin: 0.55rem;
+}
+
+.lineup-editor__goal,
+.lineup-editor__mid {
+  position: absolute;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lineup-editor__goal {
+  left: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: left center;
+}
+
+.lineup-editor__mid {
+  right: 0.55rem;
+  top: 0.45rem;
+}
+
+.lineup-editor__chip {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  margin: -1rem 0 0 -1rem;
+  border: 2px solid #0a0f0a;
+  border-radius: 999px;
+  background: #39ff14;
+  color: #0a0f0a;
+  font: 700 0.7rem/1 var(--font-display, Bebas Neue, sans-serif);
+  cursor: grab;
+  z-index: 2;
+}
+
+.lineup-editor__chip--you {
+  width: 2.35rem;
+  height: 2.35rem;
+  margin: -1.175rem 0 0 -1.175rem;
+  background: #f5fff0;
+  box-shadow: 0 0 0 2px #39ff14;
+}
+
+.lineup-editor__chip[data-role='def'] {
+  background: #7dff6a;
+}
+
+.lineup-editor__chip[data-role='mid'] {
+  background: #39ff14;
+}
+
+.lineup-editor__chip[data-role='fwd'] {
+  background: #c8ff3d;
+}
+
+.match-preview__format-fixed {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.match-preview__lineup {
+  margin-top: 0.65rem;
+}

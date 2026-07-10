@@ -2,8 +2,6 @@
 import CountryFlag from './CountryFlag.astro';
 import type { Team } from '../lib/mock/teams';
 import { ALLOWED_DURATIONS } from '../lib/match/setup';
-import { FORMATION_IDS, FORMATIONS } from '../lib/match/formations';
-import { MATCH_FORMAT_IDS, MATCH_FORMATS, DEFAULT_MATCH_FORMAT } from '../lib/match/formats';
 
 interface Props {
   teams: Team[];
@@ -14,7 +12,7 @@ const { teams } = Astro.props;
 
 <section class="match-preview" data-match-preview hidden data-teams={JSON.stringify(teams)}>
   <h2 class="match-preview__title">Previa del partido</h2>
-  <p class="match-preview__mode-badge" data-preview-mode-badge>5v5 Contra bots</p>
+  <p class="match-preview__mode-badge" data-preview-mode-badge>11v11 Contra bots</p>
 
   <div class="match-preview__teams">
     <div class="match-preview__team" data-preview-home>
@@ -34,50 +32,12 @@ const { teams } = Astro.props;
 
   <div class="match-preview__format" data-format-block>
     <span class="match-preview__format-label">Formato</span>
-    <div class="match-preview__format-options" data-format-selector role="radiogroup" aria-label="Formato del partido">
-      {
-        MATCH_FORMAT_IDS.map((id) => (
-          <button
-            type="button"
-            class:list={[
-              'match-preview__format-btn',
-              id === DEFAULT_MATCH_FORMAT && 'match-preview__format-btn--active',
-            ]}
-            data-format={id}
-            role="radio"
-            aria-checked={id === DEFAULT_MATCH_FORMAT ? 'true' : 'false'}
-          >
-            <span class="match-preview__format-name">{MATCH_FORMATS[id].label}</span>
-            <span class="match-preview__format-desc">{MATCH_FORMATS[id].description}</span>
-            {MATCH_FORMATS[id].experimental && (
-              <span class="match-preview__format-tag">Experimental</span>
-            )}
-          </button>
-        ))
-      }
-    </div>
+    <p class="match-preview__format-fixed">11v11 completo · 1 arquero + 10 de campo</p>
   </div>
 
   <div class="match-preview__formation" data-formation-block>
-    <span class="match-preview__formation-label" data-formation-label>Formación (5v5 arcade)</span>
-    <div class="match-preview__formation-selector" data-formation-selector role="radiogroup" aria-label="Formación del equipo">
-      {
-        FORMATION_IDS.map((id) => (
-          <button
-            type="button"
-            class="match-preview__formation-btn"
-            data-formation={id}
-            role="radio"
-            aria-checked="false"
-          >
-            <span data-formation-btn-label>{FORMATIONS[id].label5v5}</span>
-          </button>
-        ))
-      }
-    </div>
-    <p class="match-preview__formation-guest" data-formation-guest hidden>
-      Formación: 4-4-2 Equilibrada (5v5 arcade)
-    </p>
+    <span class="match-preview__formation-label" data-formation-label>Tu alineación</span>
+    <div class="match-preview__lineup" data-lineup-editor></div>
   </div>
 
   <div class="match-preview__duration">
@@ -117,18 +77,10 @@ const { teams } = Astro.props;
     validateDuration,
     isValidOpponent,
   } from '../lib/match/setup';
-  import { DEFAULT_FORMATION, formationLabelForFormat, type FormationId } from '../lib/match/formations';
-  import {
-    MATCH_FORMATS,
-    formatModeLabel,
-    type MatchFormatId,
-  } from '../lib/match/formats';
-  import {
-    persistFormationPreference,
-    resolveFormationPreference,
-  } from '../lib/profile/formationPreference';
-  import { getPreferredFormatOrDefault, setPreferredFormat } from '../lib/storage/preferredFormat';
-  import { getAuthState, subscribeAuth } from '../lib/auth/session';
+  import { DEFAULT_FORMATION } from '../lib/match/formations';
+  import { formatModeLabel } from '../lib/match/formats';
+  import { cloneDefaultLineup, type CustomLineup } from '../lib/match/lineup';
+  import { mountLineupEditor } from '../lib/match/lineupEditor';
   import { updateCountryFlagElement } from '../lib/teams/flagDom';
 
   function wireMatchPreview() {
@@ -136,7 +88,6 @@ const { teams } = Astro.props;
     if (!section) return;
 
     const teams = JSON.parse(section.dataset.teams ?? '[]');
-
     const homeFlag = section.querySelector('[data-preview-home] .country-flag');
     const awayFlag = section.querySelector('[data-preview-away] .country-flag');
     const homeName = section.querySelector('[data-preview-home-name]');
@@ -144,19 +95,22 @@ const { teams } = Astro.props;
     const playBtn = section.querySelector<HTMLButtonElement>('[data-play-match]');
     const changeRivalBtn = section.querySelector('[data-change-rival]');
     const durationBtns = section.querySelectorAll<HTMLButtonElement>('[data-duration]');
-    const formatBtns = section.querySelectorAll<HTMLButtonElement>('[data-format]');
-    const formationSelector = section.querySelector<HTMLElement>('[data-formation-selector]');
-    const formationGuest = section.querySelector<HTMLElement>('[data-formation-guest]');
-    const formationLabel = section.querySelector<HTMLElement>('[data-formation-label]');
-    const formationBtns = section.querySelectorAll<HTMLButtonElement>('[data-formation]');
     const modeBadge = section.querySelector<HTMLElement>('[data-preview-mode-badge]');
+    const lineupRoot = section.querySelector<HTMLElement>('[data-lineup-editor]');
 
     let playerTeamId = '';
     let opponentTeamId = '';
     let durationSeconds = 180;
-    let formationId: FormationId = DEFAULT_FORMATION;
-    let formatId: MatchFormatId = getPreferredFormatOrDefault();
-    let isLoggedIn = false;
+    let lineup: CustomLineup = cloneDefaultLineup();
+
+    const editor = lineupRoot
+      ? mountLineupEditor(lineupRoot, {
+          initial: lineup,
+          onChange: (next) => {
+            lineup = next;
+          },
+        })
+      : null;
 
     function getTeam(id: string) {
       return teams.find((t: { id: string }) => t.id === id);
@@ -167,66 +121,16 @@ const { teams } = Astro.props;
       updateCountryFlagElement(flagEl, team.id, team.name);
     }
 
-    function setFormatUi(selected: MatchFormatId) {
-      formatId = selected;
-      for (const btn of formatBtns) {
-        const active = btn.dataset.format === selected;
-        btn.classList.toggle('match-preview__format-btn--active', active);
-        btn.setAttribute('aria-checked', active ? 'true' : 'false');
-      }
-      if (modeBadge) modeBadge.textContent = formatModeLabel(selected);
-      if (formationLabel) {
-        formationLabel.textContent =
-          selected === '11v11' ? 'Formación (11v11)' : 'Formación (5v5 arcade)';
-      }
-      for (const btn of formationBtns) {
-        const id = btn.dataset.formation as FormationId;
-        const labelEl = btn.querySelector('[data-formation-btn-label]');
-        if (labelEl) labelEl.textContent = formationLabelForFormat(id, selected);
-      }
-      if (formationGuest) {
-        formationGuest.textContent = `Formación: ${formationLabelForFormat(formationId, selected)}`;
-      }
-    }
-
-    function setFormationUi(selected: FormationId) {
-      formationId = selected;
-      for (const btn of formationBtns) {
-        const active = btn.dataset.formation === selected;
-        btn.classList.toggle('match-preview__formation-btn--active', active);
-        btn.setAttribute('aria-checked', active ? 'true' : 'false');
-      }
-      if (formationGuest) {
-        formationGuest.textContent = `Formación: ${formationLabelForFormat(selected, formatId)}`;
-      }
-    }
-
-    function updateAuthUi() {
-      const auth = getAuthState();
-      if (auth.loading) return;
-
-      const loggedIn = Boolean(auth.user);
-      isLoggedIn = loggedIn;
-      // Guests can pick format + formation locally; logged-in also persist prefs.
-      if (formationSelector) formationSelector.hidden = false;
-      if (formationGuest) formationGuest.hidden = true;
-    }
-
-    async function loadPreferences() {
-      formatId = getPreferredFormatOrDefault();
-      setFormatUi(formatId);
-
-      if (!getAuthState().user) {
-        setFormationUi(DEFAULT_FORMATION);
-        return;
-      }
-      const resolved = await resolveFormationPreference();
-      setFormationUi(resolved);
-    }
-
     function renderPreview() {
       const setup = buildMatchSetup(
-        { playerTeamId, opponentTeamId, durationSeconds, formationId, formatId },
+        {
+          playerTeamId,
+          opponentTeamId,
+          durationSeconds,
+          formationId: DEFAULT_FORMATION,
+          formatId: '11v11',
+          lineup,
+        },
         teams,
       );
       playerTeamId = setup.playerTeamId;
@@ -239,6 +143,7 @@ const { teams } = Astro.props;
       updateFlagEl(awayFlag, awayTeam);
       if (homeName) homeName.textContent = homeTeam?.name ?? setup.homeTeamId;
       if (awayName) awayName.textContent = awayTeam?.name ?? setup.awayTeamId;
+      if (modeBadge) modeBadge.textContent = formatModeLabel('11v11');
 
       const valid = isValidOpponent(playerTeamId, opponentTeamId);
       if (playBtn) playBtn.disabled = !valid;
@@ -267,39 +172,20 @@ const { teams } = Astro.props;
       });
     }
 
-    for (const btn of formatBtns) {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.format as MatchFormatId;
-        if (!MATCH_FORMATS[id]) return;
-        setFormatUi(id);
-        setPreferredFormat(id);
-        renderPreview();
-      });
-    }
-
-    for (const btn of formationBtns) {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.formation as FormationId;
-        setFormationUi(id);
-        if (isLoggedIn) {
-          await persistFormationPreference(id);
-        }
-        renderPreview();
-      });
-    }
-
     const defaultDurationBtn = section.querySelector('[data-duration="180"]');
     defaultDurationBtn?.classList.add('match-preview__duration-btn--active');
 
     playBtn?.addEventListener('click', () => {
+      if (editor) lineup = editor.getLineup();
       const setup = finalizeMatchSetup(
         buildMatchSetup(
           {
             playerTeamId,
             opponentTeamId,
             durationSeconds,
-            formationId,
-            formatId,
+            formationId: DEFAULT_FORMATION,
+            formatId: '11v11',
+            lineup,
           },
           teams,
         ),
@@ -307,14 +193,7 @@ const { teams } = Astro.props;
       window.dispatchEvent(new CustomEvent('golazo:start-match', { detail: setup }));
     });
 
-    setFormatUi(formatId);
-    setFormationUi(formationId);
-    updateAuthUi();
-
-    subscribeAuth(() => {
-      updateAuthUi();
-      void loadPreferences();
-    });
+    renderPreview();
   }
 
   wireMatchPreview();
