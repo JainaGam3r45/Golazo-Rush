@@ -1,4 +1,5 @@
 ﻿import { insforge, isInsForgeConfigured } from '../insforge';
+import { accessTokenFromRefreshPayload, parseBearerToken } from '../match/onlineAuthToken';
 
 export type SessionUser = {
   id: string;
@@ -6,17 +7,44 @@ export type SessionUser = {
   name?: string | null;
 };
 
-type AuthListener = (state: AuthState) => void;
+export type SessionPhase =
+  | 'hydrating'
+  | 'guest'
+  | 'authenticated'
+  | 'refreshing'
+  | 'expired'
+  | 'error';
 
 export type AuthState = {
   user: SessionUser | null;
   loading: boolean;
+  phase: SessionPhase;
+  accessToken: string | null;
+  sessionReady: boolean;
+  tokenError: string | null;
 };
 
-let state: AuthState = { user: null, loading: true };
+type AuthListener = (state: AuthState) => void;
+
+const anonKey =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? (import.meta.env.PUBLIC_INSFORGE_ANON_KEY as string | undefined)
+    : undefined;
+
+let state: AuthState = {
+  user: null,
+  loading: true,
+  phase: 'hydrating',
+  accessToken: null,
+  sessionReady: false,
+  tokenError: null,
+};
 const listeners = new Set<AuthListener>();
 let hydratePromise: Promise<SessionUser | null> | null = null;
 let sessionResolved = false;
+let tokenPromise: Promise<string | null> | null = null;
+let refreshAttempted = false;
+let logoutCleanup: (() => void) | null = null;
 
 function notify() {
   for (const listener of listeners) {
@@ -32,6 +60,60 @@ function mapUser(raw: { id: string; email?: string | null; profile?: { name?: st
   };
 }
 
+function derivePhase(partial: {
+  loading: boolean;
+  user: SessionUser | null;
+  accessToken: string | null;
+  refreshing?: boolean;
+  expired?: boolean;
+  error?: string | null;
+}): SessionPhase {
+  if (partial.loading) return 'hydrating';
+  if (partial.refreshing) return 'refreshing';
+  if (partial.expired) return 'expired';
+  if (partial.error && !partial.user) return 'error';
+  if (!partial.user) return 'guest';
+  if (partial.user && !partial.accessToken && partial.error) return 'expired';
+  return 'authenticated';
+}
+
+function setState(next: Partial<AuthState> & { refreshing?: boolean; expired?: boolean }) {
+  const user = next.user !== undefined ? next.user : state.user;
+  const loading = next.loading !== undefined ? next.loading : state.loading;
+  const accessToken = next.accessToken !== undefined ? next.accessToken : state.accessToken;
+  const tokenError = next.tokenError !== undefined ? next.tokenError : state.tokenError;
+  const phase =
+    next.phase ??
+    derivePhase({
+      loading,
+      user,
+      accessToken,
+      refreshing: next.refreshing,
+      expired: next.expired,
+      error: tokenError,
+    });
+
+  state = {
+    user,
+    loading,
+    phase,
+    accessToken,
+    sessionReady: !loading && phase !== 'hydrating',
+    tokenError,
+  };
+  notify();
+}
+
+function readTokenFromHttpClient(): string | null {
+  if (!insforge) return null;
+  try {
+    const headers = insforge.getHttpClient().getHeaders();
+    return parseBearerToken(headers.Authorization ?? headers.authorization, [anonKey]);
+  } catch {
+    return null;
+  }
+}
+
 export function getAuthState(): AuthState {
   return state;
 }
@@ -42,11 +124,21 @@ export function subscribeAuth(listener: AuthListener): () => void {
   return () => listeners.delete(listener);
 }
 
+/** Register cleanup for room Realtime / WS when signing out (one handler). */
+export function setSignOutCleanup(handler: (() => void) | null): void {
+  logoutCleanup = handler;
+}
+
 export async function hydrateSession(): Promise<SessionUser | null> {
   if (!isInsForgeConfigured || !insforge) {
-    state = { user: null, loading: false };
+    setState({
+      user: null,
+      loading: false,
+      accessToken: null,
+      tokenError: null,
+      phase: 'guest',
+    });
     sessionResolved = true;
-    notify();
     return null;
   }
 
@@ -55,22 +147,36 @@ export async function hydrateSession(): Promise<SessionUser | null> {
   }
 
   if (!sessionResolved) {
-    state = { ...state, loading: true };
-    notify();
+    setState({ loading: true, phase: 'hydrating' });
   }
 
   hydratePromise = (async () => {
     try {
       const { data, error } = await insforge!.auth.getCurrentUser();
       const user = !error && data?.user ? mapUser(data.user) : null;
-      state = { user, loading: false };
+      const token = user ? readTokenFromHttpClient() : null;
+      refreshAttempted = false;
+      setState({
+        user,
+        loading: false,
+        accessToken: token,
+        tokenError: null,
+        phase: user ? 'authenticated' : 'guest',
+      });
       sessionResolved = true;
-      notify();
+      if (user && !token) {
+        await ensureAccessToken();
+      }
       return user;
     } catch {
-      state = { user: null, loading: false };
+      setState({
+        user: null,
+        loading: false,
+        accessToken: null,
+        tokenError: 'No se pudo comprobar la sesión.',
+        phase: 'error',
+      });
       sessionResolved = true;
-      notify();
       return null;
     } finally {
       hydratePromise = null;
@@ -80,7 +186,104 @@ export async function hydrateSession(): Promise<SessionUser | null> {
   return hydratePromise;
 }
 
+/**
+ * Ensure a usable user Bearer token. At most one refresh attempt per hydrate cycle
+ * unless `force` is true.
+ */
+export async function ensureAccessToken(options?: { force?: boolean }): Promise<string | null> {
+  if (injectedToken) {
+    setState({ accessToken: injectedToken, tokenError: null, phase: 'authenticated' });
+    return injectedToken;
+  }
+
+  if (!isInsForgeConfigured || !insforge) {
+    setState({ accessToken: null, tokenError: null });
+    return null;
+  }
+
+  if (tokenPromise && !options?.force) {
+    return tokenPromise;
+  }
+
+  tokenPromise = (async () => {
+    const user = state.user ?? (await hydrateSession());
+    if (!user) {
+      setState({ accessToken: null, tokenError: null, phase: 'guest' });
+      return null;
+    }
+
+    if (!options?.force) {
+      const existing = state.accessToken ?? readTokenFromHttpClient();
+      if (existing) {
+        setState({ accessToken: existing, tokenError: null, phase: 'authenticated' });
+        return existing;
+      }
+    }
+
+    if (refreshAttempted && !options?.force) {
+      setState({
+        accessToken: null,
+        tokenError: 'La sesión expiró. Vuelve a iniciar sesión.',
+        expired: true,
+      });
+      return null;
+    }
+
+    setState({ refreshing: true, phase: 'refreshing' });
+    refreshAttempted = true;
+
+    try {
+      const { data, error } = await insforge!.auth.refreshSession();
+      if (!error) {
+        const refreshed = accessTokenFromRefreshPayload(data, [anonKey]);
+        if (refreshed) {
+          setState({
+            accessToken: refreshed,
+            tokenError: null,
+            phase: 'authenticated',
+            loading: false,
+          });
+          return refreshed;
+        }
+      }
+    } catch {
+      // fall through
+    }
+
+    const after = readTokenFromHttpClient();
+    if (after) {
+      setState({ accessToken: after, tokenError: null, phase: 'authenticated', loading: false });
+      return after;
+    }
+
+    setState({
+      accessToken: null,
+      tokenError: 'La sesión expiró. Vuelve a iniciar sesión.',
+      expired: true,
+      loading: false,
+    });
+    return null;
+  })().finally(() => {
+    tokenPromise = null;
+  });
+
+  return tokenPromise;
+}
+
+/** One forced refresh after expiry (UI “Reintentar sesión”). */
+export async function refreshSessionOnce(): Promise<string | null> {
+  refreshAttempted = false;
+  return ensureAccessToken({ force: true });
+}
+
 export async function signOut(): Promise<void> {
+  try {
+    logoutCleanup?.();
+  } catch {
+    // ignore cleanup errors
+  }
+  logoutCleanup = null;
+
   if (isInsForgeConfigured && insforge) {
     try {
       await insforge.auth.signOut();
@@ -88,10 +291,17 @@ export async function signOut(): Promise<void> {
       // ignore sign-out errors
     }
   }
-  state = { user: null, loading: false };
+
+  clearInjectedToken();
+  refreshAttempted = false;
+  setState({
+    user: null,
+    loading: false,
+    accessToken: null,
+    tokenError: null,
+    phase: 'guest',
+  });
   sessionResolved = true;
-  notify();
-  void import('../match/onlineAuth').then((m) => m.clearOnlineAccessTokenInject());
 }
 
 /** Wait until the first hydrate finishes (`loading` becomes false). */
@@ -107,4 +317,23 @@ export function awaitAuthReady(): Promise<AuthState> {
       }
     });
   });
+}
+
+// --- diagnostic inject (dev probe only); kept here so session owns token truth ---
+
+let injectedToken: string | null = null;
+
+export function injectSessionAccessToken(token: string | null): void {
+  injectedToken = token && token.trim() ? token.trim() : null;
+  if (injectedToken && state.user) {
+    setState({ accessToken: injectedToken, tokenError: null, phase: 'authenticated' });
+  }
+}
+
+function clearInjectedToken(): void {
+  injectedToken = null;
+}
+
+export function clearSessionAccessTokenInject(): void {
+  clearInjectedToken();
 }

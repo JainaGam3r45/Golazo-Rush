@@ -1,4 +1,4 @@
-import { hydrateSession } from '../auth/session';
+import { ensureAccessToken, hydrateSession } from '../auth/session';
 import { insforge, isInsForgeConfigured } from '../insforge';
 import { resolveOnlineAccessToken } from './onlineAuth';
 import { getPublicGameServerUrl } from './onlineProtocol';
@@ -55,16 +55,17 @@ function toInvokeError(
 }
 
 async function ensureSessionForRpc(): Promise<PrivateRoomError | null> {
-  const user = await hydrateSession();
-  if (!user) {
-    return { code: 'UNAUTHORIZED', message: ROOM_ERROR_MESSAGES.UNAUTHORIZED };
-  }
-
-  const { token, reason } = await resolveOnlineAccessToken();
+  await hydrateSession();
+  const token = await ensureAccessToken();
   if (!token) {
+    const { getAuthState } = await import('../auth/session');
+    const auth = getAuthState();
+    if (!auth.user) {
+      return { code: 'UNAUTHORIZED', message: ROOM_ERROR_MESSAGES.UNAUTHORIZED };
+    }
     return {
       code: 'UNAUTHORIZED',
-      message: reason ?? ROOM_ERROR_MESSAGES.UNAUTHORIZED,
+      message: auth.tokenError ?? ROOM_ERROR_MESSAGES.UNAUTHORIZED,
     };
   }
 
@@ -105,6 +106,9 @@ async function invokeViaRpc<T>(body: Record<string, unknown>): Promise<InvokeRes
   }
   if (call.shape === 'ok') {
     return { ok: true, data: { ok: true } as T };
+  }
+  if (data == null && (action === 'getActive' || action === 'recoverActive' || action === 'leaveActive')) {
+    return { ok: true, data: { room: null } as T };
   }
   return { ok: true, data: { room: data } as T };
 }
@@ -280,4 +284,16 @@ export async function sendRoomChat(
 
 export async function touchRoomPresence(roomId: string): Promise<InvokeResult<{ ok: boolean }>> {
   return invokeRoom({ action: 'touch', roomId });
+}
+
+export async function getActivePrivateRoom(): Promise<InvokeResult<{ room: RoomSnapshot | null }>> {
+  return invokeRoom({ action: 'getActive' });
+}
+
+export async function recoverActivePrivateRoom(): Promise<InvokeResult<{ room: RoomSnapshot | null }>> {
+  return invokeRoom({ action: 'recoverActive' });
+}
+
+export async function leaveActivePrivateRoom(): Promise<InvokeResult<{ room: RoomSnapshot | null }>> {
+  return invokeRoom({ action: 'leaveActive' });
 }
