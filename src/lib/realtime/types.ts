@@ -3,7 +3,10 @@ export type RealtimeEventName =
   | 'live_event_created'
   | 'match_created'
   | 'match_joined'
-  | 'match_finished';
+  | 'match_finished'
+  | 'room_updated'
+  | 'room_starting'
+  | 'room_chat_message';
 
 export type RankingUpdatedPayload = {
   teamId: string;

@@ -1,3 +1,28 @@
+/* Play mode switch */
+.play-mode {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 640px;
+  margin: 0 auto 1.25rem;
+}
+
+.play-mode__btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.play-mode__btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
 /* Team selector */
 .team-selector {
   max-width: 640px;

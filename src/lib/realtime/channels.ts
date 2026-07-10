@@ -4,4 +4,5 @@ export const CHANNELS = {
   ACTIVITY: 'global:activity',
   LOBBY: 'lobby:main',
   match: (matchId: string) => `match:${matchId}`,
+  room: (roomId: string) => `room:${roomId}`,
 } as const;

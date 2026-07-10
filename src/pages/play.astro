@@ -4,6 +4,7 @@ import LobbyPanel from '../components/LobbyPanel.astro';
 import TeamSelector from '../components/TeamSelector.astro';
 import MatchPreview from '../components/MatchPreview.astro';
 import MatchResultPanel from '../components/MatchResultPanel.astro';
+import OnlineRoomPanel from '../components/OnlineRoomPanel.astro';
 import { getTeams } from '../lib/data/teams';
 import { DEFAULT_PLAYER_TEAM } from '../lib/match/setup';
 import { formatMatchClock } from '../lib/match/formatMatchClock';
@@ -22,11 +23,24 @@ const initialClock = formatMatchClock(180);
     <p class="play-session" data-play-session hidden></p>
   </section>
 
+  <div class="play-mode" data-play-mode role="tablist" aria-label="Modo de juego">
+    <button type="button" class="play-mode__btn play-mode__btn--active" data-play-mode-btn="cpu" role="tab" aria-selected="true">
+      vs CPU
+    </button>
+    <button type="button" class="play-mode__btn" data-play-mode-btn="online" role="tab" aria-selected="false">
+      Online
+    </button>
+  </div>
+
   <div id="play-data" data-team-names={JSON.stringify(teamNames)} hidden></div>
 
-  <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
-  <MatchPreview teams={teams} />
-  <MatchResultPanel />
+  <div data-cpu-flow>
+    <TeamSelector teams={teams} initialTeamId={DEFAULT_PLAYER_TEAM} />
+    <MatchPreview teams={teams} />
+    <MatchResultPanel />
+  </div>
+
+  <OnlineRoomPanel teams={teams} />
 
   <div id="match-stage" class="match-stage" hidden>
     <div class="match-hud" id="match-hud">
@@ -173,6 +187,8 @@ const initialClock = formatMatchClock(180);
   const matchPreview = document.querySelector('[data-match-preview]');
   const matchResult = document.querySelector('[data-match-result]');
   const matchStage = document.getElementById('match-stage');
+  const cpuFlow = document.querySelector('[data-cpu-flow]');
+  const playModeBtns = document.querySelectorAll('[data-play-mode-btn]');
   const fullscreenBtn = document.querySelector('[data-fullscreen]');
   const muteBtn = document.querySelector('[data-mute]');
   const fullscreenHint = document.querySelector('[data-fullscreen-hint]');
@@ -181,15 +197,43 @@ const initialClock = formatMatchClock(180);
   const stoppageEl = document.querySelector('[data-stoppage]');
   const controlsHint = document.querySelector('[data-controls-hint]');
 
+  let playMode = 'cpu';
+
   function getTeamName(id) {
     return teamNames[id] ?? id;
   }
 
+  function setPlayMode(mode) {
+    playMode = mode === 'online' ? 'online' : 'cpu';
+    for (const btn of playModeBtns) {
+      const active = btn.getAttribute('data-play-mode-btn') === playMode;
+      btn.classList.toggle('play-mode__btn--active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+    if (cpuFlow) cpuFlow.hidden = playMode !== 'cpu';
+    if (playMode === 'online') {
+      if (matchStage) matchStage.hidden = true;
+      void stopActiveMatch();
+    } else if (!matchStage || matchStage.hidden) {
+      // keep current cpu phase
+    }
+    window.dispatchEvent(new CustomEvent('golazo:play-mode', { detail: { mode: playMode } }));
+  }
+
   function showPhase(phase) {
+    if (playMode !== 'cpu') return;
     if (teamSelector) teamSelector.hidden = phase !== 'select';
     if (matchPreview) matchPreview.hidden = phase !== 'preview';
     if (matchResult) matchResult.hidden = phase !== 'result';
     if (matchStage) matchStage.hidden = phase !== 'playing';
+  }
+
+  function showOnlinePlaying() {
+    if (cpuFlow) cpuFlow.hidden = true;
+    const onlineRoom = document.querySelector('[data-online-room]');
+    if (onlineRoom) onlineRoom.hidden = true;
+    if (matchResult) matchResult.hidden = true;
+    if (matchStage) matchStage.hidden = false;
   }
 
   function updateMuteButton(refreshVolume = false) {
@@ -333,8 +377,14 @@ const initialClock = formatMatchClock(180);
   }
 
   function showResultPanel(detail) {
-    showPhase('result');
-    void stopActiveMatch();
+    if (playMode === 'online') {
+      if (matchStage) matchStage.hidden = true;
+      if (matchResult) matchResult.hidden = false;
+      void stopActiveMatch();
+    } else {
+      showPhase('result');
+      void stopActiveMatch();
+    }
     window.dispatchEvent(
       new CustomEvent('golazo:show-result', {
         detail: {
@@ -461,11 +511,20 @@ const initialClock = formatMatchClock(180);
     const savedTeam = getSelectedTeam();
     showPhase(savedTeam ? 'select' : 'select');
 
+    for (const btn of playModeBtns) {
+      btn.addEventListener('click', () => {
+        setPlayMode(btn.getAttribute('data-play-mode-btn') || 'cpu');
+        if (playMode === 'cpu') showPhase('select');
+      });
+    }
+    setPlayMode('cpu');
+
     window.addEventListener('golazo:team-selected', () => {
-      showPhase('preview');
+      if (playMode === 'cpu') showPhase('preview');
     });
 
     window.addEventListener('golazo:start-match', async (event) => {
+      if (playMode !== 'cpu') return;
       if (stopInFlight) {
         await stopInFlight;
       }
@@ -507,6 +566,78 @@ const initialClock = formatMatchClock(180);
         const detail = e.detail;
         submitMatchResult(detail);
       });
+    });
+
+    window.addEventListener('golazo:online-match-start', async (event) => {
+      if (playMode !== 'online') return;
+      if (stopInFlight) {
+        await stopInFlight;
+      }
+
+      const detail = event.detail;
+      if (!detail?.roomId) return;
+
+      showOnlinePlaying();
+
+      const clockEl = document.getElementById('match-clock');
+      if (clockEl) {
+        clockEl.textContent = formatMatchClock(detail.durationSeconds ?? 180);
+      }
+
+      const modeEl = document.getElementById('match-mode');
+      if (modeEl) modeEl.textContent = '5v5 Online · conectando';
+
+      setStoppageState('Conectando', 'Conectando al servidor de partida…');
+
+      const homeName = document.getElementById('hud-home-name');
+      const awayName = document.getElementById('hud-away-name');
+      if (homeName) homeName.textContent = getTeamName(detail.homeTeamId);
+      if (awayName) awayName.textContent = getTeamName(detail.awayTeamId);
+
+      const scoreHome = document.getElementById('score-home');
+      const scoreAway = document.getElementById('score-away');
+      if (scoreHome) scoreHome.textContent = '0';
+      if (scoreAway) scoreAway.textContent = '0';
+
+      const [{ startOnlineGame }, { unlockMatchAudio }] = await Promise.all([
+        import('../game/online/main'),
+        import('../game/audio/matchAudio'),
+      ]);
+      unlockMatchAudio();
+      startOnlineGame('game-container', detail);
+
+      bindStoppage();
+      bindMatchEnded((e) => {
+        // Online results: show UI only — do not trust client scores for ranking yet.
+        showResultPanel(e.detail);
+        updateResultPanelSyncState('local');
+      });
+    });
+
+    window.addEventListener('golazo:online-match-finished', (event) => {
+      if (playMode !== 'online') return;
+      const detail = event.detail;
+      if (!detail) return;
+      // Scene also emits golazo:match-ended; this is a belt-and-suspenders HUD hook.
+    });
+
+    window.addEventListener('golazo:online-conn', (event) => {
+      if (playMode !== 'online') return;
+      const status = event.detail?.status;
+      const modeEl = document.getElementById('match-mode');
+      if (!modeEl || !status) return;
+      if (status === 'playing') modeEl.textContent = '5v5 Online';
+      else if (status === 'joined') modeEl.textContent = '5v5 Online · en sala';
+      else if (status === 'error') modeEl.textContent = '5v5 Online · error';
+    });
+
+    window.addEventListener('golazo:online-ping', (event) => {
+      if (playMode !== 'online') return;
+      const rtt = event.detail?.rttMs;
+      const stoppage = document.querySelector('[data-stoppage]');
+      if (stoppage && typeof rtt === 'number' && stoppage.textContent === 'En juego') {
+        // keep stoppage label; ping is shown in-scene
+      }
     });
 
     window.addEventListener('golazo:restart-match', () => {
