@@ -5,6 +5,8 @@ import {
   PITCH_HEIGHT,
   PITCH_WIDTH,
   TEAM_SIZE_11V11,
+  HALFTIME_PAUSE_MS,
+  MATCH_TIME_SCALE,
   type PlayerInput,
 } from '../src/index.ts';
 import { GOAL_DEPTH } from '../src/constants.ts';
@@ -117,18 +119,28 @@ describe('tick + inputs', () => {
 });
 
 describe('clock and finish', () => {
-  it('advances clock while playing and finishes at duration', () => {
+  it('scales match time, pauses at half-time, then finishes in the second half', () => {
     const match = createMatch({
       homeHumanPlayerId: 'p-home',
-      durationSeconds: 1,
+      durationSeconds: 20,
     });
 
-    for (let i = 0; i < 80; i++) {
-      match.tick(16);
-    }
+    for (let i = 0; i < 20; i++) match.tick(50);
+    let snap = match.getSnapshot();
+    assert.equal(snap.phase, 'halftime');
+    assert.equal(snap.half, 1);
+    assert.equal(snap.clockSeconds, 10);
 
-    const snap = match.getSnapshot();
-    assert.ok(snap.clockSeconds >= 1);
+    for (let i = 0; i < HALFTIME_PAUSE_MS / 50; i++) match.tick(50);
+    snap = match.getSnapshot();
+    assert.equal(snap.phase, 'playing');
+    assert.equal(snap.half, 2);
+
+    for (let i = 0; i < 20; i++) match.tick(50);
+
+    snap = match.getSnapshot();
+    assert.equal(MATCH_TIME_SCALE, 10);
+    assert.ok(snap.clockSeconds >= 20);
     assert.equal(snap.phase, 'finished');
     assert.equal(match.isFinished(), true);
   });

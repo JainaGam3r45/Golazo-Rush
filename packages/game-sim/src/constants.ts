@@ -58,7 +58,14 @@ export const CONTESTED_MAX_MS = 600;
 export const CONTROL_COOLDOWN_MS = 500;
 
 export const GOAL_RESET_PAUSE_MS = 1200;
-export const DEFAULT_DURATION_SECONDS = 180;
+export const HALFTIME_PAUSE_MS = 6000;
+/** User-facing default: 15 minutes of match clock. */
+export const DEFAULT_DURATION_SECONDS = 900;
+/**
+ * Arcade compression: 1 real second = N match-clock seconds.
+ * Keeps 10–45 min labels playable in ~1–4.5 real minutes.
+ */
+export const MATCH_TIME_SCALE = 10;
 export const FIXED_DT_CAP_MS = 50;
 
 export const DEFAULT_PRESS = { pressWeight: 1.0, shootDistance: 280, lineHeight: 0.55 };

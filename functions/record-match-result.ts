@@ -90,7 +90,7 @@ export default async function(req: Request): Promise<Response> {
     });
   }
 
-  const { homeTeamId, awayTeamId, homeScore, awayScore, durationSeconds = 180 } = body;
+  const { homeTeamId, awayTeamId, homeScore, awayScore, durationSeconds = 900 } = body;
 
   if (
     !homeTeamId ||

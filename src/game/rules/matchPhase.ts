@@ -4,7 +4,8 @@ export type MatchPhase =
   | 'setPiece'
   | 'foul'
   | 'penaltyStub'
-  | 'goal';
+  | 'goal'
+  | 'halftime';
 
 export function isPlaying(phase: MatchPhase): boolean {
   return phase === 'playing';
@@ -21,4 +22,8 @@ export function canStartStoppage(phase: MatchPhase): boolean {
 /** Out / foul detection only while the ball is live. */
 export function canDetectOut(phase: MatchPhase): boolean {
   return phase === 'playing';
+}
+
+export function isHalftime(phase: MatchPhase): boolean {
+  return phase === 'halftime';
 }

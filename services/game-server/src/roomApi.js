@@ -129,7 +129,7 @@ export function createRoomApiHandler({ config, log }) {
           p_user_id: userId,
           p_team_id: body.teamId,
           p_formation_id: body.formationId ?? '4-4-2',
-          p_duration_seconds: body.durationSeconds ?? 180,
+          p_duration_seconds: body.durationSeconds ?? 900,
         };
         break;
       }

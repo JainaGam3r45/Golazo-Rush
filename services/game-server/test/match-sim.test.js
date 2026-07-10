@@ -118,7 +118,7 @@ describe('game-sim match host', () => {
         side: 'home',
         homeTeamId: 'team-home',
         awayTeamId: 'team-away',
-        durationSeconds: 180,
+        durationSeconds: 900,
       }),
     );
     await onceMessage(a, (m) => m.t === 'matchJoined');

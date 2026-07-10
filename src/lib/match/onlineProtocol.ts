@@ -46,6 +46,8 @@ export type OnlineMatchSnap = {
   tick: number;
   phase: string;
   clockMs: number;
+  durationSeconds: number;
+  half: 1 | 2;
   score: OnlineScore;
   ball: OnlineEntityPose;
   players: OnlinePlayerSnap[];
@@ -262,6 +264,8 @@ export function parseMatchSnap(msg: ServerInboundMsg, receivedAt = Date.now()): 
   const clockMs = Number.isFinite(clockSeconds)
     ? Math.round(clockSeconds * 1000)
     : num(payload.clockMs ?? payload.clock ?? payload.timeLeftMs ?? payload.remainingMs, 0);
+  const durationSeconds = num(payload.durationSeconds, 900);
+  const half = payload.half === 2 ? 2 : 1;
 
   const hasBall = payload.ball != null || payload.b != null;
   const isStub = stubFlag || (!hasBall && players.length === 0);
@@ -270,6 +274,8 @@ export function parseMatchSnap(msg: ServerInboundMsg, receivedAt = Date.now()): 
     tick: num(payload.tick ?? msg.tick ?? payload.frame ?? payload.n, 0),
     phase: typeof payload.phase === 'string' ? payload.phase : isStub ? 'waiting' : 'playing',
     clockMs,
+    durationSeconds,
+    half,
     score: parseScore(payload.score ?? payload.scores),
     ball: parsePose(payload.ball ?? payload.b, { x: 550, y: 325 }),
     players,
@@ -302,6 +308,15 @@ export function toWsUrl(base: string): string {
   if (trimmed.startsWith('https://')) return `wss://${trimmed.slice('https://'.length)}`;
   if (trimmed.startsWith('http://')) return `ws://${trimmed.slice('http://'.length)}`;
   return `wss://${trimmed}`;
+}
+
+/** HTTP(S) base for REST calls when PUBLIC_GAME_SERVER_URL is wss:// or https://. */
+export function toHttpUrl(base: string): string {
+  const trimmed = base.trim().replace(/\/+$/, '');
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
+  if (trimmed.startsWith('wss://')) return `https://${trimmed.slice('wss://'.length)}`;
+  if (trimmed.startsWith('ws://')) return `http://${trimmed.slice('ws://'.length)}`;
+  return `https://${trimmed}`;
 }
 
 export function getPublicGameServerUrl(): string | null {

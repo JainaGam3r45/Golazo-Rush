@@ -115,6 +115,7 @@ export class OnlineMatchScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
   private predicted: { x: number; y: number } | null = null;
   private lastScore = { home: 0, away: 0 };
+  private lastHudPhase = '';
   private matchEnded = false;
   private playerScale = 1;
   private statusText!: Phaser.GameObjects.Text;
@@ -290,8 +291,23 @@ export class OnlineMatchScene extends Phaser.Scene {
       updateScoreOverlay(frame.score.home, frame.score.away);
     }
 
-    const secondsLeft = Math.max(0, Math.ceil(frame.clockMs / 1000));
+    const elapsedSeconds = Math.floor(frame.clockMs / 1000);
+    const secondsLeft = Math.max(0, frame.durationSeconds - elapsedSeconds);
     updateMatchClock(secondsLeft);
+
+    const hudKey = `${frame.phase}:${frame.half ?? 1}`;
+    if (hudKey !== this.lastHudPhase) {
+      this.lastHudPhase = hudKey;
+      if (frame.phase === 'halftime') {
+        this.statusText.setText('Descanso');
+        emitHudStoppage('Descanso', 'Entretiempo. El segundo tiempo comienza en breve.');
+      } else if (frame.phase === 'playing') {
+        emitHudStoppage(
+          frame.half === 2 ? '2ª parte' : '1ª parte',
+          'En juego: controla tu jugador (servidor autoritativo).',
+        );
+      }
+    }
 
     if (frame.phase === 'finished' || frame.phase === 'ended') {
       this.finishMatch(frame.score.home, frame.score.away);

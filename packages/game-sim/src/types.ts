@@ -2,7 +2,7 @@ export type Side = 'home' | 'away';
 export type FieldRole = 'gk' | 'def' | 'mid' | 'fwd';
 export type PlayerKind = 'human' | 'bot';
 export type BallState = 'free' | 'controlled' | 'kicked' | 'contested';
-export type MatchPhase = 'playing' | 'goal' | 'setPiece' | 'finished';
+export type MatchPhase = 'playing' | 'goal' | 'setPiece' | 'halftime' | 'finished';
 export type FormationId = '4-3-3' | '4-4-2' | '3-5-2' | '4-2-3-1';
 
 /** Network input DTO for a human-controlled slot. */
@@ -62,6 +62,7 @@ export type MatchSnapshot = {
   timeMs: number;
   clockSeconds: number;
   durationSeconds: number;
+  half: 1 | 2;
   phase: MatchPhase;
   score: { home: number; away: number };
   ball: BallSnapshot;

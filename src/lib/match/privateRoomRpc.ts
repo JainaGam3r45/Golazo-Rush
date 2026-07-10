@@ -85,7 +85,7 @@ export function buildRoomRpcCall(
         args: {
           p_team_id: body.teamId,
           p_formation_id: (body.formationId as string | undefined) ?? '4-4-2',
-          p_duration_seconds: (body.durationSeconds as number | undefined) ?? 180,
+          p_duration_seconds: (body.durationSeconds as number | undefined) ?? 900,
         },
         shape: 'room',
       };

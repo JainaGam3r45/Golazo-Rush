@@ -48,7 +48,7 @@ export function createResultPersister({ config, log }) {
       return { ok: false, reason: 'invalid_scores' };
     }
 
-    const durationSeconds = result.durationSeconds ?? 180;
+    const durationSeconds = result.durationSeconds ?? 900,
     const admin = createAdminClient({
       baseUrl: config.insforgeBaseUrl,
       apiKey: config.insforgeApiKey,

@@ -1,6 +1,6 @@
 ---
 import type { Team } from '../lib/mock/teams';
-import { ALLOWED_DURATIONS } from '../lib/match/setup';
+import { ALLOWED_DURATIONS, DEFAULT_DURATION } from '../lib/match/setup';
 
 interface Props {
   teams: Team[];
@@ -51,7 +51,7 @@ const { teams } = Astro.props;
           <select data-online-duration>
             {
               ALLOWED_DURATIONS.map((seconds) => (
-                <option value={seconds} selected={seconds === 180}>
+                <option value={seconds} selected={seconds === DEFAULT_DURATION}>
                   {seconds / 60} min
                 </option>
               ))
@@ -539,7 +539,7 @@ const { teams } = Astro.props;
                     awayFormationId: room?.players.find((p) => p.slot === 'away')?.formationId,
                     homeLineup: room?.players.find((p) => p.slot === 'home')?.lineup ?? cloneDefaultLineup(),
                     awayLineup: room?.players.find((p) => p.slot === 'away')?.lineup ?? cloneDefaultLineup(),
-                    durationSeconds: room?.durationSeconds ?? 180,
+                    durationSeconds: room?.durationSeconds ?? 900,
                     formatId: '11v11',
                   },
                 }),
@@ -661,7 +661,7 @@ const { teams } = Astro.props;
       const result = await createPrivateRoom({
         teamId: myTeamId,
         formationId: myFormation,
-        durationSeconds: Number(durationSelect?.value ?? 180),
+        durationSeconds: Number(durationSelect?.value ?? 900),
         lineup: myLineup,
       });
       busyAction = null;
@@ -812,10 +812,21 @@ const { teams } = Astro.props;
       if (event.detail?.teamId) myTeamId = event.detail.teamId;
     }) as EventListener);
 
-    window.addEventListener('golazo:online-conn', ((event: CustomEvent<{ status: string }>) => {
-      if (event.detail?.status === 'connected') {
+    window.addEventListener('golazo:online-conn', ((event: CustomEvent<{ status: string; detail?: string | null }>) => {
+      const status = event.detail?.status;
+      if (status === 'joined' || status === 'playing') {
         matchConnecting = false;
         matchActive = true;
+        renderUi();
+        return;
+      }
+      if (status === 'error' || status === 'closed') {
+        matchConnecting = false;
+        matchActive = false;
+        if (status === 'error') {
+          errorKind = 'recoverable';
+          errorMsg = event.detail?.detail || 'No se pudo conectar al servidor de partida.';
+        }
         renderUi();
       }
     }) as EventListener);

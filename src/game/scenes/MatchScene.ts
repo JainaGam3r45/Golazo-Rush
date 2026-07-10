@@ -4,7 +4,12 @@ import { HumanPlayer } from '../entities/HumanPlayer';
 import { BotPlayer } from '../entities/BotPlayer';
 import { Goalkeeper } from '../entities/Goalkeeper';
 import type { FieldPlayer } from '../entities/FieldPlayer';
-import type { MatchSetup } from '../../lib/match/setup';
+import {
+  HALFTIME_PAUSE_MS,
+  MATCH_TIME_SCALE,
+  halfDurationSeconds,
+  type MatchSetup,
+} from '../../lib/match/setup';
 import type { MatchEndedDetail, MatchNeedsPenaltiesDetail } from '../../lib/realtime/types';
 import { getFormation, type FormationId } from '../../lib/match/formations';
 import { formatMatchClock } from '../../lib/match/formatMatchClock';
@@ -178,8 +183,9 @@ export class MatchScene extends Phaser.Scene {
   private awayScore = 0;
   private phase: MatchPhase = 'playing';
   private matchEnded = false;
-  private matchStartedAt = 0;
-  private matchDurationMs = 180_000;
+  private matchClockSeconds = 0;
+  private half: 1 | 2 = 1;
+  private lastClockUpdateAt = 0;
   private clockTimer: Phaser.Time.TimerEvent | null = null;
   private kickoffSide: 'home' | 'away' = 'home';
   private homeFormationId!: FormationId;
@@ -205,7 +211,8 @@ export class MatchScene extends Phaser.Scene {
 
   init(): void {
     this.setup = this.game.registry.get('matchSetup') as MatchSetup;
-    this.matchDurationMs = this.setup.durationSeconds * 1000;
+    this.matchClockSeconds = 0;
+    this.half = 1;
     this.homeScore = 0;
     this.awayScore = 0;
     this.phase = 'playing';
@@ -252,30 +259,30 @@ export class MatchScene extends Phaser.Scene {
     this.spawnTeams();
 
     this.physics.world.setBounds(0, 0, PITCH_WIDTH, PITCH_HEIGHT);
-    this.matchStartedAt = this.time.now;
+    this.lastClockUpdateAt = this.time.now;
 
     updateTeamLabels(this.setup.homeTeamId, this.setup.awayTeamId);
     updateModeLabel(this.formatId);
     updateScoreOverlay(this.homeScore, this.awayScore);
     updateMatchClock(this.setup.durationSeconds);
-    emitHudStoppage('En juego', 'En juego: controla tu jugador y busca el gol.');
+    emitHudStoppage('1ª parte', 'En juego: controla tu jugador y busca el gol.');
 
     this.clockTimer = this.time.addEvent({
-      delay: 1000,
+      delay: 100,
       loop: true,
       callback: () => {
-        if (this.matchEnded) return;
-        const elapsed = this.time.now - this.matchStartedAt;
-        const remaining = Math.max(0, Math.ceil((this.matchDurationMs - elapsed) / 1000));
+        if (this.matchEnded || this.phase !== 'playing') return;
+        const elapsed = this.time.now - this.lastClockUpdateAt;
+        this.lastClockUpdateAt = this.time.now;
+        this.matchClockSeconds += (elapsed / 1000) * MATCH_TIME_SCALE;
+        const remaining = Math.max(0, Math.ceil(this.setup.durationSeconds - this.matchClockSeconds));
         updateMatchClock(remaining);
         if (remaining <= 0) {
           this.endMatch();
+        } else if (this.half === 1 && this.matchClockSeconds >= halfDurationSeconds(this.setup.durationSeconds)) {
+          this.startHalftime();
         }
       },
-    });
-
-    this.time.delayedCall(this.matchDurationMs, () => {
-      this.endMatch();
     });
   }
 
@@ -454,10 +461,66 @@ export class MatchScene extends Phaser.Scene {
     this.phase = 'playing';
     this.penaltyPhase = 'idle';
     this.pendingPenalty = null;
+    this.lastClockUpdateAt = this.time.now;
     if (outCooldown) {
       this.outDetectCooldownUntil = this.time.now + cooldownMs;
     }
-    emitHudStoppage('En juego', 'En juego: controla tu jugador y busca el gol.');
+    emitHudStoppage(
+      this.half === 2 ? '2ª parte' : '1ª parte',
+      'En juego: controla tu jugador y busca el gol.',
+    );
+  }
+
+  private startHalftime(): void {
+    if (this.matchEnded || !this.enterPhase('halftime')) return;
+    this.matchClockSeconds = halfDurationSeconds(this.setup.durationSeconds);
+    updateMatchClock(this.setup.durationSeconds - this.matchClockSeconds);
+    this.showPhaseOverlay('DESCANSO', '#ffffff', 'El segundo tiempo comienza en breve.');
+    this.resumeTimer?.remove();
+    this.resumeTimer = this.time.delayedCall(HALFTIME_PAUSE_MS, () => {
+      this.half = 2;
+      this.kickoffSide = 'away';
+      resetPossession();
+      resetBallControl();
+      this.resetKickoffPositions();
+      this.resumePlaying(true);
+    });
+  }
+
+  private resetKickoffPositions(): void {
+    const homeLineup =
+      this.setup.playerSide === 'home' ? this.setup.lineup : this.setup.opponentLineup;
+    const awayLineup =
+      this.setup.playerSide === 'away' ? this.setup.lineup : this.setup.opponentLineup;
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId, homeLineup);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId, awayLineup);
+    const playerOnHome = this.setup.playerSide === 'home';
+
+    this.homeGk.resetTo(GOALKEEPER_HOME_X, GOAL_CENTER_Y);
+    this.awayGk.resetTo(GOALKEEPER_AWAY_X, GOAL_CENTER_Y);
+
+    for (let i = 0; i < homeAnchors.length; i++) {
+      const anchor = homeAnchors[i];
+      if (playerOnHome && i === 0) {
+        this.human.resetTo(anchor.x, anchor.y);
+      } else {
+        const botIdx = playerOnHome ? i - 1 : i;
+        this.homeBots[botIdx]?.resetTo(anchor.x, anchor.y);
+      }
+    }
+
+    for (let i = 0; i < awayAnchors.length; i++) {
+      const anchor = awayAnchors[i];
+      if (!playerOnHome && i === 0) {
+        this.human.resetTo(anchor.x, anchor.y);
+      } else {
+        const botIdx = playerOnHome ? i : i - 1;
+        this.awayBots[botIdx]?.resetTo(anchor.x, anchor.y);
+      }
+    }
+
+    const kickoff = getKickoffBallPosition(this.kickoffSide);
+    this.ball.resetPosition(kickoff.x, kickoff.y);
   }
 
   private scheduleResume(delayMs: number, outCooldown = false, afterPlace?: () => void): void {
@@ -1273,7 +1336,7 @@ export class MatchScene extends Phaser.Scene {
     this.freezeAll();
     playWhistle();
 
-    const durationSeconds = Math.round((this.time.now - this.matchStartedAt) / 1000);
+    const durationSeconds = this.setup.durationSeconds;
     const isTie = this.homeScore === this.awayScore;
 
     if (isTie) {

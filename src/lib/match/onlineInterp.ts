@@ -59,6 +59,8 @@ export type InterpolatedFrame = {
   score: { home: number; away: number };
   phase: string;
   clockMs: number;
+  durationSeconds: number;
+  half: 1 | 2;
   tick: number;
   alpha: number;
 };
@@ -118,6 +120,8 @@ export function sampleInterpolatedFrame(
     score: next.score,
     phase: next.phase,
     clockMs: Math.round(lerp(prev.clockMs, next.clockMs, alpha)),
+    durationSeconds: next.durationSeconds,
+    half: next.half,
     tick: next.tick,
     alpha,
   };
@@ -144,6 +148,8 @@ function frameFromSnap(
     score: snap.score,
     phase: snap.phase,
     clockMs: snap.clockMs,
+    durationSeconds: snap.durationSeconds,
+    half: snap.half,
     tick: snap.tick,
     alpha,
   };

@@ -11,6 +11,8 @@ import {
   FIELD_PLAYERS_PER_TEAM,
   FIXED_DT_CAP_MS,
   GOAL_RESET_PAUSE_MS,
+  HALFTIME_PAUSE_MS,
+  MATCH_TIME_SCALE,
   GOALKEEPER_AWAY_X,
   GOALKEEPER_HOME_X,
   GOAL_CENTER_Y,
@@ -68,6 +70,7 @@ type InternalMatch = {
   timeMs: number;
   tickCount: number;
   clockSeconds: number;
+  half: 1 | 2;
   score: { home: number; away: number };
   kickoffSide: Side;
   phaseUntil: number;
@@ -233,14 +236,34 @@ function resetPositions(state: InternalMatch): void {
 function updatePhase(state: InternalMatch): void {
   if (state.phase === 'finished') return;
 
-  if (state.clockSeconds >= state.durationSeconds && state.phase === 'playing') {
-    state.phase = 'finished';
-    for (const player of state.players) stopPlayer(player);
-    resetBall(state.ball, state.ball.x, state.ball.y);
-    return;
+  if (state.phase === 'playing') {
+    if (state.half === 1 && state.clockSeconds >= state.durationSeconds / 2) {
+      state.clockSeconds = state.durationSeconds / 2;
+      state.phase = 'halftime';
+      state.phaseUntil = state.timeMs + HALFTIME_PAUSE_MS;
+      state.kickoffSide = 'away';
+      resetPossession(state.possession);
+      resetPositions(state);
+      for (const player of state.players) stopPlayer(player);
+      return;
+    }
+
+    if (state.half === 2 && state.clockSeconds >= state.durationSeconds) {
+      state.clockSeconds = state.durationSeconds;
+      state.phase = 'finished';
+      for (const player of state.players) stopPlayer(player);
+      resetBall(state.ball, state.ball.x, state.ball.y);
+      return;
+    }
   }
 
-  if (state.phase === 'goal' && state.timeMs >= state.phaseUntil) {
+  if (state.phase === 'halftime' && state.timeMs >= state.phaseUntil) {
+    state.half = 2;
+    state.phase = 'playing';
+    state.kickoffSide = 'away';
+    resetPossession(state.possession);
+    resetPositions(state);
+  } else if (state.phase === 'goal' && state.timeMs >= state.phaseUntil) {
     state.phase = 'playing';
   }
 }
@@ -296,6 +319,7 @@ function snapshotOf(state: InternalMatch): MatchSnapshot {
     timeMs: Math.round(state.timeMs),
     clockSeconds: Math.floor(state.clockSeconds),
     durationSeconds: state.durationSeconds,
+    half: state.half,
     phase: state.phase,
     score: { home: state.score.home, away: state.score.away },
     ball: toBallSnapshot(
@@ -320,7 +344,7 @@ function step(state: InternalMatch, dtMs: number): void {
   state.tickCount += 1;
 
   if (state.phase === 'playing') {
-    state.clockSeconds += clamped / 1000;
+    state.clockSeconds += (clamped / 1000) * MATCH_TIME_SCALE;
   }
 
   updatePhase(state);
@@ -389,6 +413,7 @@ export function createMatch(config: MatchConfig = {}): Match {
     timeMs: 0,
     tickCount: 0,
     clockSeconds: 0,
+    half: 1,
     score: { home: 0, away: 0 },
     kickoffSide: 'home',
     phaseUntil: 0,

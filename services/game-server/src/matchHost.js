@@ -62,6 +62,7 @@ function toWireSnapshot(simSnap) {
     clockSeconds: simSnap.clockSeconds,
     clockMs: Math.round(simSnap.clockSeconds * 1000),
     durationSeconds: simSnap.durationSeconds,
+    half: simSnap.half,
     phase: simSnap.phase,
     score: simSnap.score,
     ball: simSnap.ball,
@@ -100,7 +101,7 @@ export function createGameSimMatchHost() {
       const existing = matches.get(roomId);
       if (existing) existing.match; // replace
       const match = createMatch({
-        durationSeconds: meta.durationSeconds ?? 180,
+        durationSeconds: meta.durationSeconds ?? 900,
         homeFormationId: meta.homeFormationId ?? '4-4-2',
         awayFormationId: meta.awayFormationId ?? '4-4-2',
         homeLineup: Array.isArray(meta.homeLineup) ? meta.homeLineup : undefined,
@@ -111,7 +112,7 @@ export function createGameSimMatchHost() {
       matches.set(roomId, {
         match,
         meta: {
-          durationSeconds: meta.durationSeconds ?? 180,
+          durationSeconds: meta.durationSeconds ?? 900,
           homeFormationId: meta.homeFormationId ?? '4-4-2',
           awayFormationId: meta.awayFormationId ?? '4-4-2',
           homeTeamId: meta.homeTeamId ?? null,

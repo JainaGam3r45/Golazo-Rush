@@ -1,7 +1,7 @@
 ﻿---
 import CountryFlag from './CountryFlag.astro';
 import type { Team } from '../lib/mock/teams';
-import { ALLOWED_DURATIONS } from '../lib/match/setup';
+import { ALLOWED_DURATIONS, DEFAULT_DURATION } from '../lib/match/setup';
 
 interface Props {
   teams: Team[];
@@ -50,7 +50,7 @@ const { teams } = Astro.props;
             class="match-preview__duration-btn"
             data-duration={seconds}
             role="radio"
-            aria-checked={seconds === 180 ? 'true' : 'false'}
+            aria-checked={seconds === DEFAULT_DURATION ? 'true' : 'false'}
           >
             {seconds / 60} min
           </button>
@@ -100,7 +100,7 @@ const { teams } = Astro.props;
 
     let playerTeamId = '';
     let opponentTeamId = '';
-    let durationSeconds = 180;
+    let durationSeconds = 900;
     let lineup: CustomLineup = cloneDefaultLineup();
 
     const editor = lineupRoot
@@ -172,7 +172,7 @@ const { teams } = Astro.props;
       });
     }
 
-    const defaultDurationBtn = section.querySelector('[data-duration="180"]');
+    const defaultDurationBtn = section.querySelector('[data-duration="900"]');
     defaultDurationBtn?.classList.add('match-preview__duration-btn--active');
 
     playBtn?.addEventListener('click', () => {

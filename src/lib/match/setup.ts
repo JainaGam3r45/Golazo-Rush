@@ -5,11 +5,23 @@ import type { MatchFormatId } from './formats';
 import { DEFAULT_MATCH_FORMAT, isMatchFormatId } from './formats';
 import { createLocalMatchId } from './session';
 import { cloneDefaultLineup, normalizeLineup, type CustomLineup } from './lineup';
+import {
+  validateDuration,
+  type MatchDuration,
+} from './durations';
 
-export const ALLOWED_DURATIONS = [60, 120, 180] as const;
-export type MatchDuration = (typeof ALLOWED_DURATIONS)[number];
+export {
+  ALLOWED_DURATIONS,
+  DEFAULT_DURATION,
+  MATCH_TIME_SCALE,
+  HALFTIME_PAUSE_MS,
+  validateDuration,
+  halfDurationSeconds,
+  realDurationSeconds,
+  formatDurationLabel,
+  type MatchDuration,
+} from './durations';
 
-export const DEFAULT_DURATION: MatchDuration = 180;
 export const DEFAULT_PLAYER_TEAM = 'brasil';
 
 export type MatchSetup = {
@@ -38,13 +50,6 @@ export type MatchSetupInput = {
   lineup?: CustomLineup;
   opponentLineup?: CustomLineup;
 };
-
-export function validateDuration(seconds: unknown): MatchDuration {
-  if (seconds === 60 || seconds === 120 || seconds === 180) {
-    return seconds;
-  }
-  return DEFAULT_DURATION;
-}
 
 export function validateOpponent(
   playerId: string,
