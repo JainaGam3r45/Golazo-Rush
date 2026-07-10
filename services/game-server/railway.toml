@@ -1,3 +1,7 @@
+# Deploy from monorepo root so packages/game-sim is in the Docker build context.
+# railway up --path-as-root .   (or link with root directory = repo root)
+# Set service variables in Railway dashboard / `railway variables` — never commit secrets.
+
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "services/game-server/Dockerfile"
