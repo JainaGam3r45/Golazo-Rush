@@ -40,6 +40,7 @@ test.describe('Online multiplayer UI (guest + CPU)', () => {
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
     await expect(page.locator('[data-preview-mode-badge]')).toContainText('Contra bots');
+    await expect(page.locator('[data-preview-mode-badge]')).toContainText('11v11');
     await expect(page.locator('[data-preview-mode-badge]')).not.toContainText('vs CPU');
   });
 });

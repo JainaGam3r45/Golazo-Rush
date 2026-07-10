@@ -110,35 +110,34 @@ test.describe('Play', () => {
     await expect(controlsPanel).toContainText(/entrada/i);
   });
 
-  test('preview shows format selector for 5v5 and 11v11', async ({ page }) => {
+  test('preview shows fixed 11v11 format and lineup editor', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
-    await expect(page.locator('[data-format-selector]')).toBeVisible();
-    await expect(page.locator('[data-format="5v5"]')).toBeVisible();
-    await expect(page.locator('[data-format="11v11"]')).toBeVisible();
-    await expect(page.locator('[data-format="5v5"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-preview-mode-badge]')).toContainText(/11v11/i);
+    await expect(page.locator('[data-format-block]')).toContainText(/11v11/i);
+    await expect(page.locator('[data-lineup-editor]')).toBeVisible();
+    await expect(page.locator('.lineup-editor__chip')).toHaveCount(10);
   });
 
-  test('can choose 5v5 and start match with HUD mode', async ({ page }) => {
+  test('starts 11v11 match with HUD mode', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
-    await page.locator('[data-format="5v5"]').click();
     await page.locator('[data-play-match]').click();
 
     await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
-    await expect(page.locator('#match-mode')).toContainText(/5v5/i);
+    await expect(page.locator('#match-mode')).toContainText(/11v11/i);
     await expect(page.locator('[data-stoppage]')).toBeVisible();
   });
 
-  test('can choose 11v11 experimental and start match', async ({ page }) => {
+  test('lineup editor is available before kickoff', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
-    await page.locator('[data-format="11v11"]').click();
     await expect(page.locator('[data-preview-mode-badge]')).toContainText(/11v11/i);
+    await expect(page.locator('.lineup-editor__reset')).toBeVisible();
     await page.locator('[data-play-match]').click();
 
     await expect(page.locator('#game-container canvas')).toHaveCount(1, { timeout: 10_000 });
@@ -169,7 +168,7 @@ test.describe('Play', () => {
     await page.locator('[data-continue-team]').click();
     await page.locator('[data-play-match]').click();
 
-    await expect(page.locator('#match-mode')).toContainText(/5v5.*Contra bots/i);
+    await expect(page.locator('#match-mode')).toContainText(/11v11.*Contra bots/i);
   });
 
   test('HUD shows control instructions during match', async ({ page }) => {
@@ -239,14 +238,14 @@ test.describe('Play', () => {
       .toMatch(/^(true|false)$/);
   });
 
-  test('guest can see formation selector', async ({ page }) => {
+  test('guest can edit lineup before playing', async ({ page }) => {
     await page.goto('/play');
     await page.locator('[data-team-selector] button[data-team-id="brasil"]').click();
     await page.locator('[data-continue-team]').click();
 
-    const selector = page.locator('[data-formation-selector]');
-    await expect(selector).toBeVisible();
-    await expect(page.locator('[data-formation="4-4-2"]')).toBeVisible();
+    const editor = page.locator('[data-lineup-editor]');
+    await expect(editor).toBeVisible();
+    await expect(page.locator('.lineup-editor__chip--you')).toBeVisible();
   });
 });
 
