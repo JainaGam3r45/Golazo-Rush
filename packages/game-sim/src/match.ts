@@ -358,11 +358,11 @@ function step(state: InternalMatch, dtMs: number): void {
 export function createMatch(config: MatchConfig = {}): Match {
   const homeFormationId = resolveFormation(config.homeFormationId);
   const awayFormationId = resolveFormation(config.awayFormationId);
-  const homeAnchors = getFieldAnchors(homeFormationId, 'home');
-  const awayAnchors = getFieldAnchors(awayFormationId, 'away');
+  const homeAnchors = getFieldAnchors(homeFormationId, 'home', config.homeLineup);
+  const awayAnchors = getFieldAnchors(awayFormationId, 'away', config.awayLineup);
 
   if (homeAnchors.length !== FIELD_PLAYERS_PER_TEAM || awayAnchors.length !== FIELD_PLAYERS_PER_TEAM) {
-    throw new Error('game-sim only supports 5v5 (4 outfield + GK per side)');
+    throw new Error('game-sim only supports 11v11 (10 outfield + GK per side)');
   }
 
   const kickoff = getKickoffBallPosition('home');

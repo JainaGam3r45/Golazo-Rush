@@ -2,7 +2,7 @@ export type MatchFormatId = '5v5' | '11v11';
 
 export const MATCH_FORMAT_IDS: MatchFormatId[] = ['5v5', '11v11'];
 
-export const DEFAULT_MATCH_FORMAT: MatchFormatId = '5v5';
+export const DEFAULT_MATCH_FORMAT: MatchFormatId = '11v11';
 
 export type MatchFormatPreset = {
   id: MatchFormatId;
@@ -42,6 +42,11 @@ export function getMatchFormat(id: MatchFormatId): MatchFormatPreset {
 
 export function formatModeLabel(formatId: MatchFormatId): string {
   const format = MATCH_FORMATS[formatId];
+  if (formatId === '5v5') {
+    return format.experimental
+      ? `${format.shortLabel} Contra bots · experimental`
+      : `${format.shortLabel} Contra bots`;
+  }
   if (format.experimental) {
     return `${format.shortLabel} Contra bots · experimental`;
   }

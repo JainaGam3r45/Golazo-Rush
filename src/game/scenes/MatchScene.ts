@@ -227,7 +227,7 @@ export class MatchScene extends Phaser.Scene {
       this.setup.playerSide === 'home' ? this.setup.formationId : this.setup.opponentFormationId;
     this.awayFormationId =
       this.setup.playerSide === 'away' ? this.setup.formationId : this.setup.opponentFormationId;
-    this.formatId = this.setup.formatId ?? '5v5';
+    this.formatId = this.setup.formatId ?? '11v11';
     this.playerScale = playerVisualScale(this.formatId);
     this.homeAiThrottle = 0;
     this.awayAiThrottle = 0;
@@ -288,8 +288,12 @@ export class MatchScene extends Phaser.Scene {
     const kickoff = getKickoffBallPosition(this.kickoffSide);
     this.ball = new Ball(this, kickoff.x, kickoff.y);
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
+    const homeLineup =
+      this.setup.playerSide === 'home' ? this.setup.lineup : this.setup.opponentLineup;
+    const awayLineup =
+      this.setup.playerSide === 'away' ? this.setup.lineup : this.setup.opponentLineup;
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId, homeLineup);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId, awayLineup);
 
     this.homeGk = new Goalkeeper(
       this,
@@ -1142,8 +1146,12 @@ export class MatchScene extends Phaser.Scene {
 
     if (!isPlaying(this.phase)) return;
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
+    const homeLineup =
+      this.setup.playerSide === 'home' ? this.setup.lineup : this.setup.opponentLineup;
+    const awayLineup =
+      this.setup.playerSide === 'away' ? this.setup.lineup : this.setup.opponentLineup;
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId, homeLineup);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId, awayLineup);
 
     const heavy = this.formatId === '11v11';
     const homeDue = !heavy || this.homeAiThrottle % 2 === 0;
@@ -1446,8 +1454,12 @@ export class MatchScene extends Phaser.Scene {
       resetAntiStuck(bot);
     }
 
-    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId);
-    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId);
+    const homeLineup =
+      this.setup.playerSide === 'home' ? this.setup.lineup : this.setup.opponentLineup;
+    const awayLineup =
+      this.setup.playerSide === 'away' ? this.setup.lineup : this.setup.opponentLineup;
+    const homeAnchors = getFieldAnchors(this.homeFormationId, 'home', this.formatId, homeLineup);
+    const awayAnchors = getFieldAnchors(this.awayFormationId, 'away', this.formatId, awayLineup);
     const playerOnHome = this.setup.playerSide === 'home';
 
     this.homeGk.resetTo(GOALKEEPER_HOME_X, GOAL_CENTER_Y);

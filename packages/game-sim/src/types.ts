@@ -21,6 +21,9 @@ export type MatchConfig = {
   durationSeconds?: number;
   homeFormationId?: FormationId;
   awayFormationId?: FormationId;
+  /** Custom 10-outfield lineup (normalized). Overrides formation anchors when length is 10. */
+  homeLineup?: Array<{ nx: number; ny: number; role?: Exclude<FieldRole, 'gk'> }>;
+  awayLineup?: Array<{ nx: number; ny: number; role?: Exclude<FieldRole, 'gk'> }>;
   /** Player id mapped to the home human outfield slot. */
   homeHumanPlayerId?: string;
   /** Player id mapped to the away human outfield slot. */

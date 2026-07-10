@@ -19,10 +19,12 @@ export const PLAYABLE_RIGHT = PITCH_WIDTH - PITCH_MARGIN;
 export const PLAYABLE_TOP = PITCH_MARGIN;
 export const PLAYABLE_BOTTOM = PITCH_HEIGHT - PITCH_MARGIN;
 
+/** @deprecated Prefer TEAM_SIZE_11V11 — product is 11v11. */
 export const TEAM_SIZE_5V5 = 5;
-export const FIELD_PLAYERS_PER_TEAM = 4;
+export const TEAM_SIZE_11V11 = 11;
+export const FIELD_PLAYERS_PER_TEAM = 10;
 
-export const PLAYER_RADIUS = 14;
+export const PLAYER_RADIUS = 12;
 export const BALL_RADIUS = 12;
 
 export const PLAYER_SPEED = 220;
@@ -59,6 +61,8 @@ export const GOAL_RESET_PAUSE_MS = 1200;
 export const DEFAULT_DURATION_SECONDS = 180;
 export const FIXED_DT_CAP_MS = 50;
 
+export const DEFAULT_PRESS = { pressWeight: 1.0, shootDistance: 280, lineHeight: 0.55 };
+
 export const FORMATION_PRESS: Record<FormationId, { pressWeight: number; shootDistance: number; lineHeight: number }> = {
   '4-3-3': { pressWeight: 1.25, shootDistance: 300, lineHeight: 0.72 },
   '4-4-2': { pressWeight: 1.0, shootDistance: 280, lineHeight: 0.55 },
@@ -66,32 +70,71 @@ export const FORMATION_PRESS: Record<FormationId, { pressWeight: number; shootDi
   '4-2-3-1': { pressWeight: 0.85, shootDistance: 260, lineHeight: 0.42 },
 };
 
+export type LineupAnchorInput = {
+  nx: number;
+  ny: number;
+  role?: Exclude<FieldRole, 'gk'>;
+};
+
 type NormalizedAnchor = { role: Exclude<FieldRole, 'gk'>; slot: number; nx: number; ny: number };
 
-const FORMATION_ANCHORS_5V5: Record<FormationId, NormalizedAnchor[]> = {
-  '4-4-2': [
-    { role: 'def', slot: 0, nx: 0.2, ny: 0.3 },
-    { role: 'def', slot: 1, nx: 0.2, ny: 0.7 },
-    { role: 'mid', slot: 2, nx: 0.34, ny: 0.38 },
-    { role: 'mid', slot: 3, nx: 0.34, ny: 0.62 },
-  ],
+function roleFromNx(nx: number): Exclude<FieldRole, 'gk'> {
+  if (nx < 0.28) return 'def';
+  if (nx < 0.42) return 'mid';
+  return 'fwd';
+}
+
+/** Default 11v11 4-4-2 outfield. */
+const DEFAULT_LINEUP_11V11: NormalizedAnchor[] = [
+  { role: 'mid', slot: 0, nx: 0.38, ny: 0.38 },
+  { role: 'def', slot: 1, nx: 0.16, ny: 0.18 },
+  { role: 'def', slot: 2, nx: 0.18, ny: 0.38 },
+  { role: 'def', slot: 3, nx: 0.18, ny: 0.62 },
+  { role: 'def', slot: 4, nx: 0.16, ny: 0.82 },
+  { role: 'mid', slot: 5, nx: 0.38, ny: 0.18 },
+  { role: 'mid', slot: 6, nx: 0.38, ny: 0.62 },
+  { role: 'mid', slot: 7, nx: 0.38, ny: 0.82 },
+  { role: 'fwd', slot: 8, nx: 0.52, ny: 0.36 },
+  { role: 'fwd', slot: 9, nx: 0.52, ny: 0.64 },
+];
+
+const FORMATION_ANCHORS_11V11: Record<FormationId, NormalizedAnchor[]> = {
+  '4-4-2': DEFAULT_LINEUP_11V11,
   '4-3-3': [
-    { role: 'def', slot: 0, nx: 0.18, ny: 0.5 },
-    { role: 'mid', slot: 1, nx: 0.32, ny: 0.5 },
-    { role: 'fwd', slot: 2, nx: 0.44, ny: 0.3 },
-    { role: 'fwd', slot: 3, nx: 0.44, ny: 0.7 },
+    { role: 'mid', slot: 0, nx: 0.36, ny: 0.5 },
+    { role: 'def', slot: 1, nx: 0.16, ny: 0.18 },
+    { role: 'def', slot: 2, nx: 0.18, ny: 0.38 },
+    { role: 'def', slot: 3, nx: 0.18, ny: 0.62 },
+    { role: 'def', slot: 4, nx: 0.16, ny: 0.82 },
+    { role: 'mid', slot: 5, nx: 0.34, ny: 0.28 },
+    { role: 'mid', slot: 6, nx: 0.34, ny: 0.72 },
+    { role: 'fwd', slot: 7, nx: 0.5, ny: 0.22 },
+    { role: 'fwd', slot: 8, nx: 0.52, ny: 0.5 },
+    { role: 'fwd', slot: 9, nx: 0.5, ny: 0.78 },
   ],
   '3-5-2': [
-    { role: 'def', slot: 0, nx: 0.18, ny: 0.5 },
-    { role: 'mid', slot: 1, nx: 0.3, ny: 0.26 },
-    { role: 'mid', slot: 2, nx: 0.32, ny: 0.5 },
-    { role: 'mid', slot: 3, nx: 0.3, ny: 0.74 },
+    { role: 'mid', slot: 0, nx: 0.36, ny: 0.5 },
+    { role: 'def', slot: 1, nx: 0.18, ny: 0.28 },
+    { role: 'def', slot: 2, nx: 0.16, ny: 0.5 },
+    { role: 'def', slot: 3, nx: 0.18, ny: 0.72 },
+    { role: 'mid', slot: 4, nx: 0.32, ny: 0.14 },
+    { role: 'mid', slot: 5, nx: 0.34, ny: 0.32 },
+    { role: 'mid', slot: 6, nx: 0.34, ny: 0.68 },
+    { role: 'mid', slot: 7, nx: 0.32, ny: 0.86 },
+    { role: 'fwd', slot: 8, nx: 0.5, ny: 0.38 },
+    { role: 'fwd', slot: 9, nx: 0.5, ny: 0.62 },
   ],
   '4-2-3-1': [
-    { role: 'def', slot: 0, nx: 0.2, ny: 0.32 },
-    { role: 'def', slot: 1, nx: 0.2, ny: 0.68 },
-    { role: 'mid', slot: 2, nx: 0.32, ny: 0.5 },
-    { role: 'fwd', slot: 3, nx: 0.4, ny: 0.5 },
+    { role: 'mid', slot: 0, nx: 0.4, ny: 0.5 },
+    { role: 'def', slot: 1, nx: 0.16, ny: 0.18 },
+    { role: 'def', slot: 2, nx: 0.18, ny: 0.38 },
+    { role: 'def', slot: 3, nx: 0.18, ny: 0.62 },
+    { role: 'def', slot: 4, nx: 0.16, ny: 0.82 },
+    { role: 'mid', slot: 5, nx: 0.3, ny: 0.38 },
+    { role: 'mid', slot: 6, nx: 0.3, ny: 0.62 },
+    { role: 'mid', slot: 7, nx: 0.4, ny: 0.24 },
+    { role: 'mid', slot: 8, nx: 0.4, ny: 0.76 },
+    { role: 'fwd', slot: 9, nx: 0.52, ny: 0.5 },
   ],
 };
 
@@ -106,8 +149,24 @@ function mirrorX(nx: number, side: Side): number {
   return side === 'home' ? Math.round(nx * PITCH_WIDTH) : Math.round((1 - nx) * PITCH_WIDTH);
 }
 
-export function getFieldAnchors(formationId: FormationId, side: Side): SpawnAnchor[] {
-  const anchors = FORMATION_ANCHORS_5V5[formationId] ?? FORMATION_ANCHORS_5V5['4-4-2'];
+function normalizeCustomLineup(lineup: LineupAnchorInput[] | undefined): NormalizedAnchor[] | null {
+  if (!lineup || lineup.length !== FIELD_PLAYERS_PER_TEAM) return null;
+  return lineup.map((row, slot) => {
+    const nx = Math.min(0.55, Math.max(0.12, Number(row.nx) || 0.35));
+    const ny = Math.min(0.92, Math.max(0.08, Number(row.ny) || 0.5));
+    const role =
+      row.role === 'def' || row.role === 'mid' || row.role === 'fwd' ? row.role : roleFromNx(nx);
+    return { role, slot, nx, ny };
+  });
+}
+
+export function getFieldAnchors(
+  formationId: FormationId,
+  side: Side,
+  customLineup?: LineupAnchorInput[],
+): SpawnAnchor[] {
+  const custom = normalizeCustomLineup(customLineup);
+  const anchors = custom ?? FORMATION_ANCHORS_11V11[formationId] ?? DEFAULT_LINEUP_11V11;
   return anchors.map((anchor) => ({
     role: anchor.role,
     slot: anchor.slot,

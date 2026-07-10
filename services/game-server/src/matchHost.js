@@ -27,6 +27,8 @@ import { createMatch } from '../../../packages/game-sim/src/index.ts';
  * @property {string} [awayFormationId]
  * @property {string} [homeTeamId]
  * @property {string} [awayTeamId]
+ * @property {Array<{nx:number,ny:number,role?:string}>} [homeLineup]
+ * @property {Array<{nx:number,ny:number,role?:string}>} [awayLineup]
  */
 
 /**
@@ -101,6 +103,8 @@ export function createGameSimMatchHost() {
         durationSeconds: meta.durationSeconds ?? 180,
         homeFormationId: meta.homeFormationId ?? '4-4-2',
         awayFormationId: meta.awayFormationId ?? '4-4-2',
+        homeLineup: Array.isArray(meta.homeLineup) ? meta.homeLineup : undefined,
+        awayLineup: Array.isArray(meta.awayLineup) ? meta.awayLineup : undefined,
         homeHumanPlayerId: home.userId,
         awayHumanPlayerId: away.userId,
       });
@@ -112,6 +116,8 @@ export function createGameSimMatchHost() {
           awayFormationId: meta.awayFormationId ?? '4-4-2',
           homeTeamId: meta.homeTeamId ?? null,
           awayTeamId: meta.awayTeamId ?? null,
+          homeLineup: meta.homeLineup ?? null,
+          awayLineup: meta.awayLineup ?? null,
         },
         finishedEmitted: false,
         finishedPayload: null,

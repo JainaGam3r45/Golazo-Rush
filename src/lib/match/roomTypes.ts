@@ -17,6 +17,7 @@ export type RoomPlayerSnapshot = {
   slot: RoomSlot;
   teamId: string | null;
   formationId: FormationId;
+  lineup?: Array<{ nx: number; ny: number; role?: string }> | null;
   ready: boolean;
   joinedAt: string;
   lastSeenAt: string;

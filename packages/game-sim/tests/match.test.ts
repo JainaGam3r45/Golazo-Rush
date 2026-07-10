@@ -4,7 +4,7 @@ import {
   createMatch,
   PITCH_HEIGHT,
   PITCH_WIDTH,
-  TEAM_SIZE_5V5,
+  TEAM_SIZE_11V11,
   type PlayerInput,
 } from '../src/index.ts';
 import { GOAL_DEPTH } from '../src/constants.ts';
@@ -23,7 +23,7 @@ function input(partial: Partial<PlayerInput> & { seq: number }): PlayerInput {
 }
 
 describe('createMatch', () => {
-  it('spawns a 5v5 roster with one human per side when ids are provided', () => {
+  it('spawns an 11v11 roster with one human per side when ids are provided', () => {
     const match = createMatch({
       homeHumanPlayerId: 'p-home',
       awayHumanPlayerId: 'p-away',
@@ -31,7 +31,7 @@ describe('createMatch', () => {
     });
     const snap = match.getSnapshot();
 
-    assert.equal(snap.players.length, TEAM_SIZE_5V5 * 2);
+    assert.equal(snap.players.length, TEAM_SIZE_11V11 * 2);
     assert.equal(snap.humanSlots.home, 'p-home');
     assert.equal(snap.humanSlots.away, 'p-away');
     assert.equal(snap.phase, 'playing');
@@ -41,6 +41,20 @@ describe('createMatch', () => {
     assert.equal(snap.players.filter((p) => p.role === 'gk').length, 2);
     assert.ok(snap.ball.x > 0 && snap.ball.x < PITCH_WIDTH);
     assert.ok(snap.ball.y > 0 && snap.ball.y < PITCH_HEIGHT);
+  });
+
+  it('accepts a custom 10-player lineup', () => {
+    const lineup = Array.from({ length: 10 }, (_, i) => ({
+      nx: 0.2 + (i % 5) * 0.06,
+      ny: 0.2 + Math.floor(i / 5) * 0.4,
+      role: 'mid' as const,
+    }));
+    const match = createMatch({
+      homeHumanPlayerId: 'p-home',
+      homeLineup: lineup,
+      durationSeconds: 60,
+    });
+    assert.equal(match.getSnapshot().players.length, TEAM_SIZE_11V11 * 2);
   });
 
   it('keeps independent state across match instances', () => {

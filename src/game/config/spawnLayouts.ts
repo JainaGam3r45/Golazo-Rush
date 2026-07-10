@@ -111,9 +111,23 @@ function anchorsForFormat(formatId: MatchFormatId): Record<FormationId, Normaliz
 export function getFieldAnchors(
   formationId: FormationId,
   side: PlayerSide,
-  formatId: MatchFormatId = '5v5',
+  formatId: MatchFormatId = '11v11',
+  customLineup?: Array<{ nx: number; ny: number; role?: FieldRole }>,
 ): SpawnAnchor[] {
-  const anchors = anchorsForFormat(formatId)[formationId];
+  if (customLineup && customLineup.length === fieldPlayersPerSide(formatId === '5v5' ? '5v5' : '11v11')) {
+    return customLineup.map((row, slot) => {
+      const nx = Math.min(0.55, Math.max(0.12, row.nx));
+      const ny = Math.min(0.92, Math.max(0.08, row.ny));
+      const role = row.role === 'def' || row.role === 'mid' || row.role === 'fwd' ? row.role : 'mid';
+      return {
+        role,
+        slot,
+        x: mirrorX(nx, side),
+        y: Math.round(ny * PITCH_HEIGHT),
+      };
+    });
+  }
+  const anchors = anchorsForFormat(formatId)[formationId] ?? FORMATION_ANCHORS_11V11['4-4-2'];
   return anchors.map((anchor) => ({
     role: anchor.role,
     slot: anchor.slot,

@@ -121,7 +121,7 @@ export function buildRoomRpcCall(
       if (typeof body.roomId !== 'string' || !body.roomId) {
         return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
       }
-      if (!body.teamId && !body.formationId) {
+      if (!body.teamId && !body.formationId && body.lineup == null) {
         return { error: { code: 'INVALID_TEAM', message: ROOM_ERROR_MESSAGES.INVALID_TEAM } };
       }
       return {
@@ -130,6 +130,7 @@ export function buildRoomRpcCall(
           p_room_id: body.roomId,
           p_team_id: (body.teamId as string | undefined) ?? null,
           p_formation_id: (body.formationId as string | undefined) ?? null,
+          p_lineup: body.lineup ?? null,
         },
         shape: 'room',
       };

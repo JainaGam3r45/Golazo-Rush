@@ -329,6 +329,8 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         if (typeof msg.awayFormationId === 'string') session.awayFormationId = msg.awayFormationId;
         if (typeof msg.homeTeamId === 'string') session.homeTeamId = msg.homeTeamId;
         if (typeof msg.awayTeamId === 'string') session.awayTeamId = msg.awayTeamId;
+        if (Array.isArray(msg.homeLineup)) session.homeLineup = msg.homeLineup;
+        if (Array.isArray(msg.awayLineup)) session.awayLineup = msg.awayLineup;
 
         if (session.home && session.away && !session.started) {
           session.started = true;
@@ -344,6 +346,8 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
               awayFormationId: session.awayFormationId,
               homeTeamId: session.homeTeamId,
               awayTeamId: session.awayTeamId,
+              homeLineup: session.homeLineup,
+              awayLineup: session.awayLineup,
             },
           );
           log.info('match_started', { roomId: meta.roomId, host: 'game-sim' });

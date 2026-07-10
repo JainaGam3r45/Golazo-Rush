@@ -221,12 +221,14 @@ export async function createPrivateRoom(input: {
   teamId: string;
   formationId?: FormationId;
   durationSeconds?: number;
+  lineup?: unknown;
 }): Promise<InvokeResult<{ room: RoomSnapshot }>> {
   return invokeRoom({
     action: 'create',
     teamId: input.teamId,
     formationId: input.formationId,
     durationSeconds: input.durationSeconds,
+    lineup: input.lineup,
   });
 }
 
@@ -234,12 +236,14 @@ export async function joinPrivateRoom(input: {
   code: string;
   teamId: string;
   formationId?: FormationId;
+  lineup?: unknown;
 }): Promise<InvokeResult<{ room: RoomSnapshot }>> {
   return invokeRoom({
     action: 'join',
     code: input.code,
     teamId: input.teamId,
     formationId: input.formationId,
+    lineup: input.lineup,
   });
 }
 
@@ -251,12 +255,14 @@ export async function updateRoomLoadout(input: {
   roomId: string;
   teamId?: string;
   formationId?: FormationId;
+  lineup?: unknown;
 }): Promise<InvokeResult<{ room: RoomSnapshot }>> {
   return invokeRoom({
     action: 'loadout',
     roomId: input.roomId,
     teamId: input.teamId,
     formationId: input.formationId,
+    lineup: input.lineup,
   });
 }
 

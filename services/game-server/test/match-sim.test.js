@@ -103,7 +103,7 @@ describe('game-sim match host', () => {
     await ctx.game.close();
   });
 
-  it('starts 5v5 with two humans and emits pose-rich snapshots', async () => {
+  it('starts 11v11 with two humans and emits pose-rich snapshots', async () => {
     const a = await connect(ctx.wsUrl);
     const b = await connect(ctx.wsUrl);
 
@@ -127,14 +127,14 @@ describe('game-sim match host', () => {
 
     const snap = await onceMessage(
       a,
-      (m) => m.t === 'matchSnapshot' && Array.isArray(m.players) && m.players.length >= 10,
+      (m) => m.t === 'matchSnapshot' && Array.isArray(m.players) && m.players.length >= 22,
       4000,
     );
     assert.equal(snap.stub, false);
     assert.ok(snap.ball);
     assert.equal(typeof snap.ball.x, 'number');
     assert.equal(snap.score.home, 0);
-    assert.equal(snap.players.length, 10);
+    assert.equal(snap.players.length, 22);
 
     a.send(JSON.stringify({ t: 'probeInput', seq: 1, x: 1, y: 0 }));
     await onceMessage(a, (m) => m.t === 'probeState' && m.seq === 1);

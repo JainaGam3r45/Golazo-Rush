@@ -4,6 +4,7 @@ import { CPU_DEFAULT_FORMATION, DEFAULT_FORMATION, isFormationId } from './forma
 import type { MatchFormatId } from './formats';
 import { DEFAULT_MATCH_FORMAT, isMatchFormatId } from './formats';
 import { createLocalMatchId } from './session';
+import { cloneDefaultLineup, normalizeLineup, type CustomLineup } from './lineup';
 
 export const ALLOWED_DURATIONS = [60, 120, 180] as const;
 export type MatchDuration = (typeof ALLOWED_DURATIONS)[number];
@@ -22,6 +23,8 @@ export type MatchSetup = {
   formationId: FormationId;
   opponentFormationId: FormationId;
   formatId: MatchFormatId;
+  lineup: CustomLineup;
+  opponentLineup: CustomLineup;
 };
 
 export type MatchSetupInput = {
@@ -32,6 +35,8 @@ export type MatchSetupInput = {
   formationId?: FormationId;
   opponentFormationId?: FormationId;
   formatId?: MatchFormatId;
+  lineup?: CustomLineup;
+  opponentLineup?: CustomLineup;
 };
 
 export function validateDuration(seconds: unknown): MatchDuration {
@@ -92,6 +97,8 @@ export function buildMatchSetup(
       : CPU_DEFAULT_FORMATION;
   const formatId =
     input.formatId && isMatchFormatId(input.formatId) ? input.formatId : DEFAULT_MATCH_FORMAT;
+  const lineup = normalizeLineup(input.lineup) ?? cloneDefaultLineup();
+  const opponentLineup = normalizeLineup(input.opponentLineup) ?? cloneDefaultLineup();
 
   return {
     localMatchId: withMatchId ? createLocalMatchId() : '',
@@ -104,6 +111,8 @@ export function buildMatchSetup(
     formationId,
     opponentFormationId,
     formatId,
+    lineup,
+    opponentLineup,
   };
 }
 
