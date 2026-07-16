@@ -15,6 +15,7 @@ import Layout from '../../layouts/Layout.astro';
   import { isInsForgeConfigured } from '../../lib/insforge';
   import { completeOAuthSession } from '../../lib/auth/oauth';
   import { mapAuthError } from '../../lib/auth/errors';
+  import { consumeReturnTo, peekReturnTo, withReturnTo } from '../../lib/auth/redirect';
 
   async function handleOAuthCallback() {
     const statusEl = document.querySelector<HTMLElement>('[data-callback-status]');
@@ -30,7 +31,7 @@ import Layout from '../../layouts/Layout.astro';
     const { user, error } = await completeOAuthSession();
 
     if (user && !error) {
-      window.location.href = '/cuenta';
+      window.location.href = consumeReturnTo('/cuenta');
       return;
     }
 
@@ -38,8 +39,9 @@ import Layout from '../../layouts/Layout.astro';
       statusEl.textContent = error ?? 'No se pudo completar el inicio de sesión.';
     }
 
+    const retryTo = peekReturnTo();
     window.setTimeout(() => {
-      window.location.href = '/login';
+      window.location.href = withReturnTo('/login', retryTo);
     }, 2500);
   }
 

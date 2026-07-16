@@ -664,8 +664,16 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       const clockEl = document.getElementById('match-clock');
       if (clockEl) clockEl.textContent = formatMatchClock(detail.durationSeconds ?? DEFAULT_DURATION);
       const modeEl = document.getElementById('match-mode');
-      if (modeEl) modeEl.textContent = '11v11 Online · conectando';
-      setStoppageState('Conectando', 'Conectando al servidor de partida…');
+      if (modeEl) {
+        modeEl.textContent =
+          detail.role === 'spectator' ? 'Espectando · conectando' : '11v11 Online · conectando';
+      }
+      setStoppageState(
+        detail.role === 'spectator' ? 'Espectando' : 'Conectando',
+        detail.role === 'spectator'
+          ? 'Modo espectador: conectando a la retransmisión…'
+          : 'Conectando al servidor de partida…',
+      );
       const homeName = document.getElementById('hud-home-name');
       const awayName = document.getElementById('hud-away-name');
       if (homeName) homeName.textContent = getTeamName(detail.homeTeamId);
@@ -694,8 +702,12 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       if (shell.getMatchMode() !== 'online') return;
       const status = event.detail?.status;
       const modeEl = document.getElementById('match-mode');
+      const spectating = modeEl?.textContent?.startsWith('Espectando');
       if (modeEl && status) {
-        if (status === 'playing') modeEl.textContent = '11v11 Online';
+        if (spectating) {
+          if (status === 'playing' || status === 'joined') modeEl.textContent = 'Espectando';
+          else if (status === 'error') modeEl.textContent = 'Espectando · error';
+        } else if (status === 'playing') modeEl.textContent = '11v11 Online';
         else if (status === 'joined') modeEl.textContent = '11v11 Online · en sala';
         else if (status === 'error') modeEl.textContent = '11v11 Online · error';
       }
@@ -758,6 +770,30 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
           displayLabel: msg.displayName,
         });
       }
+    });
+
+    window.addEventListener('golazo:room-chat-history', (event) => {
+      const detail = event.detail;
+      if (!detail?.messages?.length) return;
+      for (const msg of detail.messages) {
+        const key = chatMessageDedupeKey(msg);
+        if (seenChatKeys.has(key)) continue;
+        seenChatKeys.add(key);
+        const list = shellRoot.querySelector('[data-chat-list]');
+        const empty = shellRoot.querySelector('[data-chat-empty]');
+        if (!list) continue;
+        if (empty) empty.hidden = true;
+        const li = document.createElement('li');
+        const meta = document.createElement('span');
+        meta.style.color = 'var(--accent)';
+        meta.style.fontWeight = '600';
+        const label = msg.displayName || msg.username || msg.userId?.slice?.(0, 8) || 'Jugador';
+        meta.textContent = `${label}: `;
+        li.append(meta, document.createTextNode(String(msg.body ?? '')));
+        list.appendChild(li);
+      }
+      const list = shellRoot.querySelector('[data-chat-list]');
+      if (list) list.scrollTop = list.scrollHeight;
     });
 
     window.addEventListener('golazo:restart-match', () => {
@@ -830,7 +866,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         if (sessionEl) sessionEl.textContent = `Jugando como ${name}`;
       } else if (sessionEl) {
         sessionEl.innerHTML =
-          'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login">Inicia sesión</a> para Online 1v1 y guardar progreso.';
+          'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login?returnTo=%2Fplay">Inicia sesión</a> para Online 1v1 y guardar progreso.';
       }
     });
 

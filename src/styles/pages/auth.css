@@ -6,10 +6,14 @@
 
 .auth-page__header {
   margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
 }
 
 .auth-page__header .section-title {
   margin-bottom: 0.5rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
 }
 
 .auth-page__hint {
@@ -37,6 +41,12 @@
 
 .auth-form.card {
   padding: 1.5rem 1.25rem;
+  border-color: color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--bg-elevated) 90%, var(--accent) 10%),
+    var(--bg-elevated)
+  );
 }
 
 .auth-form {

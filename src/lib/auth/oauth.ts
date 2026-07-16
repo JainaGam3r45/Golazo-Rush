@@ -3,6 +3,7 @@ import { fetchProfile, upsertProfile } from '../profile/store';
 import { getSelectedTeam } from '../storage/selectedTeam';
 import { hydrateSession, type SessionUser } from './session';
 import { mapAuthError } from './errors';
+import { captureReturnToFromPage } from './redirect';
 
 export type OAuthProvider = 'google' | 'discord';
 
@@ -48,6 +49,7 @@ export async function signInWithOAuthProvider(
   }
 
   try {
+    captureReturnToFromPage();
     const { error } = await insforge.auth.signInWithOAuth({
       provider,
       redirectTo: getOAuthRedirectUrl(),
