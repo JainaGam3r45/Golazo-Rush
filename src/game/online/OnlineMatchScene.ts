@@ -123,6 +123,7 @@ export class OnlineMatchScene extends Phaser.Scene {
   private pingText!: Phaser.GameObjects.Text;
   private spectateBanner: Phaser.GameObjects.Text | null = null;
   private isSpectator = false;
+  private tornDown = false;
 
   constructor() {
     super('OnlineMatchScene');
@@ -139,11 +140,16 @@ export class OnlineMatchScene extends Phaser.Scene {
     this.predicted = null;
     this.lastScore = { home: 0, away: 0 };
     this.matchEnded = false;
+    this.tornDown = false;
     this.sampler.reset();
     this.spectateBanner = null;
   }
 
   create(): void {
+    // game.destroy() emits `destroy` (not `shutdown`) — without this, WS + intervals leak.
+    this.events.once('shutdown', this.teardownOnline, this);
+    this.events.once('destroy', this.teardownOnline, this);
+
     this.drawPitch();
     this.drawGoals();
     this.createBall();
@@ -287,18 +293,34 @@ export class OnlineMatchScene extends Phaser.Scene {
     });
   }
 
-  shutdown(): void {
+  /**
+   * Drop WS/timers and remote sprites. Safe to call multiple times
+   * (explicit destroyOnlineGame + Phaser destroy/shutdown events).
+   */
+  teardownOnline(): void {
+    if (this.tornDown) return;
+    this.tornDown = true;
     this.client?.disconnect();
     this.client = null;
+    this.snapBuffer = { prev: null, next: null };
     for (const sprite of this.sprites.values()) {
-      sprite.visual.destroy();
-      sprite.youLabel?.destroy();
+      try {
+        sprite.visual.destroy();
+        sprite.youLabel?.destroy();
+      } catch {
+        // scene may already be mid-destroy
+      }
     }
     this.sprites.clear();
   }
 
+  /** @deprecated Prefer teardownOnline — kept for callers expecting Phaser-style naming. */
+  shutdown(): void {
+    this.teardownOnline();
+  }
+
   update(_time: number, delta: number): void {
-    if (this.matchEnded || !this.client) return;
+    if (this.tornDown || this.matchEnded || !this.client) return;
 
     if (!this.isSpectator) {
       const held = this.readKeys();
@@ -427,7 +449,7 @@ export class OnlineMatchScene extends Phaser.Scene {
   private finishMatch(homeScore: number, awayScore: number): void {
     if (this.matchEnded) return;
     this.matchEnded = true;
-    this.client?.disconnect();
+    this.teardownOnline();
     emitHudStoppage('Final', 'Partido online finalizado.');
     emitMatchEnded({
       localMatchId: this.setup.localMatchId || `online-${this.onlineDetail.roomId}`,

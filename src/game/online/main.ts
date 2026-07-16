@@ -59,6 +59,17 @@ export function startOnlineGame(
 export function destroyOnlineGame(): void {
   if (!onlineGame) return;
 
+  // Disconnect WS/intervals before Phaser tears the scene down.
+  // Game.destroy() emits `destroy` only — never auto-calls Scene.shutdown().
+  try {
+    const scene = onlineGame.scene.getScene('OnlineMatchScene') as
+      | { teardownOnline?: () => void }
+      | null;
+    scene?.teardownOnline?.();
+  } catch {
+    // ignore — scene may already be gone
+  }
+
   clearGameplayKeysSuspended(onlineGame);
   registerOnlineGame(null);
   registerGameScaleRefresh(null);

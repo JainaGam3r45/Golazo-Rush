@@ -248,11 +248,18 @@ export class MatchScene extends Phaser.Scene {
     this.resumeTimer = null;
     this.activeSetPiece = null;
     this.clearPhaseOverlay();
-    this.time.removeAllEvents();
-    this.tweens.killAll();
+    try {
+      this.time.removeAllEvents();
+      this.tweens.killAll();
+    } catch {
+      // scene may already be mid-destroy
+    }
   }
 
   create(): void {
+    this.events.once('shutdown', this.shutdown, this);
+    this.events.once('destroy', this.shutdown, this);
+
     this.drawPitch();
     this.drawGoals();
     this.vfxGraphics = this.add.graphics().setDepth(5);

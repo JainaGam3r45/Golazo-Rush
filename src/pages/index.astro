@@ -103,6 +103,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
             if (onlineEl) onlineEl.textContent = formatOnlineCount(members.length);
           }
           if (meta.channel === CHANNELS.LOBBY) {
+            if (lobbyMembers.some((m) => m.presenceId === member.presenceId)) return;
             lobbyMembers = [...lobbyMembers, { presenceId: member.presenceId }];
             renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
           }

@@ -170,6 +170,10 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     const key = chatMessageDedupeKey(msg);
     if (seenChatKeys.has(key)) return;
     seenChatKeys.add(key);
+    if (seenChatKeys.size > 200) {
+      const oldest = seenChatKeys.values().next().value;
+      if (oldest !== undefined) seenChatKeys.delete(oldest);
+    }
     const list = shellRoot.querySelector('[data-chat-list]');
     const empty = shellRoot.querySelector('[data-chat-empty]');
     if (!list) return;
@@ -182,6 +186,10 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     meta.textContent = `${label}: `;
     li.append(meta, document.createTextNode(String(msg.body ?? '')));
     list.appendChild(li);
+    const extras = list.querySelectorAll('li:not([data-chat-empty])');
+    for (let i = 0; i < extras.length - 80; i += 1) {
+      extras[i]?.remove();
+    }
     list.scrollTop = list.scrollHeight;
     if (!chatOpen) {
       unreadChat += 1;
@@ -822,6 +830,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     playUnsubscribes.push(
       onPresenceJoin(({ member, meta }) => {
         if (meta.channel !== CHANNELS.LOBBY) return;
+        if (lobbyMembers.some((m) => m.presenceId === member.presenceId)) return;
         lobbyMembers = [...lobbyMembers, { presenceId: member.presenceId }];
         renderLobbyPresence(lobbyMembers, '[data-lobby-presence]');
       }),

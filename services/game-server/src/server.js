@@ -32,6 +32,7 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
    * @property {string} [away]
    * @property {boolean} started
    * @property {boolean} finishedNotified
+   * @property {number} [finishedAt]
    * @property {boolean} [allowBots]
    * @property {number} [durationSeconds]
    * @property {string} [homeFormationId]
@@ -610,9 +611,23 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
     if (tickTimer.unref) tickTimer.unref();
 
     const snapMs = Math.max(32, Math.round(1000 / config.snapshotHz));
+    const FINISHED_RETENTION_MS = 12_000;
     snapshotTimer = setInterval(() => {
       for (const [roomId, session] of matchSessions) {
         if (!session.started) continue;
+
+        // After finish: stop flooding peers with snaps, then free the sim host.
+        if (session.finishedNotified) {
+          const finishedAt = session.finishedAt ?? Date.now();
+          session.finishedAt = finishedAt;
+          if (Date.now() - finishedAt >= FINISHED_RETENTION_MS) {
+            matchSessions.delete(roomId);
+            host.stop(roomId);
+            log.debug('match_host_released', { roomId });
+          }
+          continue;
+        }
+
         const snap = host.snapshot(roomId);
         if (!snap) continue;
         const room = rooms.get(roomId);
@@ -621,10 +636,11 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
           send(peer.socket, { t: 'matchSnapshot', ...snap });
         }
 
-        if (!session.finishedNotified && typeof host.consumeFinished === 'function') {
+        if (typeof host.consumeFinished === 'function') {
           const finished = host.consumeFinished(roomId);
           if (finished) {
             session.finishedNotified = true;
+            session.finishedAt = Date.now();
             for (const peer of room.connections.values()) {
               send(peer.socket, {
                 t: 'finished',

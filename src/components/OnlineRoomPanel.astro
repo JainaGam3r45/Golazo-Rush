@@ -853,6 +853,10 @@ const { teams } = Astro.props;
       const key = chatMessageDedupeKey(msg);
       if (seenChatKeys.has(key)) return;
       seenChatKeys.add(key);
+      if (seenChatKeys.size > 200) {
+        const oldest = seenChatKeys.values().next().value;
+        if (oldest !== undefined) seenChatKeys.delete(oldest);
+      }
       const who = room?.players.find((p) => p.userId === msg.userId);
       const label =
         msg.displayName ||
@@ -871,6 +875,10 @@ const { teams } = Astro.props;
         meta.textContent = `${label}: `;
         li.append(meta, document.createTextNode(msg.body));
         chatList.appendChild(li);
+        const extras = chatList.querySelectorAll('li:not([data-online-chat-empty])');
+        for (let i = 0; i < extras.length - 80; i += 1) {
+          extras[i]?.remove();
+        }
         chatList.scrollTop = chatList.scrollHeight;
       }
       if (!opts?.silent) {

@@ -5,6 +5,7 @@ type EventHandler = (payload: Record<string, unknown>) => void;
 
 const subscriptions = new Set<string>();
 const boundHandlers = new Map<string, Map<EventHandler, EventHandler>>();
+const presenceUnsubs = new Set<() => void>();
 let connectPromise: Promise<boolean> | null = null;
 
 export function isRealtimeAvailable(): boolean {
@@ -93,7 +94,12 @@ export function onPresenceJoin(
 ): () => void {
   if (!insforge) return () => {};
   insforge.realtime.on('presence:join', handler);
-  return () => insforge?.realtime.off('presence:join', handler);
+  const unsub = () => {
+    insforge?.realtime.off('presence:join', handler);
+    presenceUnsubs.delete(unsub);
+  };
+  presenceUnsubs.add(unsub);
+  return unsub;
 }
 
 export function onPresenceLeave(
@@ -101,7 +107,12 @@ export function onPresenceLeave(
 ): () => void {
   if (!insforge) return () => {};
   insforge.realtime.on('presence:leave', handler);
-  return () => insforge?.realtime.off('presence:leave', handler);
+  const unsub = () => {
+    insforge?.realtime.off('presence:leave', handler);
+    presenceUnsubs.delete(unsub);
+  };
+  presenceUnsubs.add(unsub);
+  return unsub;
 }
 
 export function cleanup(): void {
@@ -118,6 +129,15 @@ export function cleanup(): void {
     }
   }
   boundHandlers.clear();
+
+  for (const unsub of [...presenceUnsubs]) {
+    try {
+      unsub();
+    } catch {
+      // ignore
+    }
+  }
+  presenceUnsubs.clear();
 
   if (insforge.realtime.isConnected) {
     insforge.realtime.disconnect();
