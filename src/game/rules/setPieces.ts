@@ -12,6 +12,7 @@ import {
   PITCH_WIDTH,
 } from '../config/pitch';
 import { getLastTouchSide, type TouchSide } from '../ai/possession';
+import { bindLabel, loadBindings } from '../../lib/match/controlBindings';
 import {
   clampToPlayable,
   PLAYABLE_BOTTOM,
@@ -303,7 +304,11 @@ export function cornerCrossTarget(attackedEnd: 'home' | 'away', nearTop: boolean
 
 export function setPieceHintText(type: SetPieceType, stage: 'prep' | 'ready'): string {
   if (stage === 'prep') return 'Preparando saque…';
-  if (type === 'corner') return 'Pulsa E para pase corto · Q / Espacio para centro';
-  if (type === 'goalKick') return 'Pulsa E para pase corto · Q para despeje';
-  return 'Pulsa E para pase corto · Q para pase largo';
+  const binds = loadBindings();
+  const pass = bindLabel(binds.pass);
+  const clear = bindLabel(binds.clear);
+  const shoot = bindLabel(binds.shoot);
+  if (type === 'corner') return `${pass}: pase corto · ${clear} / ${shoot}: centro`;
+  if (type === 'goalKick') return `${pass}: pase corto · ${clear}: despeje`;
+  return `${pass}: pase corto · ${clear}: pase largo`;
 }

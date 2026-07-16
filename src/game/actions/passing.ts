@@ -74,8 +74,10 @@ export function findPassTarget(
     const forwardBonus = Math.max(0, 1 - angleDiff(toGoal, toMate) / Math.PI) * 40;
     const distScore = mode === 'short' ? 80 - Math.abs(dist - 100) * 0.3 : 60 - Math.abs(dist - 260) * 0.15;
     const laneBonus = isLaneClear(passer.x, passer.y, mate.x, mate.y, opponents) ? 25 : -30;
+    const edgeDist = Math.min(mate.y, PITCH_HEIGHT - mate.y);
+    const sidelinePenalty = edgeDist < 90 ? (90 - edgeDist) * 0.4 : 0;
 
-    const score = distScore + forwardBonus + laneBonus;
+    const score = distScore + forwardBonus + laneBonus - sidelinePenalty;
     if (score > bestScore) {
       bestScore = score;
       best = mate;

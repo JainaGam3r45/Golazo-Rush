@@ -8,6 +8,7 @@ import {
   type KeyboardLike,
 } from '../../lib/match/onlineInput';
 import { areGameplayKeysSuspended } from '../../lib/match/inputSuspend';
+import { ControlReader } from '../input/controlReader';
 import {
   pushSnap,
   sampleInterpolatedFrame,
@@ -105,17 +106,7 @@ export class OnlineMatchScene extends Phaser.Scene {
   private sprites = new Map<string, RemoteSprite>();
   private ballGfx!: Phaser.GameObjects.Container;
   private ballShadow!: Phaser.GameObjects.Ellipse;
-  private keys!: {
-    W: Phaser.Input.Keyboard.Key;
-    A: Phaser.Input.Keyboard.Key;
-    S: Phaser.Input.Keyboard.Key;
-    D: Phaser.Input.Keyboard.Key;
-    SHIFT: Phaser.Input.Keyboard.Key;
-    SPACE: Phaser.Input.Keyboard.Key;
-    E: Phaser.Input.Keyboard.Key;
-    Q: Phaser.Input.Keyboard.Key;
-    F: Phaser.Input.Keyboard.Key;
-  };
+  private controls: ControlReader | null = null;
   private sampler = createInputSampler();
   private localPlayerId: string | null = null;
   private predicted: { x: number; y: number } | null = null;
@@ -195,19 +186,8 @@ export class OnlineMatchScene extends Phaser.Scene {
         .setScrollFactor(0);
     }
 
-    const keyboard = this.input.keyboard;
-    if (keyboard && !this.isSpectator) {
-      this.keys = {
-        W: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        A: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-        S: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-        D: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-        SHIFT: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
-        SPACE: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-        E: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
-        Q: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
-        F: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F),
-      };
+    if (!this.isSpectator) {
+      this.controls = new ControlReader(this);
     }
 
     updateScoreOverlay(0, 0);
@@ -312,6 +292,8 @@ export class OnlineMatchScene extends Phaser.Scene {
   teardownOnline(): void {
     if (this.tornDown) return;
     this.tornDown = true;
+    this.controls?.destroy();
+    this.controls = null;
     this.client?.disconnect();
     this.client = null;
     this.snapBuffer = { prev: null, next: null };
@@ -504,18 +486,18 @@ export class OnlineMatchScene extends Phaser.Scene {
       clear: false,
     };
     if (areGameplayKeysSuspended(this.game)) return empty;
-    const k = this.keys;
-    if (!k) return empty;
+    const c = this.controls;
+    if (!c) return empty;
     return {
-      up: k.W.isDown,
-      down: k.S.isDown,
-      left: k.A.isDown,
-      right: k.D.isDown,
-      sprint: k.SHIFT.isDown,
-      shoot: k.SPACE.isDown,
-      pass: k.E.isDown,
-      tackle: k.F.isDown,
-      clear: k.Q.isDown,
+      up: c.isDown('up'),
+      down: c.isDown('down'),
+      left: c.isDown('left'),
+      right: c.isDown('right'),
+      sprint: c.isDown('sprint'),
+      shoot: c.isDown('shoot'),
+      pass: c.isDown('pass'),
+      tackle: c.isDown('tackle'),
+      clear: c.isDown('clear'),
     };
   }
 

@@ -13,7 +13,7 @@ export type KeyboardLike = {
   clear: boolean;
 };
 
-/** Map WASD / Shift / Space / E / Q / F into protocol buttons. */
+/** Map held control actions into protocol buttons. */
 export function mapKeysToButtons(keys: KeyboardLike): OnlineInputButtons {
   return {
     up: keys.up,

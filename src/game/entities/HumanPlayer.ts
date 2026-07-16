@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { areGameplayKeysSuspended } from '../../lib/match/inputSuspend';
+import { ControlReader } from '../input/controlReader';
 import { FieldPlayer } from './FieldPlayer';
 
 const PLAYER_SPEED = 220;
@@ -17,17 +18,7 @@ export type HumanAction =
   | { type: 'tackle' };
 
 export class HumanPlayer extends FieldPlayer {
-  private keys!: {
-    W: Phaser.Input.Keyboard.Key;
-    A: Phaser.Input.Keyboard.Key;
-    S: Phaser.Input.Keyboard.Key;
-    D: Phaser.Input.Keyboard.Key;
-    SHIFT: Phaser.Input.Keyboard.Key;
-    SPACE: Phaser.Input.Keyboard.Key;
-    E: Phaser.Input.Keyboard.Key;
-    Q: Phaser.Input.Keyboard.Key;
-    F: Phaser.Input.Keyboard.Key;
-  };
+  private controls: ControlReader;
 
   private sprinting = false;
   private sprintCooldownUntil = 0;
@@ -68,20 +59,7 @@ export class HumanPlayer extends FieldPlayer {
     this.sprintLines = scene.add.graphics();
     this.sprintLines.setDepth(0);
 
-    const keyboard = scene.input.keyboard;
-    if (keyboard) {
-      this.keys = {
-        W: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        A: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-        S: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-        D: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-        SHIFT: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
-        SPACE: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-        E: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
-        Q: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
-        F: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F),
-      };
-    }
+    this.controls = new ControlReader(scene);
 
     this.youLabel = scene.add
       .text(x, y - 30, 'Tú', {
@@ -166,13 +144,15 @@ export class HumanPlayer extends FieldPlayer {
       return null;
     }
 
+    this.controls.update();
+
     let vx = 0;
     let vy = 0;
 
-    if (this.keys?.A.isDown) vx -= PLAYER_SPEED;
-    if (this.keys?.D.isDown) vx += PLAYER_SPEED;
-    if (this.keys?.W.isDown) vy -= PLAYER_SPEED;
-    if (this.keys?.S.isDown) vy += PLAYER_SPEED;
+    if (this.controls.isDown('left')) vx -= PLAYER_SPEED;
+    if (this.controls.isDown('right')) vx += PLAYER_SPEED;
+    if (this.controls.isDown('up')) vy -= PLAYER_SPEED;
+    if (this.controls.isDown('down')) vy += PLAYER_SPEED;
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
@@ -182,7 +162,7 @@ export class HumanPlayer extends FieldPlayer {
 
     const canSprint = time >= this.sprintCooldownUntil;
 
-    if (this.keys?.SHIFT.isDown && moving && canSprint && !this.sprinting) {
+    if (this.controls.isDown('sprint') && moving && canSprint && !this.sprinting) {
       this.sprinting = true;
       this.sprintCooldownUntil = time + SPRINT_COOLDOWN_MS;
       this.sprintTimer?.remove();
@@ -197,16 +177,16 @@ export class HumanPlayer extends FieldPlayer {
 
     let chargeProgress = 0;
 
-    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+    if (this.controls.justDown('shoot')) {
       this.chargingKick = true;
       this.chargeStartedAt = time;
     }
 
-    if (this.chargingKick && this.keys?.SPACE.isDown) {
+    if (this.chargingKick && this.controls.isDown('shoot')) {
       chargeProgress = Math.min(1, (time - this.chargeStartedAt) / CHARGE_TIME_MS);
     }
 
-    if (this.chargingKick && this.keys?.SPACE.isUp) {
+    if (this.chargingKick && !this.controls.isDown('shoot')) {
       const chargeDuration = time - this.chargeStartedAt;
       const charged = chargeDuration >= CHARGE_TIME_MS;
       this.chargingKick = false;
@@ -214,19 +194,19 @@ export class HumanPlayer extends FieldPlayer {
       return { type: 'kick', charged };
     }
 
-    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.E) && time - this.lastPassAt >= PASS_COOLDOWN_MS) {
+    if (this.controls.justDown('pass') && time - this.lastPassAt >= PASS_COOLDOWN_MS) {
       this.lastPassAt = time;
       this.updateDecorations(time, this.chargingKick, chargeProgress);
       return { type: 'pass', mode: 'short' };
     }
 
-    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.Q) && time - this.lastLongKickAt >= LONG_KICK_COOLDOWN_MS) {
+    if (this.controls.justDown('clear') && time - this.lastLongKickAt >= LONG_KICK_COOLDOWN_MS) {
       this.lastLongKickAt = time;
       this.updateDecorations(time, this.chargingKick, chargeProgress);
       return { type: 'pass', mode: 'long' };
     }
 
-    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.F)) {
+    if (this.controls.justDown('tackle')) {
       this.updateDecorations(time, this.chargingKick, chargeProgress);
       return { type: 'tackle' };
     }
@@ -244,6 +224,7 @@ export class HumanPlayer extends FieldPlayer {
   }
 
   destroy(fromScene?: boolean): void {
+    this.controls.destroy();
     this.sprintTimer?.remove();
     this.sprintTimer = null;
     this.youLabel?.destroy();
