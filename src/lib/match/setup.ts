@@ -15,11 +15,15 @@ export {
   DEFAULT_DURATION,
   MATCH_TIME_SCALE,
   HALFTIME_PAUSE_MS,
+  MAX_CLOCK_ELAPSED_MS,
   validateDuration,
   halfDurationSeconds,
   realDurationSeconds,
   formatDurationLabel,
+  tickMatchClock,
   type MatchDuration,
+  type MatchClockTickInput,
+  type MatchClockTickResult,
 } from './durations';
 
 export const DEFAULT_PLAYER_TEAM = 'brasil';

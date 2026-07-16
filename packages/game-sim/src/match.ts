@@ -431,8 +431,14 @@ export function createMatch(config: MatchConfig = {}): Match {
     seenSlots.add(key);
   }
 
+  const rawDuration = config.durationSeconds ?? DEFAULT_DURATION_SECONDS;
+  const durationSeconds =
+    typeof rawDuration === 'number' && Number.isFinite(rawDuration) && rawDuration > 0
+      ? rawDuration
+      : DEFAULT_DURATION_SECONDS;
+
   const state: InternalMatch = {
-    durationSeconds: config.durationSeconds ?? DEFAULT_DURATION_SECONDS,
+    durationSeconds,
     homeFormationId,
     awayFormationId,
     humanAssignments,

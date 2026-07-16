@@ -134,7 +134,7 @@ export function createGameSimMatchHost(createMatch) {
       const existing = matches.get(roomId);
       if (existing) existing.match; // replace
       const match = createMatch({
-        durationSeconds: meta.durationSeconds ?? 900,
+        durationSeconds: meta.durationSeconds && meta.durationSeconds > 0 ? meta.durationSeconds : 900,
         homeFormationId: meta.homeFormationId ?? '4-4-2',
         awayFormationId: meta.awayFormationId ?? '4-4-2',
         homeLineup: Array.isArray(meta.homeLineup) ? meta.homeLineup : undefined,

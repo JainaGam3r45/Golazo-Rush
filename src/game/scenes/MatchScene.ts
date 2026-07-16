@@ -6,8 +6,8 @@ import { Goalkeeper } from '../entities/Goalkeeper';
 import type { FieldPlayer } from '../entities/FieldPlayer';
 import {
   HALFTIME_PAUSE_MS,
-  MATCH_TIME_SCALE,
   halfDurationSeconds,
+  tickMatchClock,
   type MatchSetup,
 } from '../../lib/match/setup';
 import type { MatchEndedDetail, MatchNeedsPenaltiesDetail } from '../../lib/realtime/types';
@@ -279,14 +279,20 @@ export class MatchScene extends Phaser.Scene {
       loop: true,
       callback: () => {
         if (this.matchEnded || this.phase !== 'playing') return;
-        const elapsed = this.time.now - this.lastClockUpdateAt;
+        const elapsedMs = this.time.now - this.lastClockUpdateAt;
         this.lastClockUpdateAt = this.time.now;
-        this.matchClockSeconds += (elapsed / 1000) * MATCH_TIME_SCALE;
-        const remaining = Math.max(0, Math.ceil(this.setup.durationSeconds - this.matchClockSeconds));
-        updateMatchClock(remaining);
-        if (remaining <= 0) {
+        const tick = tickMatchClock({
+          matchClockSeconds: this.matchClockSeconds,
+          elapsedMs,
+          durationSeconds: this.setup.durationSeconds,
+          half: this.half,
+        });
+        if (tick.skipped) return;
+        this.matchClockSeconds = tick.matchClockSeconds;
+        updateMatchClock(tick.remaining);
+        if (tick.shouldEnd) {
           this.endMatch();
-        } else if (this.half === 1 && this.matchClockSeconds >= halfDurationSeconds(this.setup.durationSeconds)) {
+        } else if (tick.shouldHalftime) {
           this.startHalftime();
         }
       },

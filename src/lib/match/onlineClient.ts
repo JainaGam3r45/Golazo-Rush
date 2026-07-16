@@ -178,7 +178,11 @@ export function createOnlineGameClient(
       ...(options.localPlayerId ? { localPlayerId: options.localPlayerId } : {}),
       ...(options.humans?.length ? { humans: options.humans } : {}),
       ...(options.allowBots ? { allowBots: true } : {}),
-      ...(typeof options.durationSeconds === 'number' ? { durationSeconds: options.durationSeconds } : {}),
+      ...(typeof options.durationSeconds === 'number' &&
+      Number.isFinite(options.durationSeconds) &&
+      options.durationSeconds > 0
+        ? { durationSeconds: options.durationSeconds }
+        : {}),
       ...(options.homeFormationId ? { homeFormationId: options.homeFormationId } : {}),
       ...(options.awayFormationId ? { awayFormationId: options.awayFormationId } : {}),
       ...(options.homeTeamId ? { homeTeamId: options.homeTeamId } : {}),

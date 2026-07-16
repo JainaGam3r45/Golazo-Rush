@@ -25,6 +25,14 @@ function input(partial: Partial<PlayerInput> & { seq: number }): PlayerInput {
 }
 
 describe('createMatch', () => {
+  it('falls back to the default duration when given a non-positive value', () => {
+    const match = createMatch({
+      humanAssignments: [{ playerId: 'h1', side: 'home', fieldSlot: 0 }],
+      durationSeconds: 0,
+    });
+    assert.equal(match.getSnapshot().durationSeconds, 900);
+  });
+
   it('spawns multi-human assignments on distinct field slots', () => {
     const match = createMatch({
       humanAssignments: [

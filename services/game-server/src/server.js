@@ -542,7 +542,9 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         if (msg.side === 'away' && !session.away) session.away = meta.userId;
 
         if (msg.allowBots === true) session.allowBots = true;
-        if (typeof msg.durationSeconds === 'number') session.durationSeconds = msg.durationSeconds;
+        if (typeof msg.durationSeconds === 'number' && Number.isFinite(msg.durationSeconds) && msg.durationSeconds > 0) {
+          session.durationSeconds = msg.durationSeconds;
+        }
         if (typeof msg.homeFormationId === 'string') session.homeFormationId = msg.homeFormationId;
         if (typeof msg.awayFormationId === 'string') session.awayFormationId = msg.awayFormationId;
         if (typeof msg.homeTeamId === 'string') session.homeTeamId = msg.homeTeamId;

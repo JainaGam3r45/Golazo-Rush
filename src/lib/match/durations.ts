@@ -12,6 +12,12 @@ export const MATCH_TIME_SCALE = 10;
 
 export const HALFTIME_PAUSE_MS = 6_000;
 
+/**
+ * Ignore larger wall-clock gaps (tab blur, WebGL stalls, slow Phaser boot).
+ * Uncapped catch-up can burn a full 10-min match in one tick (60s real × scale).
+ */
+export const MAX_CLOCK_ELAPSED_MS = 250;
+
 export function validateDuration(seconds: unknown): MatchDuration {
   if (
     seconds === 600 ||
@@ -35,4 +41,57 @@ export function realDurationSeconds(matchSeconds: number): number {
 
 export function formatDurationLabel(seconds: number): string {
   return `${Math.round(seconds / 60)} min`;
+}
+
+export type MatchClockTickInput = {
+  matchClockSeconds: number;
+  elapsedMs: number;
+  durationSeconds: number;
+  half: 1 | 2;
+  timeScale?: number;
+  maxElapsedMs?: number;
+};
+
+export type MatchClockTickResult = {
+  matchClockSeconds: number;
+  remaining: number;
+  /** True when the gap was dropped (stall / boot hitch) — clock unchanged. */
+  skipped: boolean;
+  shouldEnd: boolean;
+  shouldHalftime: boolean;
+};
+
+/** Pure CPU match-clock step used by MatchScene (and unit tests). */
+export function tickMatchClock(input: MatchClockTickInput): MatchClockTickResult {
+  const timeScale = input.timeScale ?? MATCH_TIME_SCALE;
+  const maxElapsedMs = input.maxElapsedMs ?? MAX_CLOCK_ELAPSED_MS;
+  const durationSeconds = input.durationSeconds;
+
+  if (!(input.elapsedMs > 0) || input.elapsedMs > maxElapsedMs) {
+    const remaining = Math.max(0, Math.ceil(durationSeconds - input.matchClockSeconds));
+    return {
+      matchClockSeconds: input.matchClockSeconds,
+      remaining,
+      skipped: true,
+      shouldEnd: remaining <= 0,
+      shouldHalftime: false,
+    };
+  }
+
+  const matchClockSeconds =
+    input.matchClockSeconds + (input.elapsedMs / 1000) * timeScale;
+  const remaining = Math.max(0, Math.ceil(durationSeconds - matchClockSeconds));
+  const shouldEnd = remaining <= 0;
+  const shouldHalftime =
+    !shouldEnd &&
+    input.half === 1 &&
+    matchClockSeconds >= halfDurationSeconds(durationSeconds);
+
+  return {
+    matchClockSeconds,
+    remaining,
+    skipped: false,
+    shouldEnd,
+    shouldHalftime,
+  };
 }
