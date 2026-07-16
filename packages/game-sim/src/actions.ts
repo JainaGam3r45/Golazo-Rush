@@ -75,7 +75,9 @@ export function findPassTarget(passer: SimPlayer, teammates: SimPlayer[], oppone
     const forwardBonus = Math.max(0, 1 - Math.abs(angle) / Math.PI) * 40;
     const distScore = 80 - Math.abs(d - 100) * 0.3;
     const laneClear = isLaneClear(passer, mate, opponents);
-    const score = distScore + forwardBonus + (laneClear ? 25 : -30);
+    const edgeDist = Math.min(mate.y, PITCH_HEIGHT - mate.y);
+    const sidelinePenalty = edgeDist < 90 ? (90 - edgeDist) * 0.4 : 0;
+    const score = distScore + forwardBonus + (laneClear ? 25 : -30) - sidelinePenalty;
     if (score > bestScore) {
       bestScore = score;
       best = mate;

@@ -12,6 +12,10 @@ import {
   KICK_RANGE,
   PITCH_HEIGHT,
   PITCH_WIDTH,
+  PLAYABLE_LEFT,
+  PLAYABLE_RIGHT,
+  PLAYABLE_TOP,
+  PLAYABLE_BOTTOM,
   clampGkY,
   dist,
   opponentGoalX,
@@ -27,6 +31,15 @@ const CLOSE_PRESSURE = 40;
 const INTERCEPT_LOOKAHEAD_S = 0.32;
 const INTERCEPT_LOOKAHEAD_MAX_S = 0.48;
 const CARRY_Y_MARGIN = 72;
+/** Keep AI move targets inside the pitch so nobody chases a ball off the line. */
+const AI_TARGET_INSET = 24;
+/** A carrier this close to a touchline should look to pass inside first. */
+const TOUCHLINE_PASS_MARGIN = 70;
+/** How far ahead we project a loose ball to decide if it is leaving play. */
+const BALL_OUT_LOOKAHEAD_S = 0.5;
+const BALL_OUT_MIN_SPEED = 60;
+/** Vertical band near a touchline where holders barely follow the ball. */
+const BALL_TOUCH_BAND = 90;
 
 const SLOT_SPEED = [1.0, 0.96, 1.04, 0.98, 1.02] as const;
 const SLOT_APPROACH = [
@@ -60,6 +73,36 @@ function clampCarryY(y: number): number {
   return Math.max(CARRY_Y_MARGIN, Math.min(PITCH_HEIGHT - CARRY_Y_MARGIN, y));
 }
 
+/** Keep a movement target inside the playable rectangle. */
+function clampToPlayable(x: number, y: number): { x: number; y: number } {
+  return {
+    x: Math.min(PLAYABLE_RIGHT - AI_TARGET_INSET, Math.max(PLAYABLE_LEFT + AI_TARGET_INSET, x)),
+    y: Math.min(PLAYABLE_BOTTOM - AI_TARGET_INSET, Math.max(PLAYABLE_TOP + AI_TARGET_INSET, y)),
+  };
+}
+
+/** True when a loose ball is already out or clearly heading off the pitch. */
+export function ballHeadedOut(ball: SimBall): boolean {
+  if (
+    ball.x <= PLAYABLE_LEFT ||
+    ball.x >= PLAYABLE_RIGHT ||
+    ball.y <= PLAYABLE_TOP ||
+    ball.y >= PLAYABLE_BOTTOM
+  ) {
+    return true;
+  }
+  const speed = Math.hypot(ball.vx, ball.vy);
+  if (speed < BALL_OUT_MIN_SPEED) return false;
+  const px = ball.x + ball.vx * BALL_OUT_LOOKAHEAD_S;
+  const py = ball.y + ball.vy * BALL_OUT_LOOKAHEAD_S;
+  return (
+    px <= PLAYABLE_LEFT ||
+    px >= PLAYABLE_RIGHT ||
+    py <= PLAYABLE_TOP ||
+    py >= PLAYABLE_BOTTOM
+  );
+}
+
 function ballPoint(ball: SimBall, possession: PossessionState, players: SimPlayer[]): { x: number; y: number } {
   if (possession.controllerId) {
     const c = players.find((p) => p.id === possession.controllerId);
@@ -75,28 +118,27 @@ export function projectedInterceptPoint(
   possession: PossessionState,
   players: SimPlayer[],
 ): { x: number; y: number } {
+  const offset = slotApproach(chaser.slot);
+
   if (possession.controllerId) {
     const holder = players.find((p) => p.id === possession.controllerId);
     if (holder) {
-      const offset = slotApproach(chaser.slot);
-      return { x: holder.x + offset.x, y: holder.y + offset.y };
+      return clampToPlayable(holder.x + offset.x, holder.y + offset.y);
     }
   }
 
   const speed = Math.hypot(ball.vx, ball.vy);
   if (speed < 24) {
-    const offset = slotApproach(chaser.slot);
-    return { x: ball.x + offset.x, y: ball.y + offset.y };
+    return clampToPlayable(ball.x + offset.x, ball.y + offset.y);
   }
 
   const toBall = dist(chaser.x, chaser.y, ball.x, ball.y);
   const eta = toBall / Math.max(BOT_SPEED * slotSpeed(chaser.slot), 1);
   const look = Math.min(INTERCEPT_LOOKAHEAD_MAX_S, Math.max(INTERCEPT_LOOKAHEAD_S * 0.45, eta * 0.55));
-  const offset = slotApproach(chaser.slot);
-  return {
-    x: ball.x + ball.vx * look + offset.x * 0.35,
-    y: ball.y + ball.vy * look + offset.y * 0.35,
-  };
+  return clampToPlayable(
+    ball.x + ball.vx * look + offset.x * 0.35,
+    ball.y + ball.vy * look + offset.y * 0.35,
+  );
 }
 
 /** Carry toward goal with Y biased into space / toward a free forward teammate. */
@@ -212,9 +254,20 @@ function handleWithBall(
   const closePressure = nearest < CLOSE_PRESSURE;
   const pressured = nearest < PRESSURE_DISTANCE;
   const canDecide = decisionReady(bot, time);
+  const nearTouchline =
+    bot.y < TOUCHLINE_PASS_MARGIN || bot.y > PITCH_HEIGHT - TOUCHLINE_PASS_MARGIN;
 
   if (canDecide && distToGoal < preset.shootDistance && aligned && !closePressure) {
     if (kickBall(bot, ball, possession, time, false)) {
+      markDecision(bot, time);
+      return;
+    }
+  }
+
+  // Hugging a touchline: look inside for a forward/central pass before carrying.
+  if (canDecide && nearTouchline) {
+    const target = findPassTarget(bot, teammates, opponents);
+    if (target && executePass(bot, ball, target, possession, time)) {
       markDecision(bot, time);
       return;
     }
@@ -300,6 +353,13 @@ export function updateBots(
         continue;
       }
 
+      // Loose ball leaving the pitch: let it go and reclaim the formation slot.
+      if (!possession.controllerId && ballHeadedOut(ball)) {
+        const home = clampToPlayable(anchor.x, anchor.y);
+        moveToward(bot, home.x, home.y, BOT_SPEED * 0.8 * speedMul);
+        continue;
+      }
+
       const nearBall =
         dist(bot.x, bot.y, ball.x, ball.y) <= KICK_RANGE &&
         isBallIdle(ball) &&
@@ -315,16 +375,24 @@ export function updateBots(
 
     if (role === 'supporter') {
       const offset = slotApproach(bot.slot);
+      // Half-moon lane: sit between ball and goal, hold a central band rather
+      // than tracking ballY, and fan out across lanes by slot.
+      const lane = ((bot.slot % 3) - 1) * 60;
       const supportX = (point.x + goalX) / 2 + offset.x * 0.5;
-      const supportY = (point.y + PITCH_HEIGHT / 2) / 2 + offset.y * 0.5;
-      moveToward(bot, supportX, supportY, BOT_SPEED * 0.85 * speedMul);
+      const supportY =
+        PITCH_HEIGHT / 2 + (point.y - PITCH_HEIGHT / 2) * 0.35 + lane + offset.y * 0.5;
+      const support = clampToPlayable(supportX, supportY);
+      moveToward(bot, support.x, support.y, BOT_SPEED * 0.85 * speedMul);
       continue;
     }
 
     const line = preset.lineHeight;
-    const holdX = anchor.x + (point.x - PITCH_WIDTH / 2) * line * 0.15;
-    const holdY = anchor.y + (point.y - PITCH_HEIGHT / 2) * 0.08;
-    moveToward(bot, holdX, holdY, BOT_SPEED * 0.8 * speedMul);
+    const ballNearTouch =
+      point.y < BALL_TOUCH_BAND || point.y > PITCH_HEIGHT - BALL_TOUCH_BAND;
+    const holdX = anchor.x + (point.x - PITCH_WIDTH / 2) * line * 0.12;
+    const holdY = anchor.y + (point.y - PITCH_HEIGHT / 2) * (ballNearTouch ? 0.02 : 0.06);
+    const hold = clampToPlayable(holdX, holdY);
+    moveToward(bot, hold.x, hold.y, BOT_SPEED * 0.8 * speedMul);
   }
 }
 
