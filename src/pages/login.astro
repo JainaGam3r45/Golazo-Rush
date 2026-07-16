@@ -32,7 +32,7 @@ import OAuthButtons from '../components/OAuthButtons.astro';
 
     <footer class="auth-page__footers">
       <p class="auth-page__footer">
-        ¿No tienes cuenta? <a href="/register" class="nav-link">Crear cuenta</a>
+        ¿No tienes cuenta? <a href="/register" class="nav-link" data-auth-register-link>Crear cuenta</a>
       </p>
       <p class="auth-page__footer auth-page__footer--guest">
         <a href="/play" class="nav-link">Seguir jugando sin cuenta</a>
@@ -46,8 +46,22 @@ import OAuthButtons from '../components/OAuthButtons.astro';
   import { mapAuthError } from '../lib/auth/errors';
   import { hydrateSession } from '../lib/auth/session';
   import { wireOAuthButtons } from '../lib/auth/oauth';
+  import {
+    captureReturnToFromPage,
+    resolveAuthPageRedirect,
+    withReturnTo,
+  } from '../lib/auth/redirect';
   import { upsertProfile } from '../lib/profile/store';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
+
+  captureReturnToFromPage();
+  {
+    const registerLink = document.querySelector<HTMLAnchorElement>('[data-auth-register-link]');
+    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+    if (registerLink && returnTo) {
+      registerLink.href = withReturnTo('/register', returnTo);
+    }
+  }
 
   function wireLoginForm() {
     const form = document.querySelector<HTMLFormElement>('[data-login-form]');
@@ -91,7 +105,7 @@ import OAuthButtons from '../components/OAuthButtons.astro';
         }
 
         await hydrateSession();
-        window.location.href = '/cuenta';
+        window.location.href = resolveAuthPageRedirect();
       } catch {
         errorEl.textContent = mapAuthError({ message: 'network' }, true);
         errorEl.hidden = false;

@@ -17,7 +17,13 @@ import { buttonsEqual } from './onlineInput.ts';
 
 export type OnlineClientOptions = {
   roomId: string;
+  /** Viewer-only connection; no matchJoin / no inputs. */
+  role?: 'player' | 'spectator';
   playerSide?: 'home' | 'away';
+  fieldSlot?: number;
+  localPlayerId?: string;
+  /** Full human roster so the host waits for all claimed seats. */
+  humans?: Array<{ userId: string; side: 'home' | 'away'; fieldSlot: number }>;
   /** Optional one-time match session from room start (when server issues it). */
   matchSessionToken?: string | null;
   /** Override PUBLIC_GAME_SERVER_URL (diagnostic). */
@@ -38,6 +44,7 @@ export type OnlineClientOptions = {
   awayTeamId?: string;
   homeLineup?: Array<{ nx: number; ny: number; role?: string }>;
   awayLineup?: Array<{ nx: number; ny: number; role?: string }>;
+  allowBots?: boolean;
 };
 
 export type OnlineClientHandlers = {
@@ -71,10 +78,16 @@ export type OnlineMatchStartDetail = {
   awayFormationId: string;
   durationSeconds: number;
   playerSide: 'home' | 'away';
+  /** Viewer-only: no controls, clear Espectando HUD. */
+  role?: 'player' | 'spectator';
+  fieldSlot?: number;
+  localPlayerId?: string;
+  humans?: Array<{ userId: string; side: 'home' | 'away'; fieldSlot: number }>;
   localMatchId?: string;
   formatId?: '5v5' | '11v11';
   homeLineup?: Array<{ nx: number; ny: number; role?: string }>;
   awayLineup?: Array<{ nx: number; ny: number; role?: string }>;
+  allowBots?: boolean;
 };
 
 function emitStatus(
@@ -132,7 +145,12 @@ export function createOnlineGameClient(
   const pingIntervalMs = options.pingIntervalMs ?? 2000;
   const inputHz = options.inputHz ?? 20;
   const sendFutureInputTypes = options.sendFutureInputTypes ?? false;
+  const isSpectator = options.role === 'spectator';
   const playerSide = options.playerSide === 'away' ? 'away' : 'home';
+  const fieldSlot =
+    typeof options.fieldSlot === 'number' && Number.isFinite(options.fieldSlot)
+      ? Math.max(0, Math.min(9, Math.floor(options.fieldSlot)))
+      : 0;
 
   function setStatus(next: OnlineConnStatus, detail?: string) {
     status = next;
@@ -145,12 +163,17 @@ export function createOnlineGameClient(
   }
 
   function maybeMatchJoin() {
+    if (isSpectator) return;
     if (matchJoinSent) return;
     if (status !== 'joined' && status !== 'playing') return;
     matchJoinSent = true;
     send({
       t: 'matchJoin',
       side: playerSide,
+      fieldSlot,
+      ...(options.localPlayerId ? { localPlayerId: options.localPlayerId } : {}),
+      ...(options.humans?.length ? { humans: options.humans } : {}),
+      ...(options.allowBots ? { allowBots: true } : {}),
       ...(typeof options.durationSeconds === 'number' ? { durationSeconds: options.durationSeconds } : {}),
       ...(options.homeFormationId ? { homeFormationId: options.homeFormationId } : {}),
       ...(options.awayFormationId ? { awayFormationId: options.awayFormationId } : {}),
@@ -162,6 +185,7 @@ export function createOnlineGameClient(
   }
 
   function flushInput(force = false) {
+    if (isSpectator) return;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     if (status !== 'joined' && status !== 'playing') return;
 
@@ -210,8 +234,10 @@ export function createOnlineGameClient(
       send({ t: 'ping', clientTime: awaitingPongAt });
     }, pingIntervalMs);
 
-    const interval = Math.max(16, Math.round(1000 / inputHz));
-    inputTimer = setInterval(() => flushInput(false), interval);
+    if (!isSpectator) {
+      const interval = Math.max(16, Math.round(1000 / inputHz));
+      inputTimer = setInterval(() => flushInput(false), interval);
+    }
   }
 
   function tearDownSocket(markClosedByUser: boolean): Promise<void> {
@@ -306,6 +332,7 @@ export function createOnlineGameClient(
           roomId: options.roomId,
           token,
           formatId: '5v5',
+          ...(isSpectator ? { role: 'spectator' as const } : { role: 'player' as const }),
           ...(options.matchSessionToken
             ? { matchSessionToken: options.matchSessionToken }
             : {}),
@@ -390,6 +417,12 @@ export function createOnlineGameClient(
       setStatus('joined');
       handlers.onJoined?.(msg);
       maybeMatchJoin();
+      return;
+    }
+
+    if (msg.t === 'matchSpectating') {
+      if (status !== 'playing') setStatus('playing');
+      handlers.onMatchJoined?.(msg);
       return;
     }
 
@@ -482,6 +515,7 @@ export function createOnlineGameClient(
     getPingMs: () => pingMs,
     getLastSnap: () => lastSnap,
     setButtons(buttons, aim) {
+      if (isSpectator) return;
       pendingButtons = { ...buttons };
       pendingAim = aim;
     },

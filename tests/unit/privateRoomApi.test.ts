@@ -92,6 +92,28 @@ describe('privateRoomApi auth RPC mapping', () => {
     assert.match(err.message, /Reanúdala|abandónala/);
   });
 
+  it('maps joinSpectator to join_room_as_spectator_auth', () => {
+    const join = buildRoomRpcCall('joinSpectator', { code: 'ABC234' });
+    assert.ok(!('error' in join));
+    assert.equal(join.fn, 'join_room_as_spectator_auth');
+    assert.deepEqual(join.args, { p_code: 'ABC234' });
+  });
+
+  it('maps claimSeat to claim_room_seat_auth', () => {
+    const claim = buildRoomRpcCall('claimSeat', {
+      roomId: '11111111-1111-1111-1111-111111111111',
+      side: 'away',
+      fieldSlot: 1,
+    });
+    assert.ok(!('error' in claim));
+    assert.equal(claim.fn, 'claim_room_seat_auth');
+    assert.deepEqual(claim.args, {
+      p_room_id: '11111111-1111-1111-1111-111111111111',
+      p_side: 'away',
+      p_field_slot: 1,
+    });
+  });
+
   it('maps chat to publish_room_chat_auth and sanitizes body', () => {
     const chat = buildRoomRpcCall('chat', {
       roomId: '11111111-1111-1111-1111-111111111111',

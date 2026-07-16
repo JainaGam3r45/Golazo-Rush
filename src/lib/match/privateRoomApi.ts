@@ -247,6 +247,15 @@ export async function joinPrivateRoom(input: {
   });
 }
 
+export async function joinRoomAsSpectator(input: {
+  code: string;
+}): Promise<InvokeResult<{ room: RoomSnapshot }>> {
+  return invokeRoom({
+    action: 'joinSpectator',
+    code: input.code,
+  });
+}
+
 export async function leavePrivateRoom(roomId: string): Promise<InvokeResult<{ room: RoomSnapshot }>> {
   return invokeRoom({ action: 'leave', roomId });
 }
@@ -263,6 +272,19 @@ export async function updateRoomLoadout(input: {
     teamId: input.teamId,
     formationId: input.formationId,
     lineup: input.lineup,
+  });
+}
+
+export async function claimRoomSeat(input: {
+  roomId: string;
+  side: 'home' | 'away';
+  fieldSlot: number;
+}): Promise<InvokeResult<{ room: RoomSnapshot }>> {
+  return invokeRoom({
+    action: 'claimSeat',
+    roomId: input.roomId,
+    side: input.side,
+    fieldSlot: input.fieldSlot,
   });
 }
 

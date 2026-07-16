@@ -109,6 +109,15 @@
   cursor: pointer;
 }
 
+.account-page__friends {
+  margin-top: 2rem;
+  max-width: 640px;
+}
+
+.account-page__friends[hidden] {
+  display: none;
+}
+
 .account-page__logout:hover {
   color: var(--text);
 }

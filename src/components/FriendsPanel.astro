@@ -1,0 +1,597 @@
+---
+interface Props {
+  compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+---
+
+<aside class:list={['friends-panel', 'card', { 'friends-panel--compact': compact }]} data-friends-panel>
+  <h3 class="friends-panel__title">Amigos</h3>
+  <p class="friends-panel__lead">Solicitudes, presencia online e invitaciones a sala.</p>
+
+  <form class="friends-panel__add" data-friends-add>
+    <label class="friends-panel__field">
+      <span>Agregar por nombre de usuario</span>
+      <input
+        type="text"
+        data-friends-target
+        maxlength="40"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="usuario"
+      />
+    </label>
+    <button type="submit" class="btn">Enviar solicitud</button>
+  </form>
+  <p class="friends-panel__error" data-friends-error hidden role="alert"></p>
+  <p class="friends-panel__ok" data-friends-ok hidden role="status"></p>
+
+  <div class="friends-panel__section" data-friends-incoming-wrap hidden>
+    <p class="friends-panel__subtitle">Solicitudes recibidas</p>
+    <ul class="friends-panel__list" data-friends-incoming></ul>
+  </div>
+
+  <div class="friends-panel__section">
+    <p class="friends-panel__subtitle">Tus amigos</p>
+    <ul class="friends-panel__list" data-friends-list>
+      <li class="friends-panel__empty" data-friends-empty>Todavía no tienes amigos.</li>
+    </ul>
+  </div>
+
+  <div class="friends-panel__section" data-friends-outgoing-wrap hidden>
+    <p class="friends-panel__subtitle">Solicitudes enviadas</p>
+    <ul class="friends-panel__list" data-friends-outgoing></ul>
+  </div>
+
+  <div class="friends-panel__dm" data-friends-dm hidden>
+    <header class="friends-panel__dm-head">
+      <p class="friends-panel__subtitle" data-friends-dm-title>Chat privado</p>
+      <button type="button" class="btn-outline" data-friends-dm-close>Cerrar</button>
+    </header>
+    <ul class="friends-panel__dm-list" data-friends-dm-list></ul>
+    <form class="friends-panel__dm-form" data-friends-dm-form>
+      <input type="text" maxlength="500" data-friends-dm-input placeholder="Escribe un mensaje…" autocomplete="off" />
+      <button type="submit" class="btn">Enviar</button>
+    </form>
+    <p class="friends-panel__error" data-friends-dm-error hidden role="alert"></p>
+  </div>
+</aside>
+
+<style>
+  .friends-panel {
+    padding: 1.25rem;
+  }
+
+  .friends-panel--compact {
+    padding: 1rem;
+  }
+
+  .friends-panel__title {
+    margin: 0 0 0.35rem;
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+
+  .friends-panel__lead {
+    margin: 0 0 0.85rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  .friends-panel__add {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .friends-panel__field {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  .friends-panel__field input,
+  .friends-panel__dm-form input {
+    font: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .friends-panel__section {
+    margin-top: 1rem;
+  }
+
+  .friends-panel__subtitle {
+    margin: 0 0 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .friends-panel__list,
+  .friends-panel__dm-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .friends-panel__row,
+  .friends-panel__empty {
+    padding: 0.55rem 0.7rem;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  .friends-panel__row {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .friends-panel__row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .friends-panel__name {
+    font-weight: 600;
+  }
+
+  .friends-panel__presence {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .friends-panel__presence--online {
+    color: var(--accent);
+  }
+
+  .friends-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .friends-panel__actions .btn,
+  .friends-panel__actions .btn-outline {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.75rem;
+  }
+
+  .friends-panel__empty {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .friends-panel__error {
+    margin: 0.5rem 0 0;
+    color: #ff7b7b;
+    font-size: 0.8125rem;
+  }
+
+  .friends-panel__ok {
+    margin: 0.5rem 0 0;
+    color: var(--accent);
+    font-size: 0.8125rem;
+  }
+
+  .friends-panel__error[hidden],
+  .friends-panel__ok[hidden] {
+    display: none;
+  }
+
+  .friends-panel__dm {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .friends-panel__dm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .friends-panel__dm-list {
+    max-height: 10rem;
+    overflow: auto;
+    margin-bottom: 0.5rem;
+  }
+
+  .friends-panel__dm-list li {
+    font-size: 0.8125rem;
+    padding: 0.25rem 0;
+  }
+
+  .friends-panel__dm-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.4rem;
+  }
+</style>
+
+<script>
+  import { getAuthState, hydrateSession, subscribeAuth } from '../lib/auth/session';
+  import {
+    blockUser,
+    listDirectMessages,
+    listFriends,
+    removeFriendship,
+    respondFriendRequest,
+    sendDirectMessage,
+    sendFriendRequest,
+  } from '../lib/friends/friendsApi';
+  import { friendDisplayLabel, roomInviteText, type FriendPeer } from '../lib/friends/types';
+  import { CHANNELS } from '../lib/realtime/channels';
+  import { connect, onPresenceJoin, onPresenceLeave, subscribe } from '../lib/realtime/client';
+
+  function bootFriendsPanel(root: HTMLElement) {
+    const onlineIds = new Set<string>();
+    let friends: FriendPeer[] = [];
+    let incoming: FriendPeer[] = [];
+    let outgoing: FriendPeer[] = [];
+    let inviteCode: string | null = null;
+    let dmPeer: FriendPeer | null = null;
+    let presenceBound = false;
+
+    const errorEl = root.querySelector<HTMLElement>('[data-friends-error]');
+    const okEl = root.querySelector<HTMLElement>('[data-friends-ok]');
+    const listEl = root.querySelector('[data-friends-list]');
+    const emptyEl = root.querySelector<HTMLElement>('[data-friends-empty]');
+    const incomingWrap = root.querySelector<HTMLElement>('[data-friends-incoming-wrap]');
+    const incomingList = root.querySelector('[data-friends-incoming]');
+    const outgoingWrap = root.querySelector<HTMLElement>('[data-friends-outgoing-wrap]');
+    const outgoingList = root.querySelector('[data-friends-outgoing]');
+    const dmWrap = root.querySelector<HTMLElement>('[data-friends-dm]');
+    const dmTitle = root.querySelector<HTMLElement>('[data-friends-dm-title]');
+    const dmList = root.querySelector('[data-friends-dm-list]');
+    const dmError = root.querySelector<HTMLElement>('[data-friends-dm-error]');
+
+    function setError(msg: string | null) {
+      if (!errorEl) return;
+      errorEl.hidden = !msg;
+      errorEl.textContent = msg ?? '';
+    }
+
+    function setOk(msg: string | null) {
+      if (!okEl) return;
+      okEl.hidden = !msg;
+      okEl.textContent = msg ?? '';
+    }
+
+    function peerLabel(peer: FriendPeer): string {
+      return friendDisplayLabel(peer);
+    }
+
+    function renderPeerRow(peer: FriendPeer, mode: 'friend' | 'incoming' | 'outgoing'): HTMLLIElement {
+      const li = document.createElement('li');
+      li.className = 'friends-panel__row';
+      li.dataset.userId = peer.userId;
+
+      const main = document.createElement('div');
+      main.className = 'friends-panel__row-main';
+
+      const name = document.createElement('span');
+      name.className = 'friends-panel__name';
+      name.textContent = peerLabel(peer);
+
+      const presence = document.createElement('span');
+      presence.className = 'friends-panel__presence';
+      if (mode === 'friend') {
+        const online = onlineIds.has(peer.userId);
+        presence.classList.toggle('friends-panel__presence--online', online);
+        presence.textContent = online ? 'En línea' : 'Desconectado';
+      } else {
+        presence.textContent = mode === 'incoming' ? 'Pendiente' : 'Enviada';
+      }
+
+      main.append(name, presence);
+
+      const actions = document.createElement('div');
+      actions.className = 'friends-panel__actions';
+
+      if (mode === 'incoming') {
+        const accept = document.createElement('button');
+        accept.type = 'button';
+        accept.className = 'btn';
+        accept.textContent = 'Aceptar';
+        accept.addEventListener('click', async () => {
+          const result = await respondFriendRequest(peer.friendshipId, true);
+          if (!result.ok) {
+            setError(result.error.message);
+            return;
+          }
+          setOk('Solicitud aceptada');
+          await refresh();
+        });
+
+        const decline = document.createElement('button');
+        decline.type = 'button';
+        decline.className = 'btn-outline';
+        decline.textContent = 'Rechazar';
+        decline.addEventListener('click', async () => {
+          const result = await respondFriendRequest(peer.friendshipId, false);
+          if (!result.ok) {
+            setError(result.error.message);
+            return;
+          }
+          setOk('Solicitud rechazada');
+          await refresh();
+        });
+        actions.append(accept, decline);
+      }
+
+      if (mode === 'friend') {
+        if (inviteCode) {
+          const invite = document.createElement('button');
+          invite.type = 'button';
+          invite.className = 'btn';
+          invite.textContent = 'Invitar';
+          invite.addEventListener('click', async () => {
+            const text = roomInviteText(inviteCode!);
+            try {
+              await navigator.clipboard.writeText(text);
+              setOk(`Invitación copiada para ${peerLabel(peer)}`);
+            } catch {
+              setOk(text);
+            }
+          });
+          actions.append(invite);
+        }
+
+        const dm = document.createElement('button');
+        dm.type = 'button';
+        dm.className = 'btn-outline';
+        dm.textContent = 'Mensaje';
+        dm.addEventListener('click', () => openDm(peer));
+        actions.append(dm);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn-outline';
+        remove.textContent = 'Quitar';
+        remove.addEventListener('click', async () => {
+          const result = await removeFriendship(peer.friendshipId);
+          if (!result.ok) {
+            setError(result.error.message);
+            return;
+          }
+          if (dmPeer?.userId === peer.userId) closeDm();
+          setOk('Amistad eliminada');
+          await refresh();
+        });
+        actions.append(remove);
+
+        const block = document.createElement('button');
+        block.type = 'button';
+        block.className = 'btn-outline';
+        block.textContent = 'Bloquear';
+        block.addEventListener('click', async () => {
+          const result = await blockUser(peer.userId);
+          if (!result.ok) {
+            setError(result.error.message);
+            return;
+          }
+          if (dmPeer?.userId === peer.userId) closeDm();
+          setOk('Usuario bloqueado');
+          await refresh();
+        });
+        actions.append(block);
+      }
+
+      if (mode === 'outgoing') {
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'btn-outline';
+        cancel.textContent = 'Cancelar';
+        cancel.addEventListener('click', async () => {
+          const result = await removeFriendship(peer.friendshipId);
+          if (!result.ok) {
+            setError(result.error.message);
+            return;
+          }
+          setOk('Solicitud cancelada');
+          await refresh();
+        });
+        actions.append(cancel);
+      }
+
+      li.append(main, actions);
+      return li;
+    }
+
+    function renderLists() {
+      if (listEl) {
+        listEl.querySelectorAll('li:not([data-friends-empty])').forEach((n) => n.remove());
+        if (emptyEl) emptyEl.hidden = friends.length > 0;
+        for (const peer of friends) {
+          listEl.appendChild(renderPeerRow(peer, 'friend'));
+        }
+      }
+
+      if (incomingWrap && incomingList) {
+        incomingWrap.hidden = incoming.length === 0;
+        incomingList.replaceChildren();
+        for (const peer of incoming) {
+          incomingList.appendChild(renderPeerRow(peer, 'incoming'));
+        }
+      }
+
+      if (outgoingWrap && outgoingList) {
+        outgoingWrap.hidden = outgoing.length === 0;
+        outgoingList.replaceChildren();
+        for (const peer of outgoing) {
+          outgoingList.appendChild(renderPeerRow(peer, 'outgoing'));
+        }
+      }
+    }
+
+    async function refresh() {
+      const auth = getAuthState();
+      if (!auth.user) {
+        friends = [];
+        incoming = [];
+        outgoing = [];
+        renderLists();
+        return;
+      }
+      const result = await listFriends();
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      friends = result.data.friends;
+      incoming = result.data.incoming;
+      outgoing = result.data.outgoing;
+      renderLists();
+    }
+
+    async function bindPresence() {
+      if (presenceBound) return;
+      presenceBound = true;
+      try {
+        await connect();
+        const sub = await subscribe(CHANNELS.PRESENCE);
+        for (const member of sub.members ?? []) {
+          if (member.type === 'user') onlineIds.add(member.presenceId);
+        }
+        onPresenceJoin(({ member, meta }) => {
+          if (meta.channel !== CHANNELS.PRESENCE) return;
+          if (member.type === 'user') {
+            onlineIds.add(member.presenceId);
+            renderLists();
+          }
+        });
+        onPresenceLeave(({ member, meta }) => {
+          if (meta.channel !== CHANNELS.PRESENCE) return;
+          onlineIds.delete(member.presenceId);
+          renderLists();
+        });
+        renderLists();
+      } catch {
+        // presence is best-effort
+      }
+    }
+
+    async function openDm(peer: FriendPeer) {
+      dmPeer = peer;
+      if (dmWrap) dmWrap.hidden = false;
+      if (dmTitle) dmTitle.textContent = `Chat con ${peerLabel(peer)}`;
+      if (dmError) {
+        dmError.hidden = true;
+        dmError.textContent = '';
+      }
+      if (dmList) dmList.replaceChildren();
+      const result = await listDirectMessages(peer.userId);
+      if (!result.ok) {
+        if (dmError) {
+          dmError.hidden = false;
+          dmError.textContent = result.error.message;
+        }
+        return;
+      }
+      if (!dmList) return;
+      const me = getAuthState().user?.id;
+      for (const msg of result.data) {
+        const li = document.createElement('li');
+        const who = msg.senderId === me ? 'Tú' : friendDisplayLabel({
+          displayName: msg.displayName,
+          username: msg.username,
+          userId: msg.senderId,
+        });
+        const meta = document.createElement('span');
+        meta.style.color = 'var(--accent)';
+        meta.style.fontWeight = '600';
+        meta.textContent = `${who}: `;
+        li.append(meta, document.createTextNode(msg.body));
+        dmList.appendChild(li);
+      }
+      dmList.scrollTop = dmList.scrollHeight;
+    }
+
+    function closeDm() {
+      dmPeer = null;
+      if (dmWrap) dmWrap.hidden = true;
+    }
+
+    root.querySelector('[data-friends-add]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setError(null);
+      setOk(null);
+      const input = root.querySelector<HTMLInputElement>('[data-friends-target]');
+      const target = input?.value ?? '';
+      const result = await sendFriendRequest(target);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      if (input) input.value = '';
+      setOk('Solicitud enviada');
+      await refresh();
+    });
+
+    root.querySelector('[data-friends-dm-close]')?.addEventListener('click', () => closeDm());
+
+    root.querySelector('[data-friends-dm-form]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!dmPeer) return;
+      const input = root.querySelector<HTMLInputElement>('[data-friends-dm-input]');
+      const body = input?.value ?? '';
+      if (dmError) {
+        dmError.hidden = true;
+        dmError.textContent = '';
+      }
+      const result = await sendDirectMessage(dmPeer.userId, body);
+      if (!result.ok) {
+        if (dmError) {
+          dmError.hidden = false;
+          dmError.textContent = result.error.message;
+        }
+        return;
+      }
+      if (input) input.value = '';
+      await openDm(dmPeer);
+    });
+
+    window.addEventListener('golazo:room-invite-code', ((event: CustomEvent<{ code: string | null }>) => {
+      inviteCode = event.detail?.code ?? null;
+      renderLists();
+    }) as EventListener);
+
+    subscribeAuth(() => {
+      void refresh();
+      void bindPresence();
+    });
+
+    void (async () => {
+      await hydrateSession();
+      await refresh();
+      await bindPresence();
+    })();
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-friends-panel]')) {
+    bootFriendsPanel(root);
+  }
+</script>

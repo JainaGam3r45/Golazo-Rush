@@ -1,6 +1,7 @@
 ---
 import type { Team } from '../lib/mock/teams';
 import LobbyPanel from './LobbyPanel.astro';
+import FriendsPanel from './FriendsPanel.astro';
 import TeamSelector from './TeamSelector.astro';
 import MatchPreview from './MatchPreview.astro';
 import MatchResultPanel from './MatchResultPanel.astro';
@@ -102,6 +103,9 @@ const initialClock = formatMatchClock(DEFAULT_DURATION);
             </div>
             <section class="play-lobby" data-play-lobby>
               <LobbyPanel compact />
+            </section>
+            <section class="play-friends" data-play-friends>
+              <FriendsPanel compact />
             </section>
           </aside>
         </div>

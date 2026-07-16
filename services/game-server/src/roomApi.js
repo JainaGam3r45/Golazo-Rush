@@ -3,6 +3,7 @@ import { createAdminClient, createClient } from '@insforge/sdk';
 const ACTIONS = new Set([
   'create',
   'join',
+  'joinSpectator',
   'leave',
   'loadout',
   'ready',
@@ -10,12 +11,13 @@ const ACTIONS = new Set([
   'chat',
   'get',
   'touch',
+  'claimSeat',
 ]);
 
 function mapRpcError(error) {
   const raw = error?.message ?? '';
   const codeMatch = raw.match(
-    /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED)\b/,
+    /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED|SPECTATOR_READONLY|INVALID_LINEUP|SEAT_TAKEN|SIDE_FULL|INVALID_SEAT)\b/,
   );
   const code = codeMatch?.[1] ?? 'INTERNAL_ERROR';
 
@@ -29,13 +31,13 @@ function mapRpcError(error) {
     ROOM_NOT_FOUND: 'Sala no encontrada',
     ROOM_CLOSED: 'La sala ya no está disponible',
     ROOM_EXPIRED: 'La sala expiró',
-    ROOM_FULL: 'La sala ya tiene dos jugadores',
+    ROOM_FULL: 'La sala ya está llena',
     TEAM_TAKEN: 'Esa selección ya está ocupada',
     ROOM_LOCKED: 'La sala no admite cambios ahora',
     NOT_A_MEMBER: 'No eres miembro de esta sala',
     NEED_OPPONENT: 'Espera a que se una un rival',
     LOADOUT_INCOMPLETE: 'Elige selección y formación antes de listo',
-    NOT_READY: 'Ambos jugadores deben estar listos',
+    NOT_READY: 'Los jugadores deben estar listos',
     NOT_HOST: 'Solo el anfitrión puede iniciar',
     START_CONFLICT: 'No se pudo iniciar el partido',
     EMPTY_MESSAGE: 'El mensaje está vacío',
@@ -43,6 +45,11 @@ function mapRpcError(error) {
     RATE_LIMITED: 'Espera un momento antes de enviar otro mensaje',
     ROOM_CODE_COLLISION: 'No se pudo generar un código de sala',
     ROOM_CREATE_FAILED: 'No se pudo crear la sala',
+    SPECTATOR_READONLY: 'Los espectadores solo pueden ver la sala',
+    INVALID_LINEUP: 'Alineación no válida',
+    SEAT_TAKEN: 'Ese puesto ya está ocupado',
+    SIDE_FULL: 'Ese equipo ya tiene 2 jugadores',
+    INVALID_SEAT: 'Puesto no válido',
     INTERNAL_ERROR: 'Error interno del servidor',
   };
 
@@ -151,6 +158,18 @@ export function createRoomApiHandler({ config, log }) {
         };
         break;
       }
+      case 'joinSpectator': {
+        if (!body.code) {
+          sendJson(res, 400, { error: 'code requerido', code: 'INVALID_CODE' });
+          return;
+        }
+        rpcName = 'join_room_as_spectator';
+        args = {
+          p_user_id: userId,
+          p_code: body.code,
+        };
+        break;
+      }
       case 'leave': {
         if (!body.roomId) {
           sendJson(res, 400, { error: 'roomId requerido', code: 'ROOM_NOT_FOUND' });
@@ -189,6 +208,29 @@ export function createRoomApiHandler({ config, log }) {
         }
         rpcName = 'set_room_ready';
         args = { p_user_id: userId, p_room_id: body.roomId, p_ready: body.ready };
+        break;
+      }
+      case 'claimSeat': {
+        if (!body.roomId) {
+          sendJson(res, 400, { error: 'roomId requerido', code: 'ROOM_NOT_FOUND' });
+          return;
+        }
+        if (body.side !== 'home' && body.side !== 'away') {
+          sendJson(res, 400, { error: 'Puesto no válido', code: 'INVALID_SEAT' });
+          return;
+        }
+        const fieldSlot = typeof body.fieldSlot === 'number' ? body.fieldSlot : Number(body.fieldSlot);
+        if (!Number.isInteger(fieldSlot) || fieldSlot < 0 || fieldSlot > 3) {
+          sendJson(res, 400, { error: 'Puesto no válido', code: 'INVALID_SEAT' });
+          return;
+        }
+        rpcName = 'claim_room_seat';
+        args = {
+          p_user_id: userId,
+          p_room_id: body.roomId,
+          p_side: body.side,
+          p_field_slot: fieldSlot,
+        };
         break;
       }
       case 'start': {

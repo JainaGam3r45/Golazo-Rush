@@ -49,7 +49,7 @@ import OAuthButtons from '../components/OAuthButtons.astro';
 
     <footer class="auth-page__footers">
       <p class="auth-page__footer">
-        ¿Ya tienes cuenta? <a href="/login" class="nav-link">Entrar</a>
+        ¿Ya tienes cuenta? <a href="/login" class="nav-link" data-auth-login-link>Entrar</a>
       </p>
       <p class="auth-page__footer auth-page__footer--guest">
         <a href="/play" class="nav-link">Seguir jugando sin cuenta</a>
@@ -63,8 +63,22 @@ import OAuthButtons from '../components/OAuthButtons.astro';
   import { mapAuthError } from '../lib/auth/errors';
   import { hydrateSession } from '../lib/auth/session';
   import { wireOAuthButtons } from '../lib/auth/oauth';
+  import {
+    captureReturnToFromPage,
+    resolveAuthPageRedirect,
+    withReturnTo,
+  } from '../lib/auth/redirect';
   import { upsertProfile } from '../lib/profile/store';
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
+
+  captureReturnToFromPage();
+  {
+    const loginLink = document.querySelector<HTMLAnchorElement>('[data-auth-login-link]');
+    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+    if (loginLink && returnTo) {
+      loginLink.href = withReturnTo('/login', returnTo);
+    }
+  }
 
   let pendingEmail = '';
 
@@ -126,7 +140,7 @@ import OAuthButtons from '../components/OAuthButtons.astro';
         }
 
         await hydrateSession();
-        window.location.href = '/cuenta';
+        window.location.href = resolveAuthPageRedirect();
       } catch {
         errorEl.textContent = mapAuthError({ message: 'network' }, true);
         errorEl.hidden = false;
@@ -167,7 +181,7 @@ import OAuthButtons from '../components/OAuthButtons.astro';
         }
 
         await hydrateSession();
-        window.location.href = '/cuenta';
+        window.location.href = resolveAuthPageRedirect();
       } catch {
         errorEl.textContent = mapAuthError({ message: 'network' }, true);
         errorEl.hidden = false;

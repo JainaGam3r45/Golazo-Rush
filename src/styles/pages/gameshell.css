@@ -617,6 +617,11 @@ body.layout--immersive {
 .game-shell .play-lobby {
   margin: 0;
   max-width: none;
+  min-width: 0;
+}
+
+.game-shell .play-friends {
+  min-width: 0;
 }
 
 .game-shell [data-online-room-mount]:empty {

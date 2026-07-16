@@ -121,6 +121,8 @@ export class OnlineMatchScene extends Phaser.Scene {
   private playerScale = 1;
   private statusText!: Phaser.GameObjects.Text;
   private pingText!: Phaser.GameObjects.Text;
+  private spectateBanner: Phaser.GameObjects.Text | null = null;
+  private isSpectator = false;
 
   constructor() {
     super('OnlineMatchScene');
@@ -132,11 +134,13 @@ export class OnlineMatchScene extends Phaser.Scene {
     this.playerScale = playerVisualScale('5v5');
     this.snapBuffer = { prev: null, next: null };
     this.sprites.clear();
-    this.localPlayerId = null;
+    this.isSpectator = this.onlineDetail?.role === 'spectator';
+    this.localPlayerId = this.isSpectator ? null : (this.onlineDetail?.localPlayerId ?? null);
     this.predicted = null;
     this.lastScore = { home: 0, away: 0 };
     this.matchEnded = false;
     this.sampler.reset();
+    this.spectateBanner = null;
   }
 
   create(): void {
@@ -167,8 +171,22 @@ export class OnlineMatchScene extends Phaser.Scene {
       .setDepth(20)
       .setScrollFactor(0);
 
+    if (this.isSpectator) {
+      this.spectateBanner = this.add
+        .text(PITCH_WIDTH / 2, 36, 'Espectando', {
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: '28px',
+          color: '#ffe566',
+          stroke: '#0a0f0a',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(21)
+        .setScrollFactor(0);
+    }
+
     const keyboard = this.input.keyboard;
-    if (keyboard) {
+    if (keyboard && !this.isSpectator) {
       this.keys = {
         W: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
         A: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
@@ -184,14 +202,23 @@ export class OnlineMatchScene extends Phaser.Scene {
 
     updateScoreOverlay(0, 0);
     updateMatchClock(this.setup.durationSeconds);
-    updateConnHud('11v11 Online · conectando');
-    emitHudStoppage('Conectando', 'Conectando al servidor de partida…');
+    if (this.isSpectator) {
+      updateConnHud('Espectando · conectando');
+      emitHudStoppage('Espectando', 'Modo espectador: solo ves el partido, sin controles.');
+    } else {
+      updateConnHud('11v11 Online · conectando');
+      emitHudStoppage('Conectando', 'Conectando al servidor de partida…');
+    }
 
     this.client = createOnlineGameClient(
       {
         roomId: this.onlineDetail.roomId,
+        role: this.isSpectator ? 'spectator' : 'player',
         matchSessionToken: this.onlineDetail.matchSessionToken,
         playerSide: this.setup.playerSide,
+        fieldSlot: this.onlineDetail.fieldSlot ?? 0,
+        localPlayerId: this.onlineDetail.localPlayerId,
+        humans: this.onlineDetail.humans,
         durationSeconds: this.setup.durationSeconds,
         homeFormationId: this.onlineDetail.homeFormationId,
         awayFormationId: this.onlineDetail.awayFormationId,
@@ -199,9 +226,26 @@ export class OnlineMatchScene extends Phaser.Scene {
         awayTeamId: this.onlineDetail.awayTeamId,
         homeLineup: this.onlineDetail.homeLineup,
         awayLineup: this.onlineDetail.awayLineup,
+        allowBots: this.onlineDetail.allowBots,
       },
       {
         onStatus: (status, detail) => {
+          if (this.isSpectator) {
+            const label =
+              status === 'playing' || status === 'joined'
+                ? 'Espectando'
+                : status === 'connecting' || status === 'authenticating'
+                  ? 'Espectando · conectando'
+                  : `Espectando · ${status}`;
+            updateConnHud(label);
+            this.statusText.setText(detail ? `${status}: ${detail}` : 'Espectando');
+            if (status === 'playing' || status === 'joined') {
+              emitHudStoppage('Espectando', 'Modo espectador: solo ves el partido, sin controles.');
+            } else if (status === 'error') {
+              emitHudStoppage('Error de conexión', detail ?? 'No se pudo conectar al servidor.');
+            }
+            return;
+          }
           const label =
             status === 'playing'
               ? '11v11 Online'
@@ -223,10 +267,12 @@ export class OnlineMatchScene extends Phaser.Scene {
         },
         onSnap: (snap) => this.onSnap(snap),
         onJoined: (msg) => {
+          if (this.isSpectator) return;
           if (typeof msg.playerId === 'string') this.localPlayerId = msg.playerId;
-          if (msg.slot === 'home' || msg.slot === 'away') {
-            // slot from server may refine local control highlight
-          }
+        },
+        onMatchJoined: (msg) => {
+          if (this.isSpectator) return;
+          if (typeof msg.playerId === 'string') this.localPlayerId = msg.playerId;
         },
         onFinished: (detail) => this.finishMatch(detail.homeScore, detail.awayScore),
         onError: (message) => {
@@ -254,23 +300,25 @@ export class OnlineMatchScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.matchEnded || !this.client) return;
 
-    const held = this.readKeys();
-    const buttons = this.sampler.sample(held);
-    const aim = aimFromButtons(buttons, this.setup.playerSide);
-    this.client.setButtons(buttons, aim);
+    if (!this.isSpectator) {
+      const held = this.readKeys();
+      const buttons = this.sampler.sample(held);
+      const aim = aimFromButtons(buttons, this.setup.playerSide);
+      this.client.setButtons(buttons, aim);
 
-    // Lightweight local prediction for the controlled human only.
-    if (this.predicted && (buttons.up || buttons.down || buttons.left || buttons.right)) {
-      const speed = buttons.sprint ? 330 : 220;
-      let vx = 0;
-      let vy = 0;
-      if (buttons.left) vx -= 1;
-      if (buttons.right) vx += 1;
-      if (buttons.up) vy -= 1;
-      if (buttons.down) vy += 1;
-      const len = Math.hypot(vx, vy) || 1;
-      this.predicted.x += (vx / len) * speed * (delta / 1000);
-      this.predicted.y += (vy / len) * speed * (delta / 1000);
+      // Lightweight local prediction for the controlled human only.
+      if (this.predicted && (buttons.up || buttons.down || buttons.left || buttons.right)) {
+        const speed = buttons.sprint ? 330 : 220;
+        let vx = 0;
+        let vy = 0;
+        if (buttons.left) vx -= 1;
+        if (buttons.right) vx += 1;
+        if (buttons.up) vy -= 1;
+        if (buttons.down) vy += 1;
+        const len = Math.hypot(vx, vy) || 1;
+        this.predicted.x += (vx / len) * speed * (delta / 1000);
+        this.predicted.y += (vy / len) * speed * (delta / 1000);
+      }
     }
 
     const frame = sampleInterpolatedFrame(this.snapBuffer, Date.now());
@@ -304,8 +352,14 @@ export class OnlineMatchScene extends Phaser.Scene {
         emitHudStoppage('Descanso', 'Entretiempo. El segundo tiempo comienza en breve.');
       } else if (frame.phase === 'playing') {
         emitHudStoppage(
-          frame.half === 2 ? '2ª parte' : '1ª parte',
-          'En juego: controla tu jugador (servidor autoritativo).',
+          this.isSpectator
+            ? 'Espectando'
+            : frame.half === 2
+              ? '2ª parte'
+              : '1ª parte',
+          this.isSpectator
+            ? 'Modo espectador: solo ves el partido, sin controles.'
+            : 'En juego: controla tu jugador (servidor autoritativo).',
         );
       }
     }
@@ -322,9 +376,7 @@ export class OnlineMatchScene extends Phaser.Scene {
 
       let x = pose.x;
       let y = pose.y;
-      const isLocal =
-        (this.localPlayerId && id === this.localPlayerId) ||
-        (pose.meta.kind === 'human' && pose.meta.side === this.setup.playerSide);
+      const isLocal = !this.isSpectator && this.isLocalHuman(id, pose.meta);
 
       if (isLocal) {
         if (!this.predicted) this.predicted = { x, y };
@@ -341,16 +393,35 @@ export class OnlineMatchScene extends Phaser.Scene {
 
   private onSnap(snap: OnlineMatchSnap): void {
     if (snap.stub && snap.players.length === 0) {
-      this.statusText.setText(`Servidor stub · tick ${snap.tick}`);
+      this.statusText.setText(
+        this.isSpectator ? `Espectando · esperando partido · tick ${snap.tick}` : `Servidor stub · tick ${snap.tick}`,
+      );
       return;
     }
     this.snapBuffer = pushSnap(this.snapBuffer, snap);
+    if (this.isSpectator) {
+      this.statusText.setText('Espectando');
+      return;
+    }
     if (!this.localPlayerId) {
-      const mine = snap.players.find(
-        (p) => p.kind === 'human' && p.side === this.setup.playerSide,
-      );
+      const fieldSlot = this.onlineDetail.fieldSlot ?? 0;
+      const mine =
+        snap.players.find(
+          (p) =>
+            p.kind === 'human' &&
+            p.side === this.setup.playerSide &&
+            p.slot === fieldSlot,
+        ) ??
+        snap.players.find((p) => p.kind === 'human' && p.side === this.setup.playerSide);
       if (mine) this.localPlayerId = mine.id;
     }
+  }
+
+  private isLocalHuman(id: string, meta: OnlinePlayerSnap): boolean {
+    if (this.isSpectator) return false;
+    if (this.localPlayerId) return id === this.localPlayerId;
+    const fieldSlot = this.onlineDetail.fieldSlot ?? 0;
+    return meta.kind === 'human' && meta.side === this.setup.playerSide && meta.slot === fieldSlot;
   }
 
   private finishMatch(homeScore: number, awayScore: number): void {
@@ -416,9 +487,7 @@ export class OnlineMatchScene extends Phaser.Scene {
     });
 
     let youLabel: Phaser.GameObjects.Text | null = null;
-    const isLocal =
-      (this.localPlayerId && meta.id === this.localPlayerId) ||
-      (meta.kind === 'human' && meta.side === this.setup.playerSide);
+    const isLocal = this.isLocalHuman(meta.id, meta);
     if (isLocal) {
       youLabel = this.add
         .text(meta.x, meta.y - 30, 'Tú', {

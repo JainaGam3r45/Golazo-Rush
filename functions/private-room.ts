@@ -3,13 +3,15 @@ import { createAdminClient, createClient } from 'npm:@insforge/sdk@^0.0.26';
 type RoomAction =
   | 'create'
   | 'join'
+  | 'joinSpectator'
   | 'leave'
   | 'loadout'
   | 'ready'
   | 'start'
   | 'chat'
   | 'get'
-  | 'touch';
+  | 'touch'
+  | 'claimSeat';
 
 type RoomBody = {
   action?: RoomAction;
@@ -20,6 +22,8 @@ type RoomBody = {
   durationSeconds?: number;
   ready?: boolean;
   message?: string;
+  side?: 'home' | 'away';
+  fieldSlot?: number;
 };
 
 const corsHeaders = {
@@ -38,7 +42,7 @@ function json(body: unknown, status = 200): Response {
 function mapRpcError(error: { message?: string } | null): { status: number; code: string; message: string } {
   const raw = error?.message ?? '';
   const codeMatch = raw.match(
-    /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED)\b/,
+    /\b(UNAUTHORIZED|ALREADY_IN_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED|SPECTATOR_READONLY|INVALID_LINEUP|SEAT_TAKEN|SIDE_FULL|INVALID_SEAT)\b/,
   );
   const code = codeMatch?.[1] ?? 'INTERNAL_ERROR';
 
@@ -52,13 +56,13 @@ function mapRpcError(error: { message?: string } | null): { status: number; code
     ROOM_NOT_FOUND: 'Sala no encontrada',
     ROOM_CLOSED: 'La sala ya no está disponible',
     ROOM_EXPIRED: 'La sala expiró',
-    ROOM_FULL: 'La sala ya tiene dos jugadores',
+    ROOM_FULL: 'La sala ya está llena',
     TEAM_TAKEN: 'Esa selección ya está ocupada',
     ROOM_LOCKED: 'La sala no admite cambios ahora',
     NOT_A_MEMBER: 'No eres miembro de esta sala',
     NEED_OPPONENT: 'Espera a que se una un rival',
     LOADOUT_INCOMPLETE: 'Elige selección y formación antes de listo',
-    NOT_READY: 'Ambos jugadores deben estar listos',
+    NOT_READY: 'Los jugadores deben estar listos',
     NOT_HOST: 'Solo el anfitrión puede iniciar',
     START_CONFLICT: 'No se pudo iniciar el partido',
     EMPTY_MESSAGE: 'El mensaje está vacío',
@@ -66,6 +70,11 @@ function mapRpcError(error: { message?: string } | null): { status: number; code
     RATE_LIMITED: 'Espera un momento antes de enviar otro mensaje',
     ROOM_CODE_COLLISION: 'No se pudo generar un código de sala',
     ROOM_CREATE_FAILED: 'No se pudo crear la sala',
+    SPECTATOR_READONLY: 'Los espectadores solo pueden ver la sala',
+    INVALID_LINEUP: 'Alineación no válida',
+    SEAT_TAKEN: 'Ese puesto ya está ocupado',
+    SIDE_FULL: 'Ese equipo ya tiene 2 jugadores',
+    INVALID_SEAT: 'Puesto no válido',
     INTERNAL_ERROR: 'Error interno del servidor',
   };
 
@@ -168,6 +177,15 @@ export default async function (req: Request): Promise<Response> {
       };
       break;
     }
+    case 'joinSpectator': {
+      if (!body.code) return json({ error: 'code requerido', code: 'INVALID_CODE' }, 400);
+      rpcName = 'join_room_as_spectator';
+      args = {
+        p_user_id: userId,
+        p_code: body.code,
+      };
+      break;
+    }
     case 'leave': {
       if (!body.roomId) return json({ error: 'roomId requerido', code: 'ROOM_NOT_FOUND' }, 400);
       rpcName = 'leave_private_room';
@@ -195,6 +213,24 @@ export default async function (req: Request): Promise<Response> {
       }
       rpcName = 'set_room_ready';
       args = { p_user_id: userId, p_room_id: body.roomId, p_ready: body.ready };
+      break;
+    }
+    case 'claimSeat': {
+      if (!body.roomId) return json({ error: 'roomId requerido', code: 'ROOM_NOT_FOUND' }, 400);
+      if (body.side !== 'home' && body.side !== 'away') {
+        return json({ error: 'Puesto no válido', code: 'INVALID_SEAT' }, 400);
+      }
+      const fieldSlot = typeof body.fieldSlot === 'number' ? body.fieldSlot : Number(body.fieldSlot);
+      if (!Number.isInteger(fieldSlot) || fieldSlot < 0 || fieldSlot > 3) {
+        return json({ error: 'Puesto no válido', code: 'INVALID_SEAT' }, 400);
+      }
+      rpcName = 'claim_room_seat';
+      args = {
+        p_user_id: userId,
+        p_room_id: body.roomId,
+        p_side: body.side,
+        p_field_slot: fieldSlot,
+      };
       break;
     }
     case 'start': {

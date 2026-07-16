@@ -17,6 +17,13 @@ export type PlayerInput = {
   seq: number;
 };
 
+/** Maps a human controller to an outfield pitch index (0–9; GK stays bot). */
+export type HumanAssignment = {
+  playerId: string;
+  side: Side;
+  fieldSlot: number;
+};
+
 export type MatchConfig = {
   durationSeconds?: number;
   homeFormationId?: FormationId;
@@ -24,9 +31,11 @@ export type MatchConfig = {
   /** Custom 10-outfield lineup (normalized). Overrides formation anchors when length is 10. */
   homeLineup?: Array<{ nx: number; ny: number; role?: Exclude<FieldRole, 'gk'> }>;
   awayLineup?: Array<{ nx: number; ny: number; role?: Exclude<FieldRole, 'gk'> }>;
-  /** Player id mapped to the home human outfield slot. */
+  /** Multi-human pitch assignments (preferred). */
+  humanAssignments?: HumanAssignment[];
+  /** @deprecated Prefer humanAssignments. Maps to home fieldSlot 0. */
   homeHumanPlayerId?: string;
-  /** Player id mapped to the away human outfield slot. */
+  /** @deprecated Prefer humanAssignments. Maps to away fieldSlot 0. */
   awayHumanPlayerId?: string;
   seed?: number;
   /** Optional initial ball state (useful for tests / replays). */
@@ -67,5 +76,7 @@ export type MatchSnapshot = {
   score: { home: number; away: number };
   ball: BallSnapshot;
   players: PlayerSnapshot[];
+  /** First human id per side (legacy convenience). */
   humanSlots: { home: string | null; away: string | null };
+  humanAssignments: HumanAssignment[];
 };
