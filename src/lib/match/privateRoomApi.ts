@@ -55,11 +55,15 @@ function toInvokeError(
 }
 
 async function ensureSessionForRpc(): Promise<PrivateRoomError | null> {
+  const { getAuthState } = await import('../auth/session');
+  let auth = getAuthState();
+  if (auth.user && auth.accessToken) {
+    return null;
+  }
   await hydrateSession();
   const token = await ensureAccessToken();
   if (!token) {
-    const { getAuthState } = await import('../auth/session');
-    const auth = getAuthState();
+    auth = getAuthState();
     if (!auth.user) {
       return { code: 'UNAUTHORIZED', message: ROOM_ERROR_MESSAGES.UNAUTHORIZED };
     }

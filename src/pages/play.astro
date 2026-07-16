@@ -30,6 +30,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     onPresenceJoin,
     onPresenceLeave,
     isRealtimeAvailable,
+    cleanup as cleanupRealtime,
   } from '../lib/realtime/client';
   import {
     appendLobbyMatch,
@@ -273,6 +274,11 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     unbindStoppage();
     for (const unsub of playUnsubscribes.splice(0)) unsub();
     for (const unsub of matchChannelUnsubscribes.splice(0)) unsub();
+    try {
+      cleanupRealtime();
+    } catch {
+      // ignore
+    }
   }
 
   function showResultPanel(detail) {
@@ -473,6 +479,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     shellRoot.querySelector('[data-hub-card="online"]')?.addEventListener('click', () => {
       shell.setMatchMode('online');
       shell.setHubSubview('online');
+      ensurePlayRealtime();
       window.dispatchEvent(new CustomEvent('golazo:play-mode', { detail: { mode: 'online' } }));
     });
     shellRoot.querySelector('[data-hub-back]')?.addEventListener('click', () => {
@@ -855,10 +862,18 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     );
   }
 
+  let playRealtimeWired = false;
+  function ensurePlayRealtime() {
+    if (playRealtimeWired) return;
+    playRealtimeWired = true;
+    void wirePlayRealtime();
+  }
+
   async function wirePlaySession() {
     const sessionEl = shellRoot.querySelector('[data-play-session]');
     const bootStatus = shellRoot.querySelector('[data-boot-status]');
     const { fetchProfile } = await import('../lib/profile/store');
+    let lastSessionUserId = null;
 
     subscribeAuth(async (state) => {
       currentUser = state.user;
@@ -869,11 +884,21 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         }
         return;
       }
+      const userId = state.user?.id ?? null;
       if (state.user) {
-        const profile = await fetchProfile(state.user.id);
-        const name = profile?.display_name ?? state.user.name ?? 'Jugador';
-        if (sessionEl) sessionEl.textContent = `Jugando como ${name}`;
+        if (sessionEl && userId !== lastSessionUserId) {
+          sessionEl.textContent = `Jugando como ${state.user.name ?? 'Jugador'}`;
+        }
+        if (userId !== lastSessionUserId) {
+          lastSessionUserId = userId;
+          const profile = await fetchProfile(state.user.id);
+          const name = profile?.display_name ?? state.user.name ?? 'Jugador';
+          if (sessionEl && getAuthState().user?.id === userId) {
+            sessionEl.textContent = `Jugando como ${name}`;
+          }
+        }
       } else if (sessionEl) {
+        lastSessionUserId = null;
         sessionEl.innerHTML =
           'Puedes jugar <strong>Contra bots</strong> como invitado. <a href="/login?returnTo=%2Fplay">Inicia sesión</a> para Online 1v1 y guardar progreso.';
       }
@@ -889,7 +914,6 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
   wireShellChrome();
   wirePlaySession();
   initPlayFlow();
-  wirePlayRealtime();
   window.addEventListener('pagehide', () => {
     void teardownPlayPage();
   });

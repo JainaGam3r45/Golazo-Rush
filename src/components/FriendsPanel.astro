@@ -254,6 +254,10 @@ const { compact = false } = Astro.props;
     let inviteCode: string | null = null;
     let dmPeer: FriendPeer | null = null;
     let presenceBound = false;
+    let socialStarted = false;
+    let lastAuthUserId: string | null | undefined = undefined;
+    let presenceRenderTimer: number | null = null;
+    const presenceUnsubs: Array<() => void> = [];
 
     const errorEl = root.querySelector<HTMLElement>('[data-friends-error]');
     const okEl = root.querySelector<HTMLElement>('[data-friends-ok]');
@@ -267,6 +271,14 @@ const { compact = false } = Astro.props;
     const dmTitle = root.querySelector<HTMLElement>('[data-friends-dm-title]');
     const dmList = root.querySelector('[data-friends-dm-list]');
     const dmError = root.querySelector<HTMLElement>('[data-friends-dm-error]');
+
+    function schedulePresenceRender() {
+      if (presenceRenderTimer !== null) return;
+      presenceRenderTimer = window.setTimeout(() => {
+        presenceRenderTimer = null;
+        renderLists();
+      }, 250);
+    }
 
     function setError(msg: string | null) {
       if (!errorEl) return;
@@ -476,22 +488,42 @@ const { compact = false } = Astro.props;
         for (const member of sub.members ?? []) {
           if (member.type === 'user') onlineIds.add(member.presenceId);
         }
-        onPresenceJoin(({ member, meta }) => {
-          if (meta.channel !== CHANNELS.PRESENCE) return;
-          if (member.type === 'user') {
-            onlineIds.add(member.presenceId);
-            renderLists();
-          }
-        });
-        onPresenceLeave(({ member, meta }) => {
-          if (meta.channel !== CHANNELS.PRESENCE) return;
-          onlineIds.delete(member.presenceId);
-          renderLists();
-        });
+        presenceUnsubs.push(
+          onPresenceJoin(({ member, meta }) => {
+            if (meta.channel !== CHANNELS.PRESENCE) return;
+            if (member.type === 'user') {
+              onlineIds.add(member.presenceId);
+              schedulePresenceRender();
+            }
+          }),
+        );
+        presenceUnsubs.push(
+          onPresenceLeave(({ member, meta }) => {
+            if (meta.channel !== CHANNELS.PRESENCE) return;
+            onlineIds.delete(member.presenceId);
+            schedulePresenceRender();
+          }),
+        );
         renderLists();
       } catch {
-        // presence is best-effort
+        presenceBound = false;
       }
+    }
+
+    async function startSocial() {
+      if (socialStarted) return;
+      socialStarted = true;
+      await refresh();
+      await bindPresence();
+    }
+
+    function teardownSocial() {
+      if (presenceRenderTimer !== null) {
+        window.clearTimeout(presenceRenderTimer);
+        presenceRenderTimer = null;
+      }
+      for (const unsub of presenceUnsubs.splice(0)) unsub();
+      presenceBound = false;
     }
 
     async function openDm(peer: FriendPeer) {
@@ -579,16 +611,27 @@ const { compact = false } = Astro.props;
       renderLists();
     }) as EventListener);
 
-    subscribeAuth(() => {
+    window.addEventListener('golazo:play-mode', ((event: CustomEvent<{ mode: string }>) => {
+      if (event.detail?.mode === 'online') {
+        void startSocial();
+      }
+    }) as EventListener);
+
+    subscribeAuth((state) => {
+      if (state.loading || state.phase === 'hydrating' || state.phase === 'refreshing') {
+        return;
+      }
+      const userId = state.user?.id ?? null;
+      if (userId === lastAuthUserId) return;
+      lastAuthUserId = userId;
+      if (!socialStarted) return;
       void refresh();
-      void bindPresence();
+      if (userId) void bindPresence();
     });
 
-    void (async () => {
-      await hydrateSession();
-      await refresh();
-      await bindPresence();
-    })();
+    window.addEventListener('pagehide', teardownSocial);
+
+    void hydrateSession();
   }
 
   for (const root of document.querySelectorAll<HTMLElement>('[data-friends-panel]')) {

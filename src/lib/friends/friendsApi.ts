@@ -1,4 +1,4 @@
-import { ensureAccessToken, hydrateSession } from '../auth/session';
+import { ensureAccessToken, getAuthState, hydrateSession } from '../auth/session';
 import { insforge, isInsForgeConfigured } from '../insforge';
 import type { DirectMessage, FriendsListPayload } from './types';
 import {
@@ -15,6 +15,10 @@ type InvokeResult<T> =
   | { ok: false; error: FriendsError };
 
 async function ensureSession(): Promise<FriendsError | null> {
+  const current = getAuthState();
+  if (current.user && current.accessToken) {
+    return null;
+  }
   await hydrateSession();
   const token = await ensureAccessToken();
   if (!token) {

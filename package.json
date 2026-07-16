@@ -1,7 +1,7 @@
 {
   "name": "golazo-rush",
   "type": "module",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "author": {
     "name": "JainaGam3r45",
     "url": "https://github.com/JainaGam3r45"
@@ -15,7 +15,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "generate:flags": "node scripts/generate-flag-sprite.mjs",
-    "test:unit": "node --experimental-strip-types --test tests/unit/roomRules.test.ts tests/unit/onlineClient.test.ts tests/unit/onlineAuth.test.ts tests/unit/privateRoomApi.test.ts tests/unit/friendsApi.test.ts tests/unit/authRedirect.test.ts tests/unit/onlineUiState.test.ts tests/unit/lineup.test.ts tests/unit/setupDuration.test.ts tests/unit/shellState.test.ts",
+    "test:unit": "node --experimental-strip-types --test tests/unit/roomRules.test.ts tests/unit/onlineClient.test.ts tests/unit/onlineAuth.test.ts tests/unit/privateRoomApi.test.ts tests/unit/friendsApi.test.ts tests/unit/authRedirect.test.ts tests/unit/onlineUiState.test.ts tests/unit/lineup.test.ts tests/unit/setupDuration.test.ts tests/unit/shellState.test.ts tests/unit/authSessionNotify.test.ts",
     "test:game-sim": "pnpm --filter @golazo-rush/game-sim test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

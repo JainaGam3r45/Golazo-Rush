@@ -77,6 +77,19 @@ function derivePhase(partial: {
   return 'authenticated';
 }
 
+function authStatesEqual(a: AuthState, b: AuthState): boolean {
+  return (
+    a.loading === b.loading &&
+    a.phase === b.phase &&
+    a.accessToken === b.accessToken &&
+    a.sessionReady === b.sessionReady &&
+    a.tokenError === b.tokenError &&
+    a.user?.id === b.user?.id &&
+    a.user?.email === b.user?.email &&
+    a.user?.name === b.user?.name
+  );
+}
+
 function setState(next: Partial<AuthState> & { refreshing?: boolean; expired?: boolean }) {
   const user = next.user !== undefined ? next.user : state.user;
   const loading = next.loading !== undefined ? next.loading : state.loading;
@@ -93,7 +106,7 @@ function setState(next: Partial<AuthState> & { refreshing?: boolean; expired?: b
       error: tokenError,
     });
 
-  state = {
+  const nextState: AuthState = {
     user,
     loading,
     phase,
@@ -101,6 +114,14 @@ function setState(next: Partial<AuthState> & { refreshing?: boolean; expired?: b
     sessionReady: !loading && phase !== 'hydrating',
     tokenError,
   };
+
+  // Avoid notify storms: callers like listFriends → ensureAccessToken used to
+  // re-set identical auth and re-trigger subscribeAuth → infinite RPC loops.
+  if (authStatesEqual(state, nextState)) {
+    return;
+  }
+
+  state = nextState;
   notify();
 }
 

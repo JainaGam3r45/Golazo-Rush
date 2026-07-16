@@ -4,6 +4,14 @@ import type { RealtimeEventName } from './types';
 type EventHandler = (payload: Record<string, unknown>) => void;
 
 const subscriptions = new Set<string>();
+const subscribeInflight = new Map<
+  string,
+  Promise<{ ok: boolean; members: Array<{ presenceId: string; type: string; joinedAt: string }> }>
+>();
+const channelMembers = new Map<
+  string,
+  Array<{ presenceId: string; type: string; joinedAt: string }>
+>();
 const boundHandlers = new Map<string, Map<EventHandler, EventHandler>>();
 const presenceUnsubs = new Set<() => void>();
 let connectPromise: Promise<boolean> | null = null;
@@ -41,25 +49,40 @@ export async function subscribe(
     return { ok: false, members: [] };
   }
 
-  const connected = await connect();
-  if (!connected) {
-    return { ok: false, members: [] };
-  }
-
   if (subscriptions.has(channel)) {
-    return { ok: true, members: [] };
+    return { ok: true, members: channelMembers.get(channel) ?? [] };
   }
 
-  const response = await insforge.realtime.subscribe(channel);
-  if (!response.ok) {
-    return { ok: false, members: [] };
+  const pending = subscribeInflight.get(channel);
+  if (pending) {
+    return pending;
   }
 
-  subscriptions.add(channel);
-  return {
-    ok: true,
-    members: response.presence?.members ?? [],
-  };
+  const work = (async () => {
+    const connected = await connect();
+    if (!connected) {
+      return { ok: false, members: [] };
+    }
+
+    if (subscriptions.has(channel)) {
+      return { ok: true, members: channelMembers.get(channel) ?? [] };
+    }
+
+    const response = await insforge!.realtime.subscribe(channel);
+    if (!response.ok) {
+      return { ok: false, members: [] };
+    }
+
+    const members = response.presence?.members ?? [];
+    subscriptions.add(channel);
+    channelMembers.set(channel, members);
+    return { ok: true, members };
+  })().finally(() => {
+    subscribeInflight.delete(channel);
+  });
+
+  subscribeInflight.set(channel, work);
+  return work;
 }
 
 export function onEvent(event: RealtimeEventName, handler: EventHandler): () => void {
@@ -119,9 +142,15 @@ export function cleanup(): void {
   if (!insforge) return;
 
   for (const channel of subscriptions) {
-    insforge.realtime.unsubscribe(channel);
+    try {
+      insforge.realtime.unsubscribe(channel);
+    } catch {
+      // ignore
+    }
   }
   subscriptions.clear();
+  subscribeInflight.clear();
+  channelMembers.clear();
 
   for (const [event, handlers] of boundHandlers) {
     for (const wrapped of handlers.values()) {

@@ -1228,7 +1228,15 @@ const { teams } = Astro.props;
       }
     }) as EventListener);
 
-    subscribeAuth(() => {
+    let lastAuthKey = '';
+    subscribeAuth((state) => {
+      if (state.loading || state.phase === 'hydrating' || state.phase === 'refreshing') {
+        renderUi();
+        return;
+      }
+      const key = `${state.phase}:${state.user?.id ?? ''}:${state.accessToken ? '1' : '0'}`;
+      if (key === lastAuthKey) return;
+      lastAuthKey = key;
       renderUi();
     });
 
@@ -1238,8 +1246,11 @@ const { teams } = Astro.props;
       if (roomCode) {
         const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
         if (codeInput) codeInput.value = roomCode.slice(0, 6);
+        // Deep-link into a room: hydrate online gate once ready.
+        void syncSessionGate();
+      } else {
+        renderUi();
       }
-      void syncSessionGate();
     });
   }
 
