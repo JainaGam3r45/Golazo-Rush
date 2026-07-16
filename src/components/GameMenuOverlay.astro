@@ -1,5 +1,5 @@
 ---
-/** In-game menu + controls + abandon confirm — always inside #game-shell. */
+/** In-game menu + controls + tutorial + abandon confirm — always inside #game-shell. */
 ---
 
 <div class="game-menu" data-game-menu hidden>
@@ -16,16 +16,50 @@
 <div class="game-controls-help" data-controls-help hidden>
   <div class="game-controls-help__card" role="dialog" aria-modal="true" aria-labelledby="controls-help-title">
     <h3 id="controls-help-title">Controles</h3>
-    <div class="game-controls-help__chips">
-      <span><kbd>WASD</kbd> mover</span>
-      <span><kbd>Shift</kbd> sprint</span>
-      <span><kbd>Espacio</kbd> tiro</span>
-      <span><kbd>E</kbd> pase</span>
-      <span><kbd>Q</kbd> despeje</span>
-      <span><kbd>F</kbd> entrada</span>
+
+    <div class="controls-sheet" aria-hidden="true">
+      <div class="controls-sheet__keys">
+        <span class="controls-key controls-key--up" data-bind-label="up">W</span>
+        <span class="controls-key controls-key--left" data-bind-label="left">A</span>
+        <span class="controls-key controls-key--down" data-bind-label="down">S</span>
+        <span class="controls-key controls-key--right" data-bind-label="right">D</span>
+        <p class="controls-sheet__caption">Mover</p>
+      </div>
+      <div class="controls-sheet__mouse">
+        <div class="controls-mouse">
+          <span class="controls-mouse__btn controls-mouse__btn--left"></span>
+          <span class="controls-mouse__btn controls-mouse__btn--right"></span>
+        </div>
+        <div class="controls-mouse__legend">
+          <span><span class="controls-mouse__dot controls-mouse__dot--left"></span> <b data-bind-label="pass">Clic izquierdo</b> · Pase</span>
+          <span><span class="controls-mouse__dot controls-mouse__dot--right"></span> <b data-bind-label="tackle">Clic derecho</b> · Entrada</span>
+        </div>
+      </div>
     </div>
-    <p data-controls-help-hint>En juego: controla tu jugador y busca el gol.</p>
-    <button type="button" class="btn" data-controls-help-close>Cerrar</button>
+
+    <p class="game-controls-help__lead">Toca un control para reasignarlo.</p>
+    <ul class="game-controls-remap" data-controls-remap></ul>
+    <p class="game-controls-remap__conflict" data-controls-conflict hidden>
+      Hay controles repetidos. Reasigna los marcados en rojo.
+    </p>
+
+    <div class="game-controls-help__actions">
+      <button type="button" class="btn-outline" data-controls-reset>Restablecer</button>
+      <button type="button" class="btn" data-controls-help-close>Cerrar</button>
+    </div>
+    <p class="game-controls-help__hint" data-controls-help-hint>En juego: controla tu jugador y busca el gol.</p>
+  </div>
+</div>
+
+<div class="game-tutorial" data-controls-tutorial hidden>
+  <div class="game-tutorial__card" role="dialog" aria-modal="true" aria-labelledby="controls-tutorial-title">
+    <h2 class="game-tutorial__title" id="controls-tutorial-title">Cómo se juega</h2>
+    <p class="game-tutorial__lead">Estos son tus controles. Podrás cambiarlos cuando quieras desde el menú.</p>
+    <ul class="game-tutorial__list" data-tutorial-list></ul>
+    <div class="game-tutorial__actions">
+      <button type="button" class="btn" data-tutorial-ok>Entendido</button>
+      <button type="button" class="btn-outline" data-tutorial-configure>Configurar controles</button>
+    </div>
   </div>
 </div>
 

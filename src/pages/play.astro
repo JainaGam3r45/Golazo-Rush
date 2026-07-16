@@ -48,6 +48,19 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     clearGameplayKeysSuspended,
     getActivePhaserGame,
   } from '../lib/match/inputSuspend';
+  import {
+    ACTION_LABELS,
+    CONTROL_ACTIONS,
+    bindFromKeyboardEvent,
+    bindFromMouseButton,
+    bindLabel,
+    conflictingActions,
+    hasSeenControlsTutorial,
+    loadBindings,
+    markControlsTutorialSeen,
+    resetToDefaults,
+    saveBindings,
+  } from '../lib/match/controlBindings';
   import { refreshGameScale } from '../lib/match/gameBridge';
   import { sendRoomChat } from '../lib/match/privateRoomApi';
   import { chatMessageDedupeKey } from '../lib/match/lineup';
@@ -461,6 +474,167 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
     updateReenterChip(isShellFullscreen(shellRoot));
   }
 
+  let bindCapture = null;
+
+  function refreshControlSheet() {
+    const binds = loadBindings();
+    for (const el of shellRoot.querySelectorAll('[data-bind-label]')) {
+      const action = el.getAttribute('data-bind-label');
+      if (action && binds[action]) el.textContent = bindLabel(binds[action]);
+    }
+  }
+
+  function renderRemap() {
+    const list = shellRoot.querySelector('[data-controls-remap]');
+    if (!list) return;
+    const binds = loadBindings();
+    const conflicts = conflictingActions(binds);
+    list.innerHTML = '';
+    for (const action of CONTROL_ACTIONS) {
+      const li = document.createElement('li');
+      if (conflicts.has(action)) li.classList.add('is-conflict');
+      const label = document.createElement('span');
+      label.className = 'game-controls-remap__action';
+      label.textContent = ACTION_LABELS[action];
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'controls-bind-chip';
+      chip.dataset.action = action;
+      chip.textContent = bindLabel(binds[action]);
+      chip.addEventListener('click', () => beginBindCapture(action, chip));
+      li.append(label, chip);
+      list.appendChild(li);
+    }
+    const conflictEl = shellRoot.querySelector('[data-controls-conflict]');
+    if (conflictEl) conflictEl.hidden = conflicts.size === 0;
+    refreshControlSheet();
+  }
+
+  function beginBindCapture(action, chip) {
+    cancelBindCapture();
+    bindCapture = { action, chip };
+    chip.classList.add('is-capturing');
+    chip.textContent = 'Pulsa una tecla o clic…';
+    window.addEventListener('keydown', onBindCaptureKey, true);
+    window.addEventListener('mousedown', onBindCaptureMouse, true);
+    window.addEventListener('contextmenu', onBindCaptureContext, true);
+  }
+
+  function cancelBindCapture() {
+    if (!bindCapture) return;
+    bindCapture.chip.classList.remove('is-capturing');
+    bindCapture = null;
+    window.removeEventListener('keydown', onBindCaptureKey, true);
+    window.removeEventListener('mousedown', onBindCaptureMouse, true);
+    window.removeEventListener('contextmenu', onBindCaptureContext, true);
+  }
+
+  function assignBind(bind) {
+    if (!bindCapture) return;
+    const binds = loadBindings();
+    binds[bindCapture.action] = bind;
+    saveBindings(binds);
+    cancelBindCapture();
+    renderRemap();
+  }
+
+  function onBindCaptureKey(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      cancelBindCapture();
+      renderRemap();
+      return;
+    }
+    const bind = bindFromKeyboardEvent(event);
+    if (bind) assignBind(bind);
+  }
+
+  function onBindCaptureMouse(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const bind = bindFromMouseButton(event.button);
+    if (bind) assignBind(bind);
+  }
+
+  function onBindCaptureContext(event) {
+    event.preventDefault();
+  }
+
+  function openControlsHelp() {
+    renderRemap();
+    const help = shellRoot.querySelector('[data-controls-help]');
+    if (help) help.hidden = false;
+  }
+
+  function resumeMatchInputIfIdle() {
+    if (shell.getState() !== 'match') return;
+    const menu = shellRoot.querySelector('[data-game-menu]');
+    const help = shellRoot.querySelector('[data-controls-help]');
+    const tutorial = shellRoot.querySelector('[data-controls-tutorial]');
+    const anyOpen =
+      (menu && !menu.hidden) ||
+      (help && !help.hidden) ||
+      (tutorial && !tutorial.hidden) ||
+      chatOpen;
+    if (anyOpen) return;
+    const game = getActivePhaserGame();
+    if (game) clearGameplayKeysSuspended(game);
+  }
+
+  function renderTutorialList() {
+    const list = shellRoot.querySelector('[data-tutorial-list]');
+    if (!list) return;
+    const binds = loadBindings();
+    const rows = [
+      ['Mover', [binds.up, binds.left, binds.down, binds.right].map(bindLabel).join(' ')],
+      ['Sprint', bindLabel(binds.sprint)],
+      ['Tiro (mantén para potencia)', bindLabel(binds.shoot)],
+      ['Pase', bindLabel(binds.pass)],
+      ['Entrada', bindLabel(binds.tackle)],
+      ['Despeje / pase largo', bindLabel(binds.clear)],
+    ];
+    list.innerHTML = '';
+    for (const [name, value] of rows) {
+      const li = document.createElement('li');
+      const nameEl = document.createElement('span');
+      nameEl.textContent = name;
+      const valueEl = document.createElement('b');
+      valueEl.textContent = value;
+      li.append(nameEl, valueEl);
+      list.appendChild(li);
+    }
+  }
+
+  function maybeShowControlsTutorial() {
+    if (hasSeenControlsTutorial()) return;
+    renderTutorialList();
+    const overlay = shellRoot.querySelector('[data-controls-tutorial]');
+    if (overlay) overlay.hidden = false;
+    setActiveGameSuspended(true);
+  }
+
+  function wireControls() {
+    shellRoot.querySelector('[data-controls-reset]')?.addEventListener('click', () => {
+      cancelBindCapture();
+      resetToDefaults();
+      renderRemap();
+    });
+    shellRoot.querySelector('[data-tutorial-ok]')?.addEventListener('click', () => {
+      const overlay = shellRoot.querySelector('[data-controls-tutorial]');
+      if (overlay) overlay.hidden = true;
+      markControlsTutorialSeen();
+      resumeMatchInputIfIdle();
+    });
+    shellRoot.querySelector('[data-tutorial-configure]')?.addEventListener('click', () => {
+      const overlay = shellRoot.querySelector('[data-controls-tutorial]');
+      if (overlay) overlay.hidden = true;
+      markControlsTutorialSeen();
+      openControlsHelp();
+    });
+    refreshControlSheet();
+  }
+
   function wireShellChrome() {
     shellRoot.querySelector('[data-enter-game]')?.addEventListener('click', () => {
       void enterHub(true);
@@ -555,12 +729,13 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       }
     });
     shellRoot.querySelector('[data-menu-controls]')?.addEventListener('click', () => {
-      const help = shellRoot.querySelector('[data-controls-help]');
-      if (help) help.hidden = false;
+      openControlsHelp();
     });
     shellRoot.querySelector('[data-controls-help-close]')?.addEventListener('click', () => {
+      cancelBindCapture();
       const help = shellRoot.querySelector('[data-controls-help]');
       if (help) help.hidden = true;
+      resumeMatchInputIfIdle();
     });
     shellRoot.querySelector('[data-menu-sound]')?.addEventListener('click', async () => {
       const { unlockMatchAudio } = await import('../game/audio/matchAudio');
@@ -636,6 +811,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       startGame('game-container', setup);
       bindStoppage();
       bindMatchEnded((e) => submitMatchResult(e.detail));
+      maybeShowControlsTutorial();
     });
 
     window.addEventListener('golazo:online-match-start', async (event) => {
@@ -713,6 +889,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         showResultPanel(e.detail);
         updateResultPanelSyncState('local');
       });
+      if (detail.role !== 'spectator') maybeShowControlsTutorial();
     });
 
     window.addEventListener('golazo:online-conn', (event) => {
@@ -926,6 +1103,7 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
   }
 
   wireShellChrome();
+  wireControls();
   wirePlaySession();
   initPlayFlow();
   window.addEventListener('pagehide', () => {
