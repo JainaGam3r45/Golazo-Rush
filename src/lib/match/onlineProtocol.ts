@@ -61,6 +61,8 @@ export type ClientJoinMsg = {
   t: 'join';
   roomId: string;
   token: string;
+  /** Viewer-only: receives snapshots, never sends matchJoin/input. */
+  role?: 'player' | 'spectator';
   matchSessionToken?: string;
   formatId?: '5v5';
 };
@@ -87,6 +89,10 @@ export type ClientProbeInputMsg = {
 export type ClientMatchJoinMsg = {
   t: 'matchJoin';
   side: 'home' | 'away';
+  fieldSlot?: number;
+  localPlayerId?: string;
+  humans?: Array<{ userId: string; side: 'home' | 'away'; fieldSlot: number }>;
+  allowBots?: boolean;
   durationSeconds?: number;
   homeFormationId?: string;
   awayFormationId?: string;

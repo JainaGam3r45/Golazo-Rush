@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
 /**
+ * @typedef {'player'|'spectator'} ConnRole
+ */
+
+/**
  * @typedef {object} RoomConnection
  * @property {string} connectionId
  * @property {import('ws').WebSocket} socket
  * @property {string} userId
+ * @property {ConnRole} role
  * @property {number} lastSeenAt
  * @property {number} msgWindowStart
  * @property {number} msgCount
@@ -18,18 +23,24 @@ import { randomUUID } from 'node:crypto';
  */
 
 export class RoomRegistry {
-  constructor({ maxPerRoom = 2 } = {}) {
+  /**
+   * @param {{ maxPerRoom?: number, maxSpectators?: number }} [opts]
+   */
+  constructor({ maxPerRoom = 10, maxSpectators = 8 } = {}) {
     /** @type {Map<string, ProbeRoom>} */
     this.rooms = new Map();
     this.maxPerRoom = maxPerRoom;
+    this.maxSpectators = maxSpectators;
   }
 
   /**
    * @param {string} roomId
    * @param {import('ws').WebSocket} socket
    * @param {string} userId
+   * @param {{ role?: ConnRole }} [opts]
    */
-  join(roomId, socket, userId) {
+  join(roomId, socket, userId, opts = {}) {
+    const role = opts.role === 'spectator' ? 'spectator' : 'player';
     let room = this.rooms.get(roomId);
     if (!room) {
       room = { roomId, connections: new Map(), createdAt: Date.now() };
@@ -40,11 +51,23 @@ export class RoomRegistry {
       err.code = 'ROOM_FULL';
       throw err;
     }
+    if (role === 'spectator') {
+      let spectators = 0;
+      for (const c of room.connections.values()) {
+        if (c.role === 'spectator') spectators += 1;
+      }
+      if (spectators >= this.maxSpectators) {
+        const err = new Error('Spectator slots full');
+        err.code = 'ROOM_FULL';
+        throw err;
+      }
+    }
     const connectionId = randomUUID();
     const conn = {
       connectionId,
       socket,
       userId,
+      role,
       lastSeenAt: Date.now(),
       msgWindowStart: Date.now(),
       msgCount: 0,

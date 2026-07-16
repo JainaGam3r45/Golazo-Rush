@@ -12,7 +12,7 @@ export type RoomRpcCall = {
 };
 
 const ROOM_RPC_CODES =
-  /\b(UNAUTHORIZED|ALREADY_IN_ROOM|ACTIVE_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED|SESSION_EXPIRED)\b/;
+  /\b(UNAUTHORIZED|ALREADY_IN_ROOM|ACTIVE_ROOM|INVALID_DURATION|INVALID_FORMATION|INVALID_TEAM|INVALID_CODE|ROOM_NOT_FOUND|ROOM_CLOSED|ROOM_EXPIRED|ROOM_FULL|TEAM_TAKEN|ROOM_LOCKED|NOT_A_MEMBER|NEED_OPPONENT|LOADOUT_INCOMPLETE|NOT_READY|NOT_HOST|START_CONFLICT|EMPTY_MESSAGE|MESSAGE_TOO_LONG|RATE_LIMITED|ROOM_CODE_COLLISION|ROOM_CREATE_FAILED|SESSION_EXPIRED|SPECTATOR_READONLY|INVALID_LINEUP|SEAT_TAKEN|SIDE_FULL|INVALID_SEAT)\b/;
 
 export const ROOM_ERROR_MESSAGES: Record<string, string> = {
   UNAUTHORIZED: 'Debes iniciar sesión',
@@ -31,7 +31,7 @@ export const ROOM_ERROR_MESSAGES: Record<string, string> = {
   NOT_A_MEMBER: 'No eres miembro de esta sala',
   NEED_OPPONENT: 'Espera a que se una un rival',
   LOADOUT_INCOMPLETE: 'Elige selección y formación antes de listo',
-  NOT_READY: 'Ambos jugadores deben estar listos',
+  NOT_READY: 'Los jugadores deben estar listos',
   NOT_HOST: 'Solo el anfitrión puede iniciar',
   START_CONFLICT: 'No se pudo iniciar el partido',
   EMPTY_MESSAGE: 'El mensaje está vacío',
@@ -39,6 +39,11 @@ export const ROOM_ERROR_MESSAGES: Record<string, string> = {
   RATE_LIMITED: 'Espera un momento antes de enviar otro mensaje',
   ROOM_CODE_COLLISION: 'No se pudo generar un código de sala',
   ROOM_CREATE_FAILED: 'No se pudo crear la sala',
+  SPECTATOR_READONLY: 'Los espectadores solo pueden ver la sala',
+  INVALID_LINEUP: 'Alineación no válida',
+  SEAT_TAKEN: 'Ese puesto ya está ocupado',
+  SIDE_FULL: 'Ese equipo ya tiene 2 jugadores',
+  INVALID_SEAT: 'Puesto no válido',
   INTERNAL_ERROR: 'Error interno del servidor',
   NOT_CONFIGURED: 'InsForge no está configurado',
   NETWORK_ERROR: 'No se pudo conectar al servidor del partido.',
@@ -107,6 +112,16 @@ export function buildRoomRpcCall(
         shape: 'room',
       };
     }
+    case 'joinSpectator': {
+      if (typeof body.code !== 'string' || !body.code) {
+        return { error: { code: 'INVALID_CODE', message: ROOM_ERROR_MESSAGES.INVALID_CODE } };
+      }
+      return {
+        fn: 'join_room_as_spectator_auth',
+        args: { p_code: body.code },
+        shape: 'room',
+      };
+    }
     case 'leave': {
       if (typeof body.roomId !== 'string' || !body.roomId) {
         return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
@@ -131,6 +146,27 @@ export function buildRoomRpcCall(
           p_team_id: (body.teamId as string | undefined) ?? null,
           p_formation_id: (body.formationId as string | undefined) ?? null,
           p_lineup: body.lineup ?? null,
+        },
+        shape: 'room',
+      };
+    }
+    case 'claimSeat': {
+      if (typeof body.roomId !== 'string' || !body.roomId) {
+        return { error: { code: 'ROOM_NOT_FOUND', message: ROOM_ERROR_MESSAGES.ROOM_NOT_FOUND } };
+      }
+      if (body.side !== 'home' && body.side !== 'away') {
+        return { error: { code: 'INVALID_SEAT', message: ROOM_ERROR_MESSAGES.INVALID_SEAT } };
+      }
+      const fieldSlot = typeof body.fieldSlot === 'number' ? body.fieldSlot : Number(body.fieldSlot);
+      if (!Number.isInteger(fieldSlot) || fieldSlot < 0 || fieldSlot > 3) {
+        return { error: { code: 'INVALID_SEAT', message: ROOM_ERROR_MESSAGES.INVALID_SEAT } };
+      }
+      return {
+        fn: 'claim_room_seat_auth',
+        args: {
+          p_room_id: body.roomId,
+          p_side: body.side,
+          p_field_slot: fieldSlot,
         },
         shape: 'room',
       };

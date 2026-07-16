@@ -6,6 +6,7 @@ export type {
   BallState,
   FieldRole,
   FormationId,
+  HumanAssignment,
   MatchConfig,
   MatchPhase,
   MatchSnapshot,

@@ -20,11 +20,16 @@ const { teams } = Astro.props;
 
   <div class="online-room__panel" data-online-view="guest" hidden>
     <h2 class="online-room__title">Online 1v1</h2>
-    <p class="online-room__lead">Compite contra otro jugador. Requiere una cuenta.</p>
-    <div class="online-room__cta">
-      <a class="btn" href="/login">Iniciar sesión</a>
-      <a class="btn-outline" href="/register">Crear cuenta</a>
+    <p class="online-room__lead">
+      Crea una sala, invita a un rival o juega vs bots. Necesitas una cuenta para el modo online.
+    </p>
+    <div class="online-room__cta online-room__cta--guest">
+      <a class="btn" href="/login?returnTo=%2Fplay" data-online-auth-login>Iniciar sesión</a>
+      <a class="btn-outline" href="/register?returnTo=%2Fplay" data-online-auth-register>Crear cuenta</a>
     </div>
+    <p class="online-room__muted online-room__guest-note">
+      Tras entrar volverás a <strong>/play</strong> para seguir con la sala.
+    </p>
   </div>
 
   <div class="online-room__panel" data-online-view="recoverableError" hidden>
@@ -32,7 +37,7 @@ const { teams } = Astro.props;
     <p class="online-room__error" data-online-error-msg role="alert"></p>
     <div class="online-room__cta">
       <button type="button" class="btn" data-online-retry-session>Reintentar sesión</button>
-      <a class="btn-outline" href="/login">Iniciar sesión</a>
+      <a class="btn-outline" href="/login?returnTo=%2Fplay" data-online-auth-login>Iniciar sesión</a>
     </div>
   </div>
 
@@ -42,7 +47,9 @@ const { teams } = Astro.props;
 
   <div class="online-room__panel" data-online-view="authenticatedIdle" hidden>
     <h2 class="online-room__title">Online 1v1</h2>
-    <p class="online-room__lead">Crea una sala privada o únete con un código de 6 caracteres.</p>
+    <p class="online-room__lead">
+      Crea una sala privada, únete con un código o mírala como espectador. Sin rival puedes jugar vs bots.
+    </p>
     <div class="online-room__entry-grid">
       <div class="online-room__card">
         <h3>Crear sala</h3>
@@ -66,7 +73,10 @@ const { teams } = Astro.props;
           <span>Código</span>
           <input type="text" data-online-code maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" />
         </label>
-        <button type="button" class="btn" data-online-join>Entrar a la sala</button>
+        <div class="online-room__cta">
+          <button type="button" class="btn" data-online-join>Entrar a jugar</button>
+          <button type="button" class="btn-outline" data-online-join-spectator>Entrar como espectador</button>
+        </div>
       </div>
     </div>
     <p class="online-room__error" data-online-entry-error hidden role="alert"></p>
@@ -88,7 +98,8 @@ const { teams } = Astro.props;
       <div>
         <p class="online-room__code-label">Código de sala</p>
         <p class="online-room__code" data-online-room-code>—</p>
-        <button type="button" class="btn-outline online-room__copy" data-online-copy-code>Copiar</button>
+        <button type="button" class="btn-outline online-room__copy" data-online-copy-code>Copiar código</button>
+        <button type="button" class="btn-outline online-room__copy" data-online-copy-invite>Copiar invitación</button>
       </div>
       <div class="online-room__lobby-meta">
         <p class="online-room__status" data-online-status>—</p>
@@ -99,26 +110,57 @@ const { teams } = Astro.props;
     </header>
 
     <div class="online-room__players" data-online-players>
-      <article class="online-room__player-card" data-online-slot="home">
-        <p class="online-room__slot">Local</p>
-        <p class="online-room__player-name" data-slot-name>—</p>
-        <p data-slot-team>—</p>
-        <p data-slot-formation>Alineación personalizada</p>
-        <p data-slot-ready>—</p>
-        <p data-slot-conn></p>
-      </article>
-      <article class="online-room__player-card" data-online-slot="away">
-        <p class="online-room__slot">Visitante</p>
-        <p class="online-room__player-name" data-slot-name>Esperando…</p>
-        <p data-slot-team>—</p>
-        <p data-slot-formation>—</p>
-        <p data-slot-ready>—</p>
-        <p data-slot-conn></p>
-      </article>
+      <div class="online-room__side" data-online-side="home">
+        <p class="online-room__side-title">Local</p>
+        <article class="online-room__player-card" data-online-seat="home:0">
+          <p class="online-room__slot">Puesto 1</p>
+          <p class="online-room__player-name" data-slot-name>—</p>
+          <p data-slot-team>—</p>
+          <p data-slot-formation>Alineación personalizada</p>
+          <p data-slot-ready>—</p>
+          <p data-slot-conn></p>
+          <button type="button" class="btn-outline online-room__claim" data-claim-seat="home:0" hidden>Ocupar</button>
+        </article>
+        <article class="online-room__player-card" data-online-seat="home:1">
+          <p class="online-room__slot">Puesto 2</p>
+          <p class="online-room__player-name" data-slot-name>—</p>
+          <p data-slot-team>—</p>
+          <p data-slot-formation>—</p>
+          <p data-slot-ready>—</p>
+          <p data-slot-conn></p>
+          <button type="button" class="btn-outline online-room__claim" data-claim-seat="home:1" hidden>Ocupar</button>
+        </article>
+      </div>
+      <div class="online-room__side" data-online-side="away">
+        <p class="online-room__side-title">Visitante</p>
+        <article class="online-room__player-card" data-online-seat="away:0">
+          <p class="online-room__slot">Puesto 1</p>
+          <p class="online-room__player-name" data-slot-name>Esperando…</p>
+          <p data-slot-team>—</p>
+          <p data-slot-formation>—</p>
+          <p data-slot-ready>—</p>
+          <p data-slot-conn></p>
+          <button type="button" class="btn-outline online-room__claim" data-claim-seat="away:0" hidden>Ocupar</button>
+        </article>
+        <article class="online-room__player-card" data-online-seat="away:1">
+          <p class="online-room__slot">Puesto 2</p>
+          <p class="online-room__player-name" data-slot-name>—</p>
+          <p data-slot-team>—</p>
+          <p data-slot-formation>—</p>
+          <p data-slot-ready>—</p>
+          <p data-slot-conn></p>
+          <button type="button" class="btn-outline online-room__claim" data-claim-seat="away:1" hidden>Ocupar</button>
+        </article>
+      </div>
+    </div>
+
+    <div class="online-room__spectators" data-online-spectators hidden>
+      <p class="online-room__section-label">Espectadores</p>
+      <p class="online-room__muted" data-online-spectators-list>—</p>
     </div>
 
     <div class="online-room__lobby-grid">
-      <div class="online-room__config">
+      <div class="online-room__config" data-online-player-config>
         <h3>Tu configuración</h3>
         <p class="online-room__section-label">Selección</p>
         <div class="online-room__teams" data-online-team-selector>
@@ -135,11 +177,16 @@ const { teams } = Astro.props;
         <div class="online-room__lineup" data-online-lineup-editor></div>
         <div class="online-room__actions">
           <button type="button" class="btn" data-online-ready>Listo</button>
-          <button type="button" class="btn-outline" data-online-start hidden>Iniciar cuenta regresiva</button>
+          <button type="button" class="btn online-room__start-bots" data-online-start hidden>Jugar vs bots</button>
         </div>
         <p class="online-room__hint" data-online-hint></p>
         <p class="online-room__error" data-online-lobby-error hidden role="alert"></p>
         <p class="online-room__countdown" data-online-countdown hidden></p>
+      </div>
+      <div class="online-room__config online-room__config--spectator" data-online-spectator-banner hidden>
+        <h3>Modo espectador</h3>
+        <p class="online-room__lead">Estás mirando la sala. No puedes marcar listo ni iniciar el partido.</p>
+        <p class="online-room__muted">Cuando el partido empiece, verás la retransmisión en vivo (sin controles).</p>
       </div>
 
       <div class="online-room__chat">
@@ -147,6 +194,12 @@ const { teams } = Astro.props;
         <ul class="online-room__chat-list" data-online-chat-list>
           <li class="online-room__chat-empty" data-online-chat-empty>Aún no hay mensajes.</li>
         </ul>
+        <div class="online-room__chat-quick" data-online-chat-quick>
+          <button type="button" data-online-quick-msg="¡Buena!">¡Buena!</button>
+          <button type="button" data-online-quick-msg="Suerte">Suerte</button>
+          <button type="button" data-online-quick-msg="Buen partido">Buen partido</button>
+          <button type="button" data-online-quick-msg="GG">GG</button>
+        </div>
         <form class="online-room__chat-form" data-online-chat-form>
           <input type="text" maxlength="200" data-online-chat-input placeholder="Escribe un mensaje…" autocomplete="off" />
           <button type="submit" class="btn">Enviar</button>
@@ -172,12 +225,28 @@ const { teams } = Astro.props;
   .online-room__title { margin: 0 0 0.5rem; font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--accent); letter-spacing: 0.04em; }
   .online-room__lead, .online-room__muted, .online-room__hint { margin: 0 0 1rem; color: var(--text-muted); line-height: 1.45; }
   .online-room__cta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .online-room__cta--guest .btn { min-width: 10rem; }
+  .online-room__guest-note { margin-top: 0.85rem; font-size: 0.85rem; }
+  .online-room__guest-note strong { color: var(--accent); font-weight: 600; }
   .online-room__entry-grid { display: grid; gap: 1rem; }
   @media (min-width: 720px) { .online-room__entry-grid { grid-template-columns: 1fr 1fr; } }
   .online-room__card {
     padding: 1.15rem 1.2rem;
     background: linear-gradient(160deg, color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 12%), var(--bg-elevated));
     border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+  }
+  .online-room__player-card--bot {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    background: color-mix(in srgb, var(--bg-elevated) 92%, var(--accent) 8%);
+  }
+  .online-room__player-card--bot .online-room__player-name { color: var(--accent); }
+  .online-room__start-bots { letter-spacing: 0.03em; }
+  .online-room__spectators { margin: 0 0 1rem; padding: 0.75rem 0.9rem; border: 1px dashed var(--border); }
+  .online-room__config--spectator {
+    padding: 1.1rem 1.15rem;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+    background: var(--bg-elevated);
   }
   .online-room__card h3 { margin: 0 0 0.75rem; font-family: var(--font-display); color: var(--accent); }
   .online-room__field { display: grid; gap: 0.35rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
@@ -191,14 +260,25 @@ const { teams } = Astro.props;
   .online-room__format-pill { margin: 0; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
   .online-room__players { display: grid; gap: 0.75rem; margin-bottom: 1.25rem; }
   @media (min-width: 720px) { .online-room__players { grid-template-columns: 1fr 1fr; } }
+  .online-room__side { display: grid; gap: 0.55rem; }
+  .online-room__side-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
   .online-room__player-card {
     padding: 1.05rem 1.1rem;
     border: 1px solid var(--border);
     background: var(--bg-elevated);
     min-height: 8.5rem;
+    position: relative;
   }
   .online-room__player-card--self { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: inset 3px 0 0 var(--accent); }
   .online-room__player-card--ready { border-color: var(--accent); }
+  .online-room__claim { margin-top: 0.55rem; font-size: 0.8rem; padding: 0.35rem 0.65rem; }
   .online-room__slot { margin: 0 0 0.35rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
   .online-room__player-name { margin: 0 0 0.35rem; font-family: var(--font-display); font-size: 1.2rem; color: var(--text); }
   .online-room__lobby-grid { display: grid; gap: 1.25rem; align-items: start; }
@@ -230,6 +310,25 @@ const { teams } = Astro.props;
     background: var(--bg); border: 1px solid var(--border);
   }
   .online-room__chat-form { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
+  .online-room__chat-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 0.55rem;
+  }
+  .online-room__chat-quick button {
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.55rem;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .online-room__chat-quick button:hover {
+    border-color: var(--accent);
+  }
   .online-room__skel-line { height: 0.85rem; margin-bottom: 0.5rem; background: var(--bg-elevated); border-radius: 4px; }
   .online-room__skel-line--short { width: 40%; }
   .online-room__copy { margin-top: 0.35rem; }
@@ -251,10 +350,12 @@ const { teams } = Astro.props;
   import { getSelectedTeam } from '../lib/storage/selectedTeam';
   import { DEFAULT_FORMATION, type FormationId, isFormationId } from '../lib/match/formations';
   import { cloneDefaultLineup, chatMessageDedupeKey, normalizeLineup, type CustomLineup } from '../lib/match/lineup';
+  import { roomInviteText } from '../lib/friends/types';
   import { mountLineupEditor, type LineupEditorHandle } from '../lib/match/lineupEditor';
   import {
     createPrivateRoom,
     joinPrivateRoom,
+    joinRoomAsSpectator,
     leavePrivateRoom,
     leaveActivePrivateRoom,
     recoverActivePrivateRoom,
@@ -263,9 +364,21 @@ const { teams } = Astro.props;
     startPrivateRoom,
     sendRoomChat,
     touchRoomPresence,
+    claimRoomSeat,
   } from '../lib/match/privateRoomApi';
-  import { roomStatusLabel, type RoomSnapshot, type RoomChatMessage } from '../lib/match/roomTypes';
+  import {
+    roomPlayers,
+    roomSpectators,
+    roomStatusLabel,
+    playerAtSeat,
+    ROOM_FIELD_SLOTS,
+    MAX_HUMANS_TOTAL,
+    type RoomSnapshot,
+    type RoomChatMessage,
+    type RoomSlot,
+  } from '../lib/match/roomTypes';
   import { deriveOnlineUiState, needsAbandonConfirm, type OnlineUiState } from '../lib/match/onlineUiState';
+  import { persistReturnTo } from '../lib/auth/redirect';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
     subscribe,
@@ -277,6 +390,10 @@ const { teams } = Astro.props;
   } from '../lib/realtime/client';
 
   function wireOnlineRoom() {
+    persistReturnTo('/play');
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-online-auth-login], [data-online-auth-register]')) {
+      link.addEventListener('click', () => persistReturnTo('/play'));
+    }
     const root = document.querySelector<HTMLElement>('[data-online-room]');
     if (!root || root.dataset.wired === '1') return;
     root.dataset.wired = '1';
@@ -405,6 +522,22 @@ const { teams } = Astro.props;
       }
     }
 
+    function publishInviteCode(code: string | null) {
+      window.dispatchEvent(
+        new CustomEvent('golazo:room-invite-code', {
+          detail: { code },
+        }),
+      );
+    }
+
+    function clearChatUi() {
+      seenChatKeys.clear();
+      const chatList = root.querySelector('[data-online-chat-list]');
+      chatList?.querySelectorAll('li:not([data-online-chat-empty])').forEach((n) => n.remove());
+      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
+      if (chatEmpty) chatEmpty.hidden = false;
+    }
+
     function resetOnlineLocal() {
       clearRoomRealtime();
       room = null;
@@ -414,10 +547,8 @@ const { teams } = Astro.props;
       matchActive = false;
       busyAction = null;
       presenceIds.clear();
-      const chatList = root.querySelector('[data-online-chat-list]');
-      chatList?.querySelectorAll('li:not([data-online-chat-empty])').forEach((n) => n.remove());
-      const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
-      if (chatEmpty) chatEmpty.hidden = false;
+      clearChatUi();
+      publishInviteCode(null);
       const countdownEl = root.querySelector<HTMLElement>('[data-online-countdown]');
       if (countdownEl) countdownEl.hidden = true;
     }
@@ -431,69 +562,210 @@ const { teams } = Astro.props;
       }
     });
 
+    function pickBotTeamId(humanTeamId: string | null | undefined): string {
+      const other = teams.find((t) => t.id !== humanTeamId);
+      return other?.id ?? teams[0]?.id ?? 'argentina';
+    }
+
+    function buildMatchStartDetail(
+      snapshot: RoomSnapshot,
+      mine: NonNullable<(typeof snapshot.players)[number]>,
+    ) {
+      const players = roomPlayers(snapshot);
+      const homePlayers = players.filter((p) => p.slot === 'home');
+      const awayPlayers = players.filter((p) => p.slot === 'away');
+      const home = homePlayers[0];
+      const away = awayPlayers[0];
+      const allowBots = snapshot.allowBots !== false;
+      const sidesWithHumans = [homePlayers.length > 0, awayPlayers.length > 0].filter(Boolean).length;
+      const homeTeamId = home?.teamId ?? (allowBots ? pickBotTeamId(away?.teamId) : undefined);
+      const awayTeamId = away?.teamId ?? (allowBots ? pickBotTeamId(home?.teamId) : undefined);
+      const isSpectator = mine.role === 'spectator';
+      return {
+        roomId: snapshot.id,
+        code: snapshot.code,
+        role: isSpectator ? ('spectator' as const) : ('player' as const),
+        playerSide: isSpectator
+          ? ('home' as const)
+          : mine.slot === 'away'
+            ? ('away' as const)
+            : ('home' as const),
+        fieldSlot: isSpectator ? 0 : (mine.fieldSlot ?? 0),
+        localPlayerId: isSpectator ? undefined : mine.userId,
+        humans: players.map((p) => ({
+          userId: p.userId,
+          side: (p.slot === 'away' ? 'away' : 'home') as 'home' | 'away',
+          fieldSlot: p.fieldSlot ?? 0,
+        })),
+        homeTeamId: homeTeamId ?? teams[0]?.id ?? 'argentina',
+        awayTeamId: awayTeamId ?? teams[1]?.id ?? teams[0]?.id ?? 'brasil',
+        homeFormationId: home?.formationId ?? '4-4-2',
+        awayFormationId: away?.formationId ?? '4-4-2',
+        homeLineup: home?.lineup ?? cloneDefaultLineup(),
+        awayLineup: away?.lineup ?? cloneDefaultLineup(),
+        durationSeconds: snapshot.durationSeconds ?? 900,
+        formatId: '11v11' as const,
+        allowBots: allowBots && sidesWithHumans < 2,
+      };
+    }
+
+    function launchOnlineMatch(
+      snapshot: RoomSnapshot,
+      mine: NonNullable<(typeof snapshot.players)[number]>,
+    ) {
+      if (matchActive || matchConnecting) return;
+      matchConnecting = true;
+      renderUi();
+      window.dispatchEvent(
+        new CustomEvent('golazo:online-match-start', {
+          detail: buildMatchStartDetail(snapshot, mine),
+        }),
+      );
+    }
+
+    /** Spectators connect as viewers once the match is live (lobby start or late join). */
+    function maybeLaunchLiveSpectate(snapshot: RoomSnapshot) {
+      if (matchActive || matchConnecting) return;
+      const me = getAuthState().user?.id;
+      if (!me) return;
+      const mine = snapshot.players.find((p) => p.userId === me);
+      if (!mine || mine.role !== 'spectator') return;
+      if (snapshot.status !== 'playing' && snapshot.status !== 'starting') return;
+      launchOnlineMatch(snapshot, mine);
+    }
+
     function renderSlots() {
       if (!room) return;
       const me = getAuthState().user?.id;
-      for (const slot of ['home', 'away'] as const) {
-        const card = root.querySelector(`[data-online-slot="${slot}"]`);
-        if (!card) continue;
-        const player = room.players.find((p) => p.slot === slot);
-        const nameEl = card.querySelector('[data-slot-name]');
-        const teamEl = card.querySelector('[data-slot-team]');
-        const formationEl = card.querySelector('[data-slot-formation]');
-        const readyEl = card.querySelector('[data-slot-ready]');
-        const connEl = card.querySelector('[data-slot-conn]');
-        card.classList.toggle('online-room__player-card--self', Boolean(player && player.userId === me));
-        card.classList.toggle('online-room__player-card--ready', Boolean(player?.ready));
-        if (!player) {
-          if (nameEl) nameEl.textContent = slot === 'away' ? 'Esperando…' : '—';
-          if (teamEl) teamEl.textContent = '—';
-          if (formationEl) formationEl.textContent = '—';
-          if (readyEl) readyEl.textContent = '—';
-          if (connEl) connEl.textContent = '';
-          continue;
+      const players = roomPlayers(room);
+      const mine = room.players.find((p) => p.userId === me);
+      const isSpectator = mine?.role === 'spectator';
+      const allowBots = room.allowBots !== false;
+      const canClaim =
+        Boolean(me) &&
+        !isSpectator &&
+        mine?.role === 'player' &&
+        ['waiting', 'configuring', 'ready'].includes(room.status);
+
+      for (const side of ['home', 'away'] as const) {
+        for (const fieldSlot of ROOM_FIELD_SLOTS) {
+          const seatKey = `${side}:${fieldSlot}`;
+          const card = root.querySelector(`[data-online-seat="${seatKey}"]`);
+          if (!card) continue;
+          const player = playerAtSeat(players, side, fieldSlot);
+          const nameEl = card.querySelector('[data-slot-name]');
+          const teamEl = card.querySelector('[data-slot-team]');
+          const formationEl = card.querySelector('[data-slot-formation]');
+          const readyEl = card.querySelector('[data-slot-ready]');
+          const connEl = card.querySelector('[data-slot-conn]');
+          const claimBtn = card.querySelector<HTMLButtonElement>('[data-claim-seat]');
+          card.classList.toggle('online-room__player-card--self', Boolean(player && player.userId === me));
+          card.classList.toggle('online-room__player-card--ready', Boolean(player?.ready));
+          card.classList.toggle('online-room__player-card--bot', !player && allowBots);
+
+          const onThisSeat =
+            mine?.role === 'player' && mine.slot === side && (mine.fieldSlot ?? 0) === fieldSlot;
+          if (claimBtn) {
+            claimBtn.hidden = !canClaim || Boolean(player) || onThisSeat;
+            claimBtn.disabled = !canClaim || Boolean(player);
+            claimBtn.textContent = 'Ocupar';
+          }
+
+          if (!player) {
+            if (nameEl) nameEl.textContent = allowBots ? 'Bot' : 'Libre';
+            if (teamEl) teamEl.textContent = allowBots ? 'Se elige al iniciar' : '—';
+            if (formationEl) formationEl.textContent = allowBots ? 'Alineación automática' : '—';
+            if (readyEl) readyEl.textContent = allowBots ? 'Listo (bots)' : '—';
+            if (connEl) connEl.textContent = '';
+            continue;
+          }
+          const label = player.displayName || player.username || player.userId.slice(0, 8);
+          if (nameEl) nameEl.textContent = player.userId === me ? `${label} (tú)` : label;
+          if (teamEl) teamEl.textContent = teamName(player.teamId);
+          if (formationEl) formationEl.textContent = player.lineup?.length ? 'Alineación lista' : 'Sin alineación';
+          if (readyEl) readyEl.textContent = player.ready ? 'Listo' : 'No listo';
+          if (connEl) connEl.textContent = presenceIds.has(player.userId) ? 'Conectado' : 'Desconectado';
         }
-        const label = player.displayName || player.username || player.userId.slice(0, 8);
-        if (nameEl) nameEl.textContent = player.userId === me ? `${label} (tú)` : label;
-        if (teamEl) teamEl.textContent = teamName(player.teamId);
-        if (formationEl) formationEl.textContent = player.lineup?.length ? 'Alineación lista' : 'Sin alineación';
-        if (readyEl) readyEl.textContent = player.ready ? 'Listo' : 'No listo';
-        if (connEl) connEl.textContent = presenceIds.has(player.userId) ? 'Conectado' : 'Desconectado';
+      }
+
+      const specs = roomSpectators(room);
+      const specWrap = root.querySelector<HTMLElement>('[data-online-spectators]');
+      const specList = root.querySelector('[data-online-spectators-list]');
+      if (specWrap && specList) {
+        specWrap.hidden = specs.length === 0;
+        specList.textContent = specs.length
+          ? specs.map((s) => s.displayName || s.username || s.userId.slice(0, 8)).join(' · ')
+          : '—';
       }
     }
 
     function renderConfig() {
       if (!room) return;
       const me = getAuthState().user?.id;
+      const players = roomPlayers(room);
       const mine = room.players.find((p) => p.userId === me);
-      if (mine?.teamId) myTeamId = mine.teamId;
-      if (mine?.formationId && isFormationId(mine.formationId)) myFormation = mine.formationId;
-      if (mine?.lineup) {
-        const normalized = normalizeLineup(mine.lineup);
-        if (normalized) myLineup = normalized;
+      const isSpectator = mine?.role === 'spectator';
+      const allowBots = room.allowBots !== false;
+      const playerConfig = root.querySelector<HTMLElement>('[data-online-player-config]');
+      const spectatorBanner = root.querySelector<HTMLElement>('[data-online-spectator-banner]');
+      if (playerConfig) playerConfig.hidden = isSpectator;
+      if (spectatorBanner) spectatorBanner.hidden = !isSpectator;
+
+      if (mine?.role === 'player') {
+        if (mine.teamId) myTeamId = mine.teamId;
+        if (mine.formationId && isFormationId(mine.formationId)) myFormation = mine.formationId;
+        if (mine.lineup) {
+          const normalized = normalizeLineup(mine.lineup);
+          if (normalized) myLineup = normalized;
+        }
+        ensureLineupEditor();
       }
-      ensureLineupEditor();
+
+      // Opposite-side teams are blocked; same-side teammates share a team
+      const mySide = mine?.role === 'player' ? mine.slot : null;
       const taken = new Set(
-        room.players.filter((p) => p.userId !== me && p.teamId).map((p) => p.teamId as string),
+        players
+          .filter((p) => p.userId !== me && p.teamId && p.slot && p.slot !== mySide)
+          .map((p) => p.teamId as string),
       );
       for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-team]')) {
         const id = btn.dataset.onlineTeam ?? '';
         btn.classList.toggle('online-room__team-btn--active', id === myTeamId);
-        btn.disabled = taken.has(id);
+        btn.disabled = taken.has(id) || isSpectator;
       }
       const readyBtn = root.querySelector<HTMLButtonElement>('[data-online-ready]');
       const startBtn = root.querySelector<HTMLButtonElement>('[data-online-start]');
       const statusEl = root.querySelector('[data-online-status]');
       const presenceEl = root.querySelector('[data-online-presence]');
+      const hintEl = root.querySelector('[data-online-hint]');
       if (readyBtn) {
         readyBtn.textContent = mine?.ready ? 'Cancelar listo' : 'Listo';
-        readyBtn.disabled = room.status === 'starting' || room.status === 'playing';
+        readyBtn.disabled = isSpectator || room.status === 'starting' || room.status === 'playing';
       }
       if (startBtn) {
-        startBtn.hidden = !(room.hostUserId === me && room.status === 'ready');
+        const canHostStart = room.hostUserId === me && room.status === 'ready' && !isSpectator;
+        startBtn.hidden = !canHostStart;
+        startBtn.textContent =
+          allowBots && players.length < 2 ? 'Jugar vs bots' : 'Iniciar cuenta regresiva';
       }
-      if (statusEl) statusEl.textContent = roomStatusLabel(room.status);
-      if (presenceEl) presenceEl.textContent = `Presencia: ${presenceIds.size}/${room.players.length}`;
+      if (hintEl) {
+        if (isSpectator) {
+          hintEl.textContent = 'Estás en modo espectador (solo lectura).';
+        } else if (allowBots && players.length < 2) {
+          hintEl.textContent = 'Marca listo y pulsa «Jugar vs bots», o espera compañeros / rivales.';
+        } else {
+          hintEl.textContent = 'Cuando todos estén listos, el anfitrión puede iniciar. Máx. 2 por lado.';
+        }
+      }
+      if (statusEl) {
+        statusEl.textContent = roomStatusLabel(room.status, {
+          allowBots,
+          playerCount: players.length,
+        });
+      }
+      if (presenceEl) {
+        presenceEl.textContent = `Presencia: ${presenceIds.size} · Jugadores ${players.length}/${MAX_HUMANS_TOTAL}`;
+      }
       const codeEl = root.querySelector('[data-online-room-code]');
       if (codeEl) codeEl.textContent = room.code;
     }
@@ -512,6 +784,7 @@ const { teams } = Astro.props;
           room = payload as unknown as RoomSnapshot;
           renderSlots();
           renderConfig();
+          maybeLaunchLiveSpectate(room);
         }),
       );
       roomUnsubs.push(
@@ -529,26 +802,20 @@ const { teams } = Astro.props;
               countdownEl.textContent = 'Conectando…';
               if (countdownTimer) window.clearInterval(countdownTimer);
               countdownTimer = null;
-              matchConnecting = true;
-              renderUi();
               const me = getAuthState().user?.id;
-              const mine = room?.players.find((p) => p.userId === me);
-              window.dispatchEvent(
-                new CustomEvent('golazo:online-match-start', {
-                  detail: {
-                    roomId,
-                    playerSide: mine?.slot === 'away' ? 'away' : 'home',
-                    homeTeamId: room?.players.find((p) => p.slot === 'home')?.teamId,
-                    awayTeamId: room?.players.find((p) => p.slot === 'away')?.teamId,
-                    homeFormationId: room?.players.find((p) => p.slot === 'home')?.formationId,
-                    awayFormationId: room?.players.find((p) => p.slot === 'away')?.formationId,
-                    homeLineup: room?.players.find((p) => p.slot === 'home')?.lineup ?? cloneDefaultLineup(),
-                    awayLineup: room?.players.find((p) => p.slot === 'away')?.lineup ?? cloneDefaultLineup(),
-                    durationSeconds: room?.durationSeconds ?? 900,
-                    formatId: '11v11',
-                  },
-                }),
-              );
+              const snapshot = room;
+              if (!snapshot || !me) {
+                matchConnecting = false;
+                renderUi();
+                return;
+              }
+              const mine = snapshot.players.find((p) => p.userId === me);
+              if (!mine) {
+                matchConnecting = false;
+                renderUi();
+                return;
+              }
+              launchOnlineMatch(snapshot, mine);
               return;
             }
             countdownEl.textContent = `El partido comienza en… ${left}`;
@@ -582,12 +849,17 @@ const { teams } = Astro.props;
       }, 60_000);
     }
 
-    function appendChat(msg: RoomChatMessage) {
+    function appendChat(msg: RoomChatMessage, opts?: { silent?: boolean }) {
       const key = chatMessageDedupeKey(msg);
       if (seenChatKeys.has(key)) return;
       seenChatKeys.add(key);
       const who = room?.players.find((p) => p.userId === msg.userId);
-      const label = who?.displayName || who?.username || msg.userId.slice(0, 8);
+      const label =
+        msg.displayName ||
+        msg.username ||
+        who?.displayName ||
+        who?.username ||
+        msg.userId.slice(0, 8);
       const chatList = root.querySelector('[data-online-chat-list]');
       const chatEmpty = root.querySelector<HTMLElement>('[data-online-chat-empty]');
       if (chatList) {
@@ -601,11 +873,28 @@ const { teams } = Astro.props;
         chatList.appendChild(li);
         chatList.scrollTop = chatList.scrollHeight;
       }
-      window.dispatchEvent(
-        new CustomEvent('golazo:room-chat', {
-          detail: { ...msg, displayName: label },
-        }),
-      );
+      if (!opts?.silent) {
+        window.dispatchEvent(
+          new CustomEvent('golazo:room-chat', {
+            detail: { ...msg, displayName: label },
+          }),
+        );
+      }
+    }
+
+    function loadChatHistory(snapshot: RoomSnapshot) {
+      clearChatUi();
+      const history = Array.isArray(snapshot.chatHistory) ? snapshot.chatHistory : [];
+      for (const msg of history) {
+        appendChat(msg, { silent: true });
+      }
+      if (history.length) {
+        window.dispatchEvent(
+          new CustomEvent('golazo:room-chat-history', {
+            detail: { roomId: snapshot.id, messages: history },
+          }),
+        );
+      }
     }
 
     async function enterLobby(next: RoomSnapshot) {
@@ -615,7 +904,8 @@ const { teams } = Astro.props;
       errorKind = null;
       errorMsg = '';
       busyAction = null;
-      seenChatKeys.clear();
+      loadChatHistory(next);
+      publishInviteCode(next.code);
       const me = getAuthState().user?.id;
       const mine = next.players.find((p) => p.userId === me);
       if (mine?.lineup) {
@@ -627,6 +917,7 @@ const { teams } = Astro.props;
       renderSlots();
       renderConfig();
       renderUi();
+      maybeLaunchLiveSpectate(next);
     }
 
     async function checkActiveRoom() {
@@ -710,6 +1001,28 @@ const { teams } = Astro.props;
       await enterLobby(result.data.room);
     });
 
+    root.querySelector('[data-online-join-spectator]')?.addEventListener('click', async () => {
+      if (busyAction) return;
+      busyAction = 'join';
+      setError(root.querySelector('[data-online-entry-error]'), null);
+      renderUi();
+      const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
+      const code = (codeInput?.value ?? '').trim().toUpperCase();
+      if (codeInput) codeInput.value = code;
+      const result = await joinRoomAsSpectator({ code });
+      busyAction = null;
+      if (!result.ok) {
+        if (result.error.code === 'ALREADY_IN_ROOM') {
+          await checkActiveRoom();
+          return;
+        }
+        setError(root.querySelector('[data-online-entry-error]'), result.error.message);
+        renderUi();
+        return;
+      }
+      await enterLobby(result.data.room);
+    });
+
     root.querySelector('[data-online-resume]')?.addEventListener('click', async () => {
       if (!pendingActive) return;
       await enterLobby(pendingActive);
@@ -754,6 +1067,31 @@ const { teams } = Astro.props;
       }
     });
 
+    root.querySelector('[data-online-copy-invite]')?.addEventListener('click', async () => {
+      if (!room?.code) return;
+      const text = roomInviteText(room.code);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // ignore
+      }
+    });
+
+    for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-quick-msg]')) {
+      btn.addEventListener('click', async () => {
+        if (!room) return;
+        const message = btn.getAttribute('data-online-quick-msg');
+        if (!message) return;
+        setError(root.querySelector('[data-online-chat-error]'), null);
+        const result = await sendRoomChat(room.id, message);
+        if (!result.ok) {
+          setError(root.querySelector('[data-online-chat-error]'), result.error.message);
+          return;
+        }
+        if (result.data.message) appendChat(result.data.message);
+      });
+    }
+
     for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-online-team]')) {
       btn.addEventListener('click', async () => {
         if (!room || btn.disabled) return;
@@ -765,6 +1103,29 @@ const { teams } = Astro.props;
           return;
         }
         myTeamId = teamId;
+        room = result.data.room;
+        renderSlots();
+        renderConfig();
+      });
+    }
+
+    for (const btn of root.querySelectorAll<HTMLButtonElement>('[data-claim-seat]')) {
+      btn.addEventListener('click', async () => {
+        if (!room || btn.disabled) return;
+        const raw = btn.dataset.claimSeat ?? '';
+        const [sideRaw, slotRaw] = raw.split(':');
+        if (sideRaw !== 'home' && sideRaw !== 'away') return;
+        const fieldSlot = Number(slotRaw);
+        if (!Number.isInteger(fieldSlot)) return;
+        const result = await claimRoomSeat({
+          roomId: room.id,
+          side: sideRaw as RoomSlot,
+          fieldSlot,
+        });
+        if (!result.ok) {
+          setError(root.querySelector('[data-online-lobby-error]'), result.error.message);
+          return;
+        }
         room = result.data.room;
         renderSlots();
         renderConfig();
@@ -864,6 +1225,12 @@ const { teams } = Astro.props;
     });
 
     void hydrateSession().then(() => {
+      const params = new URLSearchParams(window.location.search);
+      const roomCode = (params.get('room') || params.get('code') || '').trim().toUpperCase();
+      if (roomCode) {
+        const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
+        if (codeInput) codeInput.value = roomCode.slice(0, 6);
+      }
       void syncSessionGate();
     });
   }

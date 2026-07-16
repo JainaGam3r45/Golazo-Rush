@@ -17,12 +17,13 @@ import { createResultPersister } from './resultPersist.js';
  */
 export async function createGameServer({ config, log, authVerifier, matchHost, persistResult }) {
   const auth = authVerifier ?? createAuthVerifier(config, log);
-  const rooms = new RoomRegistry({ maxPerRoom: 2 });
+  // Humans (≤4) + spectators (≤8), hard-capped by maxPerRoom=10
+  const rooms = new RoomRegistry({ maxPerRoom: 10, maxSpectators: 8 });
   const host = matchHost ?? (await loadMatchHost(log));
   const handleRoomApi = createRoomApiHandler({ config, log });
   const persist = persistResult ?? createResultPersister({ config, log });
 
-  /** @type {Map<import('ws').WebSocket, { roomId: string|null, connectionId: string|null, userId: string|null, joined: boolean }>} */
+  /** @type {Map<import('ws').WebSocket, { roomId: string|null, connectionId: string|null, userId: string|null, role: 'player'|'spectator'|null, joined: boolean }>} */
   const socketMeta = new Map();
 
   /**
@@ -31,6 +32,7 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
    * @property {string} [away]
    * @property {boolean} started
    * @property {boolean} finishedNotified
+   * @property {boolean} [allowBots]
    * @property {number} [durationSeconds]
    * @property {string} [homeFormationId]
    * @property {string} [awayFormationId]
@@ -208,7 +210,13 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
   });
 
   wss.on('connection', (ws) => {
-    socketMeta.set(ws, { roomId: null, connectionId: null, userId: null, joined: false });
+    socketMeta.set(ws, {
+      roomId: null,
+      connectionId: null,
+      userId: null,
+      role: null,
+      joined: false,
+    });
 
     ws.on('message', async (raw, isBinary) => {
       const meta = socketMeta.get(ws);
@@ -288,18 +296,28 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
           send(ws, { t: 'error', code: 'UNAUTHORIZED', message: 'token required' });
           return;
         }
+        const role = msg.role === 'spectator' ? 'spectator' : 'player';
         const identity = await auth.verify(msg.token);
         log.info('ws_join', {
           roomId: msg.roomId,
           userId: identity.userId,
+          role,
           token: redactToken(msg.token),
         });
-        const { room, conn, peers } = rooms.join(msg.roomId.trim(), ws, identity.userId);
+        const { room, conn, peers } = rooms.join(msg.roomId.trim(), ws, identity.userId, {
+          role,
+        });
         meta.roomId = room.roomId;
         meta.connectionId = conn.connectionId;
         meta.userId = identity.userId;
+        meta.role = role;
         meta.joined = true;
-        send(ws, { t: 'joined', roomId: room.roomId, connectionId: conn.connectionId });
+        send(ws, {
+          t: 'joined',
+          roomId: room.roomId,
+          connectionId: conn.connectionId,
+          role,
+        });
         for (const peer of room.connections.values()) {
           if (peer.connectionId !== conn.connectionId) {
             send(peer.socket, { t: 'peerJoined' });
@@ -307,6 +325,16 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
           }
         }
         send(ws, { t: 'probeState', seq: 0, clients: peers });
+
+        // Late spectate: if match already running, push current snapshot immediately.
+        if (role === 'spectator') {
+          const session = matchSessions.get(room.roomId);
+          if (session?.started) {
+            const snap = host.snapshot(room.roomId);
+            if (snap) send(ws, { t: 'matchSnapshot', ...snap });
+            send(ws, { t: 'matchSpectating', roomId: room.roomId });
+          }
+        }
         return;
       }
       case 'ping': {
@@ -322,6 +350,14 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
       case 'input': {
         if (!meta.joined || !meta.roomId) {
           send(ws, { t: 'error', code: 'NOT_JOINED', message: 'Join first' });
+          return;
+        }
+        if (meta.role === 'spectator') {
+          send(ws, {
+            t: 'error',
+            code: 'SPECTATOR_READONLY',
+            message: 'Spectators cannot send input',
+          });
           return;
         }
         const seq = typeof msg.seq === 'number' ? msg.seq : NaN;
@@ -360,7 +396,17 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         }
         const session = matchSessions.get(meta.roomId);
         if (session?.started && meta.userId) {
-          const side = session.home === meta.userId ? 'home' : session.away === meta.userId ? 'away' : null;
+          const human =
+            session.humans instanceof Map
+              ? session.humans.get(meta.userId)
+              : null;
+          const side =
+            human?.side ??
+            (session.home === meta.userId
+              ? 'home'
+              : session.away === meta.userId
+                ? 'away'
+                : null);
           if (side) {
             host.applyInput(meta.roomId, {
               seq,
@@ -379,25 +425,60 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         return;
       }
       case 'matchJoin': {
-        // After room countdown (golazo:online-match-start): bind side + optional team meta.
+        // After room countdown: bind side + fieldSlot; start when all expected humans joined.
         if (!meta.joined || !meta.roomId || !meta.userId) {
           send(ws, { t: 'error', code: 'NOT_JOINED', message: 'Join first' });
+          return;
+        }
+        if (meta.role === 'spectator') {
+          send(ws, {
+            t: 'error',
+            code: 'SPECTATOR_READONLY',
+            message: 'Spectators cannot join as players',
+          });
           return;
         }
         if (msg.side !== 'home' && msg.side !== 'away') {
           send(ws, { t: 'error', code: 'INVALID_SIDE', message: 'side must be home|away' });
           return;
         }
+        const fieldSlot =
+          typeof msg.fieldSlot === 'number' && Number.isFinite(msg.fieldSlot)
+            ? Math.max(0, Math.min(9, Math.floor(msg.fieldSlot)))
+            : 0;
+
         let session = matchSessions.get(meta.roomId);
         if (!session) {
-          session = { started: false, finishedNotified: false };
+          session = {
+            started: false,
+            finishedNotified: false,
+            humans: new Map(),
+            expected: null,
+          };
           matchSessions.set(meta.roomId, session);
         }
-        if (session[msg.side] && session[msg.side] !== meta.userId) {
-          send(ws, { t: 'error', code: 'SIDE_TAKEN', message: 'Side already taken' });
-          return;
+        if (!(session.humans instanceof Map)) {
+          session.humans = new Map();
         }
-        session[msg.side] = meta.userId;
+
+        // Seat collision: same side+fieldSlot taken by another user
+        for (const [uid, h] of session.humans) {
+          if (uid !== meta.userId && h.side === msg.side && h.fieldSlot === fieldSlot) {
+            send(ws, { t: 'error', code: 'SEAT_TAKEN', message: 'Seat already taken' });
+            return;
+          }
+        }
+
+        session.humans.set(meta.userId, {
+          userId: meta.userId,
+          side: msg.side,
+          fieldSlot,
+        });
+        // Legacy single-id fields (first human per side) for older probes
+        if (msg.side === 'home' && !session.home) session.home = meta.userId;
+        if (msg.side === 'away' && !session.away) session.away = meta.userId;
+
+        if (msg.allowBots === true) session.allowBots = true;
         if (typeof msg.durationSeconds === 'number') session.durationSeconds = msg.durationSeconds;
         if (typeof msg.homeFormationId === 'string') session.homeFormationId = msg.homeFormationId;
         if (typeof msg.awayFormationId === 'string') session.awayFormationId = msg.awayFormationId;
@@ -406,15 +487,47 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         if (Array.isArray(msg.homeLineup)) session.homeLineup = msg.homeLineup;
         if (Array.isArray(msg.awayLineup)) session.awayLineup = msg.awayLineup;
 
-        if (session.home && session.away && !session.started) {
-          session.started = true;
-          host.start(
-            meta.roomId,
-            [
-              { userId: session.home, side: 'home' },
-              { userId: session.away, side: 'away' },
-            ],
-            {
+        if (Array.isArray(msg.humans) && msg.humans.length > 0) {
+          session.expected = msg.humans
+            .filter((h) => h && typeof h.userId === 'string' && (h.side === 'home' || h.side === 'away'))
+            .map((h) => ({
+              userId: h.userId,
+              side: h.side === 'away' ? 'away' : 'home',
+              fieldSlot:
+                typeof h.fieldSlot === 'number' && Number.isFinite(h.fieldSlot)
+                  ? Math.max(0, Math.min(9, Math.floor(h.fieldSlot)))
+                  : 0,
+            }));
+        }
+
+        if (!session.started) {
+          /** @type {{ userId: string, side: 'home'|'away', fieldSlot: number }[]|null} */
+          let startPlayers = null;
+          if (Array.isArray(session.expected) && session.expected.length > 0) {
+            if (session.expected.every((e) => session.humans.has(e.userId))) {
+              startPlayers = session.expected.map((e) => {
+                const live = session.humans.get(e.userId);
+                return {
+                  userId: e.userId,
+                  side: live?.side ?? e.side,
+                  fieldSlot: live?.fieldSlot ?? e.fieldSlot ?? 0,
+                };
+              });
+            }
+          } else {
+            const list = [...session.humans.values()];
+            const hasHome = list.some((h) => h.side === 'home');
+            const hasAway = list.some((h) => h.side === 'away');
+            if (hasHome && hasAway) {
+              startPlayers = list;
+            } else if (Boolean(session.allowBots) && list.length >= 1) {
+              startPlayers = list;
+            }
+          }
+
+          if (startPlayers) {
+            session.started = true;
+            host.start(meta.roomId, startPlayers, {
               durationSeconds: session.durationSeconds,
               homeFormationId: session.homeFormationId,
               awayFormationId: session.awayFormationId,
@@ -422,11 +535,23 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
               awayTeamId: session.awayTeamId,
               homeLineup: session.homeLineup,
               awayLineup: session.awayLineup,
-            },
-          );
-          log.info('match_started', { roomId: meta.roomId, host: 'game-sim' });
+            });
+            log.info('match_started', {
+              roomId: meta.roomId,
+              host: 'game-sim',
+              allowBots: Boolean(session.allowBots),
+              humans: startPlayers.length,
+              sides: startPlayers.map((p) => `${p.side}:${p.fieldSlot}`),
+            });
+          }
         }
-        send(ws, { t: 'matchJoined', roomId: meta.roomId, side: msg.side });
+        send(ws, {
+          t: 'matchJoined',
+          roomId: meta.roomId,
+          side: msg.side,
+          fieldSlot,
+          playerId: meta.userId,
+        });
         return;
       }
       default:

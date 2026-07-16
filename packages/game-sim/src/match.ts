@@ -1,5 +1,6 @@
 import type {
   FormationId,
+  HumanAssignment,
   MatchConfig,
   MatchPhase,
   MatchSnapshot,
@@ -59,8 +60,7 @@ type InternalMatch = {
   durationSeconds: number;
   homeFormationId: FormationId;
   awayFormationId: FormationId;
-  homeHumanPlayerId: string | null;
-  awayHumanPlayerId: string | null;
+  humanAssignments: HumanAssignment[];
   homeAnchors: SpawnAnchor[];
   awayAnchors: SpawnAnchor[];
   players: SimPlayer[];
@@ -80,6 +80,34 @@ type InternalMatch = {
 
 function resolveFormation(id: FormationId | undefined): FormationId {
   return id ?? '4-4-2';
+}
+
+function resolveHumanAssignments(config: MatchConfig): HumanAssignment[] {
+  if (config.humanAssignments?.length) {
+    return config.humanAssignments.map((a) => ({
+      playerId: a.playerId,
+      side: a.side === 'away' ? 'away' : 'home',
+      fieldSlot: Math.max(0, Math.min(9, Math.floor(a.fieldSlot))),
+    }));
+  }
+  const out: HumanAssignment[] = [];
+  if (config.homeHumanPlayerId) {
+    out.push({ playerId: config.homeHumanPlayerId, side: 'home', fieldSlot: 0 });
+  }
+  if (config.awayHumanPlayerId) {
+    out.push({ playerId: config.awayHumanPlayerId, side: 'away', fieldSlot: 0 });
+  }
+  return out;
+}
+
+function humanAt(state: InternalMatch, side: Side, fieldSlot: number): HumanAssignment | null {
+  return (
+    state.humanAssignments.find((a) => a.side === side && a.fieldSlot === fieldSlot) ?? null
+  );
+}
+
+function firstHumanId(state: InternalMatch, side: Side): string | null {
+  return state.humanAssignments.find((a) => a.side === side)?.playerId ?? null;
 }
 
 function buildRoster(state: InternalMatch): void {
@@ -109,14 +137,14 @@ function buildRoster(state: InternalMatch): void {
   );
 
   for (const anchor of state.homeAnchors) {
-    const isHuman = anchor.slot === 0 && state.homeHumanPlayerId != null;
+    const human = humanAt(state, 'home', anchor.slot);
     state.players.push(
       createPlayer({
-        id: isHuman ? state.homeHumanPlayerId! : `home-bot-${anchor.slot}`,
+        id: human ? human.playerId : `home-bot-${anchor.slot}`,
         side: 'home',
         slot: anchor.slot,
         role: anchor.role,
-        kind: isHuman ? 'human' : 'bot',
+        kind: human ? 'human' : 'bot',
         x: anchor.x,
         y: anchor.y,
       }),
@@ -124,25 +152,19 @@ function buildRoster(state: InternalMatch): void {
   }
 
   for (const anchor of state.awayAnchors) {
-    const isHuman = anchor.slot === 0 && state.awayHumanPlayerId != null;
+    const human = humanAt(state, 'away', anchor.slot);
     state.players.push(
       createPlayer({
-        id: isHuman ? state.awayHumanPlayerId! : `away-bot-${anchor.slot}`,
+        id: human ? human.playerId : `away-bot-${anchor.slot}`,
         side: 'away',
         slot: anchor.slot,
         role: anchor.role,
-        kind: isHuman ? 'human' : 'bot',
+        kind: human ? 'human' : 'bot',
         x: anchor.x,
         y: anchor.y,
       }),
     );
   }
-}
-
-function humanForSide(state: InternalMatch, side: Side): SimPlayer | null {
-  const id = side === 'home' ? state.homeHumanPlayerId : state.awayHumanPlayerId;
-  if (!id) return null;
-  return state.players.find((p) => p.id === id) ?? null;
 }
 
 function applyHumanInput(state: InternalMatch, player: SimPlayer, input: PlayerInput): void {
@@ -330,9 +352,10 @@ function snapshotOf(state: InternalMatch): MatchSnapshot {
     ),
     players: state.players.map(toPlayerSnapshot),
     humanSlots: {
-      home: state.homeHumanPlayerId,
-      away: state.awayHumanPlayerId,
+      home: firstHumanId(state, 'home'),
+      away: firstHumanId(state, 'away'),
     },
+    humanAssignments: state.humanAssignments.map((a) => ({ ...a })),
   };
 }
 
@@ -398,12 +421,21 @@ export function createMatch(config: MatchConfig = {}): Match {
     setBallVelocity(ball, config.initialBall.vx ?? 0, config.initialBall.vy ?? 0);
   }
 
+  const humanAssignments = resolveHumanAssignments(config);
+  const seenSlots = new Set<string>();
+  for (const a of humanAssignments) {
+    const key = `${a.side}:${a.fieldSlot}`;
+    if (seenSlots.has(key)) {
+      throw new Error(`duplicate human assignment for ${key}`);
+    }
+    seenSlots.add(key);
+  }
+
   const state: InternalMatch = {
     durationSeconds: config.durationSeconds ?? DEFAULT_DURATION_SECONDS,
     homeFormationId,
     awayFormationId,
-    homeHumanPlayerId: config.homeHumanPlayerId ?? null,
-    awayHumanPlayerId: config.awayHumanPlayerId ?? null,
+    humanAssignments,
     homeAnchors,
     awayAnchors,
     players: [],
@@ -423,12 +455,11 @@ export function createMatch(config: MatchConfig = {}): Match {
 
   buildRoster(state);
 
-  // Ensure humans exist even if ids were provided.
-  if (state.homeHumanPlayerId && !humanForSide(state, 'home')) {
-    throw new Error('home human slot failed to initialize');
-  }
-  if (state.awayHumanPlayerId && !humanForSide(state, 'away')) {
-    throw new Error('away human slot failed to initialize');
+  for (const a of state.humanAssignments) {
+    const player = state.players.find((p) => p.id === a.playerId);
+    if (!player || player.kind !== 'human') {
+      throw new Error(`human slot failed to initialize (${a.side}/${a.fieldSlot})`);
+    }
   }
 
   return {

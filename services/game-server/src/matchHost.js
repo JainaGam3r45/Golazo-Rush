@@ -16,6 +16,7 @@
  * @typedef {object} MatchStartPlayer
  * @property {string} userId
  * @property {'home'|'away'} side
+ * @property {number} [fieldSlot]
  */
 
 /**
@@ -77,12 +78,13 @@ function toWireSnapshot(simSnap) {
       vy: p.vy,
     })),
     humanSlots: simSnap.humanSlots,
+    humanAssignments: simSnap.humanAssignments ?? [],
     stub: false,
   };
 }
 
 /**
- * Authoritative host backed by @golazo-rush/game-sim (5v5, 1 human/side, bots fill).
+ * Authoritative host backed by @golazo-rush/game-sim (11v11, multi-human + bots).
  * @param {typeof import('../../../packages/game-sim/src/index.ts').createMatch} createMatch
  * @returns {MatchHost}
  */
@@ -92,11 +94,22 @@ export function createGameSimMatchHost(createMatch) {
 
   return {
     start(roomId, players, meta = {}) {
-      const home = players.find((p) => p.side === 'home');
-      const away = players.find((p) => p.side === 'away');
-      if (!home || !away) {
-        throw new Error('home and away humans required');
+      if (!Array.isArray(players) || players.length < 1) {
+        throw new Error('at least one human required');
       }
+      const perSide = { home: 0, away: 0 };
+      const assignments = players.map((p) => {
+        const side = p.side === 'away' ? 'away' : 'home';
+        let fieldSlot;
+        if (typeof p.fieldSlot === 'number' && Number.isFinite(p.fieldSlot)) {
+          fieldSlot = Math.max(0, Math.min(9, Math.floor(p.fieldSlot)));
+        } else {
+          fieldSlot = perSide[side];
+          perSide[side] += 1;
+        }
+        return { playerId: p.userId, side, fieldSlot };
+      });
+
       const existing = matches.get(roomId);
       if (existing) existing.match; // replace
       const match = createMatch({
@@ -105,8 +118,7 @@ export function createGameSimMatchHost(createMatch) {
         awayFormationId: meta.awayFormationId ?? '4-4-2',
         homeLineup: Array.isArray(meta.homeLineup) ? meta.homeLineup : undefined,
         awayLineup: Array.isArray(meta.awayLineup) ? meta.awayLineup : undefined,
-        homeHumanPlayerId: home.userId,
-        awayHumanPlayerId: away.userId,
+        humanAssignments: assignments,
       });
       matches.set(roomId, {
         match,

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  canClaimSeat,
   canJoinRoom,
   canStartRoom,
   isValidRoomCode,
@@ -34,7 +35,21 @@ describe('join rules', () => {
     );
   });
 
-  it('rejects third player', () => {
+  it('rejects fifth player', () => {
+    assert.deepEqual(
+      canJoinRoom({
+        found: true,
+        status: 'configuring',
+        expired: false,
+        activeCount: 4,
+        alreadyInAnyRoom: false,
+        teamTaken: false,
+      }),
+      { ok: false, code: 'ROOM_FULL' },
+    );
+  });
+
+  it('allows third player when under capacity', () => {
     assert.deepEqual(
       canJoinRoom({
         found: true,
@@ -44,7 +59,22 @@ describe('join rules', () => {
         alreadyInAnyRoom: false,
         teamTaken: false,
       }),
-      { ok: false, code: 'ROOM_FULL' },
+      { ok: true },
+    );
+  });
+
+  it('rejects third on a full side', () => {
+    assert.deepEqual(
+      canJoinRoom({
+        found: true,
+        status: 'configuring',
+        expired: false,
+        activeCount: 2,
+        alreadyInAnyRoom: false,
+        teamTaken: false,
+        sideCount: 2,
+      }),
+      { ok: false, code: 'SIDE_FULL' },
     );
   });
 
@@ -128,6 +158,139 @@ describe('start rules', () => {
         requesterIsHost: true,
       }),
       { ok: false, code: 'NOT_READY' },
+    );
+  });
+
+  it('allows host start with one ready human when bots are allowed', () => {
+    assert.deepEqual(
+      canStartRoom({
+        status: 'ready',
+        playerCount: 1,
+        readyCount: 1,
+        distinctTeams: 1,
+        requesterIsHost: true,
+        allowBots: true,
+      }),
+      { ok: true },
+    );
+  });
+
+  it('blocks one-human start when bots are disabled', () => {
+    assert.deepEqual(
+      canStartRoom({
+        status: 'ready',
+        playerCount: 1,
+        readyCount: 1,
+        distinctTeams: 1,
+        requesterIsHost: true,
+        allowBots: false,
+      }),
+      { ok: false, code: 'NEED_OPPONENT' },
+    );
+  });
+
+  it('allows host start with four ready humans', () => {
+    assert.deepEqual(
+      canStartRoom({
+        status: 'ready',
+        playerCount: 4,
+        readyCount: 4,
+        distinctTeams: 2,
+        requesterIsHost: true,
+        allowBots: true,
+        sidesWithHumans: 2,
+      }),
+      { ok: true },
+    );
+  });
+
+  it('allows same-side duo vs bots when bots enabled', () => {
+    assert.deepEqual(
+      canStartRoom({
+        status: 'ready',
+        playerCount: 2,
+        readyCount: 2,
+        distinctTeams: 1,
+        requesterIsHost: true,
+        allowBots: true,
+        sidesWithHumans: 1,
+      }),
+      { ok: true },
+    );
+  });
+});
+
+describe('claim seat rules', () => {
+  it('blocks spectators and taken seats', () => {
+    assert.deepEqual(
+      canClaimSeat({
+        status: 'waiting',
+        isPlayer: false,
+        seatTakenByOther: false,
+        sideFull: false,
+        fieldSlot: 0,
+      }),
+      { ok: false, code: 'SPECTATOR_READONLY' },
+    );
+    assert.deepEqual(
+      canClaimSeat({
+        status: 'waiting',
+        isPlayer: true,
+        seatTakenByOther: true,
+        sideFull: false,
+        fieldSlot: 1,
+      }),
+      { ok: false, code: 'SEAT_TAKEN' },
+    );
+  });
+});
+
+describe('spectator join rules', () => {
+  it('allows spectator when player seats are full', () => {
+    assert.deepEqual(
+      canJoinRoom({
+        found: true,
+        status: 'ready',
+        expired: false,
+        activeCount: 4,
+        alreadyInAnyRoom: false,
+        teamTaken: false,
+        asSpectator: true,
+        spectatorCount: 1,
+      }),
+      { ok: true },
+    );
+  });
+
+  it('allows spectator late join while playing', () => {
+    assert.deepEqual(
+      canJoinRoom({
+        found: true,
+        status: 'playing',
+        expired: false,
+        activeCount: 2,
+        alreadyInAnyRoom: false,
+        teamTaken: false,
+        asSpectator: true,
+        spectatorCount: 0,
+      }),
+      { ok: true },
+    );
+  });
+
+  it('blocks spectator when cap reached', () => {
+    assert.deepEqual(
+      canJoinRoom({
+        found: true,
+        status: 'playing',
+        expired: false,
+        activeCount: 2,
+        alreadyInAnyRoom: false,
+        teamTaken: false,
+        asSpectator: true,
+        spectatorCount: 8,
+      }),
+      { ok: false, code: 'ROOM_FULL' },
     );
   });
 });

@@ -216,25 +216,129 @@ describe('game-server probe', () => {
     ws.close();
   });
 
-  it('two clients same room; third rejected', async () => {
-    const a = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
-    const b = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
-    const c = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+  it('allows up to maxPerRoom clients then rejects', async () => {
+    const sockets = [];
+    for (let i = 0; i < 10; i++) {
+      const ws = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+      sockets.push(ws);
+      ws.send(
+        JSON.stringify({
+          t: 'join',
+          roomId: 'cap',
+          token: `test:user-${i}`,
+          role: i < 4 ? 'player' : 'spectator',
+        }),
+      );
+      await onceMessage(ws, (m) => m.t === 'joined');
+    }
+    const overflow = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+    const errP = onceMessage(overflow, (m) => m.t === 'error' && m.code === 'ROOM_FULL');
+    overflow.send(
+      JSON.stringify({ t: 'join', roomId: 'cap', token: 'test:overflow', role: 'spectator' }),
+    );
+    await errP;
+    for (const ws of sockets) ws.close();
+    overflow.close();
+  });
 
-    a.send(JSON.stringify({ t: 'join', roomId: 'duo', token: 'test-token-abc' }));
-    await onceMessage(a, (m) => m.t === 'joined');
-    const peerP = onceMessage(a, (m) => m.t === 'peerJoined');
-    b.send(JSON.stringify({ t: 'join', roomId: 'duo', token: 'test-token-abc' }));
-    await onceMessage(b, (m) => m.t === 'joined');
-    await peerP;
+  it('spectator join receives role and cannot send input', async () => {
+    const player = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+    const spectator = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
 
-    const errP = onceMessage(c, (m) => m.t === 'error' && m.code === 'ROOM_FULL');
-    c.send(JSON.stringify({ t: 'join', roomId: 'duo', token: 'test-token-abc' }));
+    player.send(
+      JSON.stringify({ t: 'join', roomId: 'spec-room', token: 'test:player-a', role: 'player' }),
+    );
+    await onceMessage(player, (m) => m.t === 'joined');
+
+    const joinedP = onceMessage(
+      spectator,
+      (m) => m.t === 'joined' && m.role === 'spectator',
+    );
+    spectator.send(
+      JSON.stringify({
+        t: 'join',
+        roomId: 'spec-room',
+        token: 'test:spec-a',
+        role: 'spectator',
+      }),
+    );
+    await joinedP;
+
+    const errP = onceMessage(
+      spectator,
+      (m) => m.t === 'error' && m.code === 'SPECTATOR_READONLY',
+    );
+    spectator.send(JSON.stringify({ t: 'probeInput', seq: 1, x: 1, y: 0 }));
     await errP;
 
-    a.close();
-    b.close();
-    c.close();
+    const matchErrP = onceMessage(
+      spectator,
+      (m) => m.t === 'error' && m.code === 'SPECTATOR_READONLY',
+    );
+    spectator.send(JSON.stringify({ t: 'matchJoin', side: 'home', fieldSlot: 0 }));
+    await matchErrP;
+
+    player.close();
+    spectator.close();
+  });
+
+  it('late spectator receives snapshot when match already started', async () => {
+    const home = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+    const away = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+
+    home.send(JSON.stringify({ t: 'join', roomId: 'late-spec', token: 'test:home', role: 'player' }));
+    await onceMessage(home, (m) => m.t === 'joined');
+    away.send(JSON.stringify({ t: 'join', roomId: 'late-spec', token: 'test:away', role: 'player' }));
+    await onceMessage(away, (m) => m.t === 'joined');
+
+    home.send(
+      JSON.stringify({
+        t: 'matchJoin',
+        side: 'home',
+        fieldSlot: 0,
+        humans: [
+          { userId: 'home', side: 'home', fieldSlot: 0 },
+          { userId: 'away', side: 'away', fieldSlot: 0 },
+        ],
+      }),
+    );
+    await onceMessage(home, (m) => m.t === 'matchJoined');
+    away.send(
+      JSON.stringify({
+        t: 'matchJoin',
+        side: 'away',
+        fieldSlot: 0,
+        humans: [
+          { userId: 'home', side: 'home', fieldSlot: 0 },
+          { userId: 'away', side: 'away', fieldSlot: 0 },
+        ],
+      }),
+    );
+    await onceMessage(away, (m) => m.t === 'matchJoined');
+
+    // Wait for at least one snapshot so the session is clearly started.
+    await onceMessage(home, (m) => m.t === 'matchSnapshot', 5000);
+
+    const spectator = await connect(ctx.wsUrl, { origin: 'http://localhost:4321' });
+    const snapOrSpectating = onceMessage(
+      spectator,
+      (m) => m.t === 'matchSpectating' || m.t === 'matchSnapshot',
+      5000,
+    );
+    spectator.send(
+      JSON.stringify({
+        t: 'join',
+        roomId: 'late-spec',
+        token: 'test:late-spec',
+        role: 'spectator',
+      }),
+    );
+    await onceMessage(spectator, (m) => m.t === 'joined' && m.role === 'spectator');
+    await snapOrSpectating;
+
+    home.close();
+    away.close();
+    spectator.close();
   });
 
   it('different rooms are isolated', async () => {

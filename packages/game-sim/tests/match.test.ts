@@ -25,6 +25,23 @@ function input(partial: Partial<PlayerInput> & { seq: number }): PlayerInput {
 }
 
 describe('createMatch', () => {
+  it('spawns multi-human assignments on distinct field slots', () => {
+    const match = createMatch({
+      humanAssignments: [
+        { playerId: 'h1', side: 'home', fieldSlot: 0 },
+        { playerId: 'h2', side: 'home', fieldSlot: 1 },
+        { playerId: 'a1', side: 'away', fieldSlot: 0 },
+      ],
+      durationSeconds: 60,
+    });
+    const snap = match.getSnapshot();
+    assert.equal(snap.players.filter((p) => p.kind === 'human').length, 3);
+    assert.equal(snap.humanAssignments.length, 3);
+    assert.ok(snap.players.some((p) => p.id === 'h2' && p.side === 'home' && p.slot === 1));
+    assert.equal(snap.humanSlots.home, 'h1');
+    assert.equal(snap.humanSlots.away, 'a1');
+  });
+
   it('spawns an 11v11 roster with one human per side when ids are provided', () => {
     const match = createMatch({
       homeHumanPlayerId: 'p-home',
