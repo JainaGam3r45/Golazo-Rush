@@ -120,7 +120,7 @@ function hexToNumber(hex: string): number {
 
 function getTeamColor(teamId: string): number {
   const team = mockTeams.find((t) => t.id === teamId);
-  return team ? hexToNumber(team.primary) : 0x39ff14;
+  return team ? hexToNumber(team.primary) : 0x3ddc84;
 }
 
 function getTeamName(teamId: string): string {
@@ -1309,7 +1309,7 @@ export class MatchScene extends Phaser.Scene {
       const dist = 20 + Math.random() * 40;
       const px = cx + Math.cos(angle) * dist;
       const py = cy + Math.sin(angle) * dist;
-      const color = i % 2 === 0 ? 0x39ff14 : 0xffffff;
+      const color = i % 2 === 0 ? 0x3ddc84 : 0xffffff;
       const dot = this.add.circle(px, py, 4, color, 0.85).setDepth(6);
       this.tweens.add({
         targets: dot,
@@ -1379,7 +1379,7 @@ export class MatchScene extends Phaser.Scene {
   private drawPitch(): void {
     const graphics = this.add.graphics();
     const stripeWidth = 80;
-    const colors = [0x1a5c1a, 0x1e6b1e];
+    const colors = [0x1e6b3a, 0x268a4a];
 
     for (let x = 0; x < PITCH_WIDTH; x += stripeWidth) {
       const stripeIdx = Math.floor(x / stripeWidth) % 2;
@@ -1484,7 +1484,7 @@ export class MatchScene extends Phaser.Scene {
       .text(PITCH_WIDTH / 2, PITCH_HEIGHT / 2 - 40, '¡GOL!', {
         fontFamily: 'Bebas Neue, sans-serif',
         fontSize: '64px',
-        color: '#39ff14',
+        color: '#3ddc84',
         stroke: '#0a0f0a',
         strokeThickness: 6,
       })

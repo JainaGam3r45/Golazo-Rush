@@ -61,6 +61,7 @@ const { compact = false } = Astro.props;
 <style>
   .friends-panel {
     padding: 1.25rem;
+    border-radius: var(--radius-xl);
   }
 
   .friends-panel--compact {
@@ -105,8 +106,14 @@ const { compact = false } = Astro.props;
     color: var(--text);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.55rem 0.65rem;
+    border-radius: var(--radius-md);
+    padding: 0.65rem 0.75rem;
+  }
+  .friends-panel__field input:focus,
+  .friends-panel__dm-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
   .friends-panel__section {
@@ -136,7 +143,7 @@ const { compact = false } = Astro.props;
   .friends-panel__empty {
     padding: 0.55rem 0.7rem;
     background: var(--bg-elevated);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 0.875rem;
   }
 

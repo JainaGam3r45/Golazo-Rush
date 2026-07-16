@@ -9,7 +9,7 @@ export function createGameConfig(parent: string, setup: MatchSetup): Phaser.Type
     width: PITCH_WIDTH,
     height: PITCH_HEIGHT,
     parent,
-    backgroundColor: '#1a5c1a',
+    backgroundColor: '#1e6b3a',
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -48,7 +48,7 @@ function hexToNumber(hex: string): number {
 
 function getTeamColor(teamId: string): number {
   const team = mockTeams.find((t) => t.id === teamId);
-  return team ? hexToNumber(team.primary) : 0x39ff14;
+  return team ? hexToNumber(team.primary) : 0x3ddc84;
 }
 
 function updateScoreOverlay(home: number, away: number): void {
@@ -544,7 +544,7 @@ export class OnlineMatchScene extends Phaser.Scene {
         .text(meta.x, meta.y - 30, 'Tú', {
           fontFamily: 'Bebas Neue, sans-serif',
           fontSize: '22px',
-          color: '#39ff14',
+          color: '#3ddc84',
           stroke: '#0a0f0a',
           strokeThickness: 5,
         })
@@ -577,7 +577,7 @@ export class OnlineMatchScene extends Phaser.Scene {
     g.fillCircle(1, 2, BALL_RADIUS + 3);
     g.fillStyle(0xffffff, 1);
     g.fillCircle(0, 0, BALL_RADIUS + 2);
-    g.lineStyle(2, 0x39ff14, 0.85);
+    g.lineStyle(2, 0x3ddc84, 0.85);
     g.strokeCircle(0, 0, BALL_RADIUS + 2);
     g.fillStyle(0x1a1a1a, 1);
     g.fillCircle(0, -5, 3.4);
@@ -590,7 +590,7 @@ export class OnlineMatchScene extends Phaser.Scene {
   private drawPitch(): void {
     const graphics = this.add.graphics();
     const stripeWidth = 80;
-    const colors = [0x1a5c1a, 0x1e6b1e];
+    const colors = [0x1e6b3a, 0x268a4a];
 
     for (let x = 0; x < PITCH_WIDTH; x += stripeWidth) {
       const stripeIdx = Math.floor(x / stripeWidth) % 2;

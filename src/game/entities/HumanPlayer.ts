@@ -7,7 +7,7 @@ const SPRINT_MULTIPLIER = 1.5;
 const SPRINT_COOLDOWN_MS = 2000;
 const SPRINT_DURATION_MS = 800;
 const CHARGE_TIME_MS = 400;
-const ACCENT_COLOR = 0x39ff14;
+const ACCENT_COLOR = 0x3ddc84;
 const PASS_COOLDOWN_MS = 450;
 const LONG_KICK_COOLDOWN_MS = 700;
 
@@ -87,7 +87,7 @@ export class HumanPlayer extends FieldPlayer {
       .text(x, y - 30, 'Tú', {
         fontFamily: 'Bebas Neue, sans-serif',
         fontSize: '22px',
-        color: '#39ff14',
+        color: '#3ddc84',
         stroke: '#0a0f0a',
         strokeThickness: 5,
       })

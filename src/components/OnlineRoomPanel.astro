@@ -232,9 +232,12 @@ const { teams } = Astro.props;
   .online-room__entry-grid { display: grid; gap: 1rem; }
   @media (min-width: 720px) { .online-room__entry-grid { grid-template-columns: 1fr 1fr; } }
   .online-room__card {
-    padding: 1.15rem 1.2rem;
-    background: linear-gradient(160deg, color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 12%), var(--bg-elevated));
-    border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+    padding: 1.3rem 1.35rem;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--surface) 88%, var(--accent) 12%), var(--surface));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    animation: card-enter 0.35s var(--ease-out) both;
   }
   .online-room__player-card--bot {
     border-style: dashed;
@@ -243,17 +246,23 @@ const { teams } = Astro.props;
   }
   .online-room__player-card--bot .online-room__player-name { color: var(--accent); }
   .online-room__start-bots { letter-spacing: 0.03em; }
-  .online-room__spectators { margin: 0 0 1rem; padding: 0.75rem 0.9rem; border: 1px dashed var(--border); }
-  .online-room__config--spectator {
-    padding: 1.1rem 1.15rem;
-    border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
-    background: var(--bg-elevated);
+  .online-room__spectators { margin: 0 0 1rem; padding: 0.85rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius-lg); }
+  .online-room__config--warmup {
+    padding: 1.2rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
   }
   .online-room__card h3 { margin: 0 0 0.75rem; font-family: var(--font-display); color: var(--accent); }
   .online-room__field { display: grid; gap: 0.35rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
   .online-room__field input, .online-room__field select, .online-room__chat-form input {
-    padding: 0.6rem 0.75rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; width: 100%;
+    padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elevated); color: var(--text); font: inherit; width: 100%;
   }
+  .online-room__field input:focus, .online-room__field select:focus, .online-room__chat-form input:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .online-room__card .btn, .online-room__card .btn-outline { width: 100%; }
   .online-room__code { margin: 0.15rem 0; font-family: var(--font-display); font-size: 1.85rem; letter-spacing: 0.18em; color: var(--accent); }
   .online-room__code-label { margin: 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
   .online-room__lobby-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1.15rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
@@ -271,11 +280,13 @@ const { teams } = Astro.props;
     color: var(--accent);
   }
   .online-room__player-card {
-    padding: 1.05rem 1.1rem;
+    padding: 1.1rem 1.15rem;
     border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     background: var(--bg-elevated);
     min-height: 8.5rem;
     position: relative;
+    box-shadow: var(--shadow-sm);
   }
   .online-room__player-card--self { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: inset 3px 0 0 var(--accent); }
   .online-room__player-card--ready { border-color: var(--accent); }
@@ -290,7 +301,7 @@ const { teams } = Astro.props;
   .online-room__section-label { margin: 0.85rem 0 0.45rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
   .online-room__teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.45rem; margin-bottom: 0.5rem; }
   .online-room__team-btn {
-    display: grid; gap: 0.15rem; padding: 0.55rem 0.6rem; border: 1px solid var(--border);
+    display: grid; gap: 0.15rem; padding: 0.6rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-md);
     background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left;
   }
   .online-room__team-code { font-family: var(--font-display); color: var(--accent); font-size: 0.95rem; }
@@ -298,17 +309,19 @@ const { teams } = Astro.props;
   .online-room__team-btn--active { border-color: var(--accent); background: color-mix(in srgb, var(--bg-elevated) 70%, var(--accent) 12%); }
   .online-room__team-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .online-room__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.85rem 0 0.5rem; }
-  .online-room__error { margin: 0.5rem 0 0; color: #ff7b7b; font-size: 0.9rem; }
+  .online-room__error { margin: 0.5rem 0 0; color: var(--danger); font-size: 0.9rem; font-weight: 600; }
   .online-room__countdown { margin: 0.75rem 0 0; font-family: var(--font-display); color: var(--accent); }
   .online-room__chat {
-    padding: 1rem;
+    padding: 1.1rem;
     border: 1px solid var(--border);
-    background: var(--bg-elevated);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
   }
   .online-room__chat h3 { margin: 0 0 0.65rem; font-family: var(--font-display); color: var(--accent); font-size: 1.1rem; }
   .online-room__chat-list {
     list-style: none; margin: 0 0 0.75rem; padding: 0.75rem; min-height: 10rem; max-height: 16rem; overflow: auto;
-    background: var(--bg); border: 1px solid var(--border);
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md);
   }
   .online-room__chat-form { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
   .online-room__chat-quick {
@@ -324,13 +337,13 @@ const { teams } = Astro.props;
     color: var(--text);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     cursor: pointer;
   }
   .online-room__chat-quick button:hover {
     border-color: var(--accent);
   }
-  .online-room__skel-line { height: 0.85rem; margin-bottom: 0.5rem; background: var(--bg-elevated); border-radius: 4px; }
+  .online-room__skel-line { height: 0.85rem; margin-bottom: 0.5rem; background: var(--bg-elevated); border-radius: var(--radius-md); }
   .online-room__skel-line--short { width: 40%; }
   .online-room__copy { margin-top: 0.35rem; }
   @media (max-width: 640px) {

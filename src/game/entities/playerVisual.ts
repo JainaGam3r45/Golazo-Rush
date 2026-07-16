@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { FieldPlayerKind } from './FieldPlayer';
 
-const ACCENT_COLOR = 0x39ff14;
+const ACCENT_COLOR = 0x3ddc84;
 
 export type PlayerVisualOptions = {
   teamColor: number;
@@ -42,7 +42,7 @@ export class PlayerVisual {
     this.bodyShape = scene.add.graphics();
     this.numberText = scene.add
       .text(0, 0, options.slot >= 0 ? String(options.slot + 1) : 'GK', {
-        fontFamily: 'Inter, sans-serif',
+        fontFamily: 'Nunito, system-ui, sans-serif',
         fontSize: options.kind === 'goalkeeper' ? '11px' : '10px',
         color: '#ffffff',
         fontStyle: 'bold',
