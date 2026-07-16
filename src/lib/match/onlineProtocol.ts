@@ -29,6 +29,12 @@ export type OnlineEntityPose = {
   vy: number;
 };
 
+/** Ball pose plus optional possession fields from game-sim wire snapshots. */
+export type OnlineBallSnap = OnlineEntityPose & {
+  controllerId: string | null;
+  state: string | null;
+};
+
 export type OnlinePlayerSnap = OnlineEntityPose & {
   id: string;
   side: 'home' | 'away';
@@ -49,7 +55,7 @@ export type OnlineMatchSnap = {
   durationSeconds: number;
   half: 1 | 2;
   score: OnlineScore;
-  ball: OnlineEntityPose;
+  ball: OnlineBallSnap;
   players: OnlinePlayerSnap[];
   events: unknown[];
   receivedAt: number;
@@ -199,6 +205,19 @@ export function parsePose(raw: unknown, fallback?: Partial<OnlineEntityPose>): O
   };
 }
 
+export function parseBallSnap(raw: unknown, fallback?: Partial<OnlineEntityPose>): OnlineBallSnap {
+  const pose = parsePose(raw, fallback);
+  const obj = asRecord(raw) ?? {};
+  const controllerId =
+    typeof obj.controllerId === 'string'
+      ? obj.controllerId
+      : typeof obj.controller === 'string'
+        ? obj.controller
+        : null;
+  const state = typeof obj.state === 'string' ? obj.state : null;
+  return { ...pose, controllerId, state };
+}
+
 export function parseScore(raw: unknown): OnlineScore {
   if (Array.isArray(raw) && raw.length >= 2) {
     return { home: num(raw[0]), away: num(raw[1]) };
@@ -283,7 +302,7 @@ export function parseMatchSnap(msg: ServerInboundMsg, receivedAt = Date.now()): 
     durationSeconds,
     half,
     score: parseScore(payload.score ?? payload.scores),
-    ball: parsePose(payload.ball ?? payload.b, { x: 550, y: 325 }),
+    ball: parseBallSnap(payload.ball ?? payload.b, { x: 550, y: 325 }),
     players,
     events: Array.isArray(payload.events) ? payload.events : [],
     receivedAt,

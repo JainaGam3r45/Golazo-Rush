@@ -5,7 +5,9 @@ import {
   canJoinRoom,
   canStartRoom,
   isValidRoomCode,
+  leaveRoomUserMessage,
   normalizeRoomCode,
+  resolveLeaveRoomOutcome,
   sanitizeChatMessage,
   teamsConflict,
   wouldClearReadyOnLoadoutChange,
@@ -291,6 +293,58 @@ describe('spectator join rules', () => {
         spectatorCount: 8,
       }),
       { ok: false, code: 'ROOM_FULL' },
+    );
+  });
+});
+
+describe('leave mid-match rules', () => {
+  it('does not cancel mid-match when another player remains', () => {
+    assert.deepEqual(
+      resolveLeaveRoomOutcome({
+        role: 'player',
+        status: 'playing',
+        remainingPlayersAfterLeave: 1,
+        leaverIsHost: true,
+      }),
+      { cancelRoom: false, transferHost: true, outcome: 'left' },
+    );
+    assert.equal(leaveRoomUserMessage('left'), 'Saliste de la partida');
+  });
+
+  it('cancels mid-match only when zero players remain', () => {
+    assert.deepEqual(
+      resolveLeaveRoomOutcome({
+        role: 'player',
+        status: 'starting',
+        remainingPlayersAfterLeave: 0,
+        leaverIsHost: false,
+      }),
+      { cancelRoom: true, transferHost: false, outcome: 'cancelled' },
+    );
+    assert.equal(leaveRoomUserMessage('cancelled'), 'La sala se canceló');
+  });
+
+  it('spectators never cancel the room', () => {
+    assert.deepEqual(
+      resolveLeaveRoomOutcome({
+        role: 'spectator',
+        status: 'playing',
+        remainingPlayersAfterLeave: 0,
+        leaverIsHost: false,
+      }),
+      { cancelRoom: false, transferHost: false, outcome: 'spectator_left' },
+    );
+  });
+
+  it('lobby host leave still cancels', () => {
+    assert.deepEqual(
+      resolveLeaveRoomOutcome({
+        role: 'player',
+        status: 'ready',
+        remainingPlayersAfterLeave: 1,
+        leaverIsHost: true,
+      }),
+      { cancelRoom: true, transferHost: false, outcome: 'cancelled' },
     );
   });
 });

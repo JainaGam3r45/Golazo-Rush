@@ -53,18 +53,39 @@ function toPlayerInput(input) {
   };
 }
 
+function round1(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round(v * 10) / 10;
+}
+
+function roundInt(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round(v);
+}
+
+/** Compact wire snapshot: 1-decimal positions, integer velocities. */
 function toWireSnapshot(simSnap) {
+  const ball = simSnap.ball ?? {};
   return {
     tick: simSnap.tick,
     serverTime: Date.now(),
-    timeMs: simSnap.timeMs,
-    clockSeconds: simSnap.clockSeconds,
-    clockMs: Math.round(simSnap.clockSeconds * 1000),
+    timeMs: roundInt(simSnap.timeMs),
+    clockSeconds: round1(simSnap.clockSeconds),
+    clockMs: Math.round(Number(simSnap.clockSeconds) * 1000) || 0,
     durationSeconds: simSnap.durationSeconds,
     half: simSnap.half,
     phase: simSnap.phase,
     score: simSnap.score,
-    ball: simSnap.ball,
+    ball: {
+      x: round1(ball.x),
+      y: round1(ball.y),
+      vx: roundInt(ball.vx),
+      vy: roundInt(ball.vy),
+      ...(typeof ball.controllerId === 'string' ? { controllerId: ball.controllerId } : {}),
+      ...(typeof ball.state === 'string' ? { state: ball.state } : {}),
+    },
     players: simSnap.players.map((p) => ({
       id: p.id,
       side: p.side,
@@ -72,10 +93,10 @@ function toWireSnapshot(simSnap) {
       role: p.role,
       kind: p.role === 'gk' ? 'gk' : p.kind,
       userId: p.kind === 'human' ? p.id : null,
-      x: p.x,
-      y: p.y,
-      vx: p.vx,
-      vy: p.vy,
+      x: round1(p.x),
+      y: round1(p.y),
+      vx: roundInt(p.vx),
+      vy: roundInt(p.vy),
     })),
     humanSlots: simSnap.humanSlots,
     humanAssignments: simSnap.humanAssignments ?? [],

@@ -117,3 +117,47 @@ export function canClaimSeat(input: {
   if (input.sideFull) return { ok: false, code: 'SIDE_FULL' };
   return { ok: true };
 }
+
+/**
+ * Mirrors leave_private_room mid-match / lobby cancel rules (client-side).
+ * Spectators never cancel. Mid-match cancels only when 0 players remain.
+ */
+export function resolveLeaveRoomOutcome(input: {
+  role: 'player' | 'spectator';
+  status: string;
+  remainingPlayersAfterLeave: number;
+  leaverIsHost: boolean;
+}): {
+  cancelRoom: boolean;
+  transferHost: boolean;
+  outcome: 'spectator_left' | 'left' | 'cancelled';
+} {
+  if (input.role === 'spectator') {
+    return { cancelRoom: false, transferHost: false, outcome: 'spectator_left' };
+  }
+
+  const midMatch = input.status === 'starting' || input.status === 'playing';
+  if (midMatch) {
+    if (input.remainingPlayersAfterLeave <= 0) {
+      return { cancelRoom: true, transferHost: false, outcome: 'cancelled' };
+    }
+    return {
+      cancelRoom: false,
+      transferHost: input.leaverIsHost,
+      outcome: 'left',
+    };
+  }
+
+  if (input.leaverIsHost || input.remainingPlayersAfterLeave <= 0) {
+    return { cancelRoom: true, transferHost: false, outcome: 'cancelled' };
+  }
+  return { cancelRoom: false, transferHost: false, outcome: 'left' };
+}
+
+export function leaveRoomUserMessage(
+  outcome: 'spectator_left' | 'left' | 'cancelled',
+): string {
+  if (outcome === 'cancelled') return 'La sala se canceló';
+  if (outcome === 'spectator_left') return 'Saliste del modo espectador';
+  return 'Saliste de la partida';
+}

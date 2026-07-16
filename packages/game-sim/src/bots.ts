@@ -17,9 +17,48 @@ import {
   opponentGoalX,
   type SpawnAnchor,
 } from './constants.ts';
-import { executeClear, executePass, findPassTarget, kickBall } from './actions.ts';
+import { executeClear, executePass, findPassTarget, kickBall, tryTackle } from './actions.ts';
 
 type BotRole = 'presser' | 'supporter' | 'holder';
+
+const PRESSURE_DISTANCE = 50;
+const CLOSE_PRESSURE = 40;
+/** Seconds of ball travel to chase when intercepting a free/moving ball. */
+const INTERCEPT_LOOKAHEAD_S = 0.32;
+const INTERCEPT_LOOKAHEAD_MAX_S = 0.48;
+const CARRY_Y_MARGIN = 72;
+
+const SLOT_SPEED = [1.0, 0.96, 1.04, 0.98, 1.02] as const;
+const SLOT_APPROACH = [
+  { x: -7, y: -5 },
+  { x: 7, y: -5 },
+  { x: -5, y: 7 },
+  { x: 5, y: 7 },
+  { x: 0, y: -8 },
+] as const;
+
+/** Soft per-bot decision stagger so presser/holder decisions don't fire in lockstep. */
+const nextDecisionAt = new WeakMap<SimPlayer, number>();
+
+function slotSpeed(slot: number): number {
+  return SLOT_SPEED[slot % SLOT_SPEED.length] ?? 1;
+}
+
+function slotApproach(slot: number): { x: number; y: number } {
+  return SLOT_APPROACH[slot % SLOT_APPROACH.length] ?? { x: 0, y: 0 };
+}
+
+function decisionReady(bot: SimPlayer, time: number): boolean {
+  return time >= (nextDecisionAt.get(bot) ?? 0);
+}
+
+function markDecision(bot: SimPlayer, time: number): void {
+  nextDecisionAt.set(bot, time + 28 + (bot.slot % 5) * 14);
+}
+
+function clampCarryY(y: number): number {
+  return Math.max(CARRY_Y_MARGIN, Math.min(PITCH_HEIGHT - CARRY_Y_MARGIN, y));
+}
 
 function ballPoint(ball: SimBall, possession: PossessionState, players: SimPlayer[]): { x: number; y: number } {
   if (possession.controllerId) {
@@ -27,6 +66,93 @@ function ballPoint(ball: SimBall, possession: PossessionState, players: SimPlaye
     if (c) return { x: c.x, y: c.y };
   }
   return { x: ball.x, y: ball.y };
+}
+
+/** Project where the ball will be so pressers intercept instead of chasing the trail. */
+export function projectedInterceptPoint(
+  ball: SimBall,
+  chaser: SimPlayer,
+  possession: PossessionState,
+  players: SimPlayer[],
+): { x: number; y: number } {
+  if (possession.controllerId) {
+    const holder = players.find((p) => p.id === possession.controllerId);
+    if (holder) {
+      const offset = slotApproach(chaser.slot);
+      return { x: holder.x + offset.x, y: holder.y + offset.y };
+    }
+  }
+
+  const speed = Math.hypot(ball.vx, ball.vy);
+  if (speed < 24) {
+    const offset = slotApproach(chaser.slot);
+    return { x: ball.x + offset.x, y: ball.y + offset.y };
+  }
+
+  const toBall = dist(chaser.x, chaser.y, ball.x, ball.y);
+  const eta = toBall / Math.max(BOT_SPEED * slotSpeed(chaser.slot), 1);
+  const look = Math.min(INTERCEPT_LOOKAHEAD_MAX_S, Math.max(INTERCEPT_LOOKAHEAD_S * 0.45, eta * 0.55));
+  const offset = slotApproach(chaser.slot);
+  return {
+    x: ball.x + ball.vx * look + offset.x * 0.35,
+    y: ball.y + ball.vy * look + offset.y * 0.35,
+  };
+}
+
+/** Carry toward goal with Y biased into space / toward a free forward teammate. */
+export function pickCarryTarget(
+  bot: SimPlayer,
+  teammates: SimPlayer[],
+  opponents: SimPlayer[],
+): { x: number; y: number } {
+  const goalX = opponentGoalX(bot.side);
+  const goalY = PITCH_HEIGHT / 2;
+  const probeX = bot.x + (goalX - bot.x) * 0.45;
+
+  const bands = [goalY - 100, goalY - 50, goalY, goalY + 50, goalY + 100];
+  let bestY = goalY;
+  let bestScore = -Infinity;
+  for (const y of bands) {
+    let nearestOpp = Infinity;
+    for (const opp of opponents) {
+      nearestOpp = Math.min(nearestOpp, dist(probeX, y, opp.x, opp.y));
+    }
+    const centerPull = -Math.abs(y - goalY) * 0.08;
+    const score = nearestOpp + centerPull;
+    if (score > bestScore) {
+      bestScore = score;
+      bestY = y;
+    }
+  }
+
+  let matePull = 0;
+  let mateWeight = 0;
+  for (const mate of teammates) {
+    if (mate.id === bot.id || mate.role === 'gk') continue;
+    const forward =
+      bot.side === 'home' ? mate.x > bot.x + 18 : mate.x < bot.x - 18;
+    if (!forward) continue;
+    const crowded = opponents.some((o) => dist(mate.x, mate.y, o.x, o.y) < 48);
+    if (crowded) continue;
+    matePull += mate.y - goalY;
+    mateWeight += 1;
+  }
+  if (mateWeight > 0) {
+    bestY += (matePull / mateWeight) * 0.4;
+  }
+
+  // Slot skew so identical bots don't share one run lane.
+  bestY += ((bot.slot % 2 === 0 ? -1 : 1) * 12) + (bot.slot % 3) * 4;
+
+  return { x: goalX, y: clampCarryY(bestY) };
+}
+
+function nearestOpponentDist(bot: SimPlayer, opponents: SimPlayer[]): number {
+  let best = Infinity;
+  for (const opp of opponents) {
+    best = Math.min(best, dist(bot.x, bot.y, opp.x, opp.y));
+  }
+  return best;
 }
 
 function assignRoles(bots: SimPlayer[], ball: SimBall, possession: PossessionState, players: SimPlayer[]): Map<string, BotRole> {
@@ -79,26 +205,55 @@ function handleWithBall(
 
   const preset = FORMATION_PRESS[formationId];
   const goalX = opponentGoalX(bot.side);
-  const goalY = PITCH_HEIGHT / 2;
+  const carry = pickCarryTarget(bot, teammates, opponents);
   const distToGoal = Math.abs(bot.x - goalX);
-  const aligned = Math.abs(bot.y - goalY) < 120;
-  const pressured = opponents.some((o) => dist(bot.x, bot.y, o.x, o.y) < 50);
+  const aligned = Math.abs(bot.y - carry.y) < 130;
+  const nearest = nearestOpponentDist(bot, opponents);
+  const closePressure = nearest < CLOSE_PRESSURE;
+  const pressured = nearest < PRESSURE_DISTANCE;
+  const canDecide = decisionReady(bot, time);
 
-  if (distToGoal < preset.shootDistance && aligned) {
-    kickBall(bot, ball, possession, time, false);
+  if (canDecide && distToGoal < preset.shootDistance && aligned && !closePressure) {
+    if (kickBall(bot, ball, possession, time, false)) {
+      markDecision(bot, time);
+      return;
+    }
+  }
+
+  // Under close pressure, prefer a pass over carrying or a panic shot.
+  if (closePressure) {
+    if (canDecide) {
+      const target = findPassTarget(bot, teammates, opponents);
+      if (target && executePass(bot, ball, target, possession, time)) {
+        markDecision(bot, time);
+        return;
+      }
+      if (kickBall(bot, ball, possession, time, false, 1.05)) {
+        markDecision(bot, time);
+        return;
+      }
+    }
+    moveToward(bot, carry.x, carry.y, BOT_SPEED * preset.pressWeight * slotSpeed(bot.slot) * 0.92);
     return;
   }
 
-  if (pressured) {
+  if (pressured && canDecide) {
     const target = findPassTarget(bot, teammates, opponents);
-    if (target && executePass(bot, ball, target, possession, time)) return;
-    kickBall(bot, ball, possession, time, false, 1.05);
-    return;
+    if (target && executePass(bot, ball, target, possession, time)) {
+      markDecision(bot, time);
+      return;
+    }
   }
 
-  const target = findPassTarget(bot, teammates, opponents);
-  if (target && executePass(bot, ball, target, possession, time)) return;
-  moveToward(bot, goalX, goalY, BOT_SPEED * preset.pressWeight);
+  if (canDecide) {
+    const target = findPassTarget(bot, teammates, opponents);
+    if (target && executePass(bot, ball, target, possession, time)) {
+      markDecision(bot, time);
+      return;
+    }
+  }
+
+  moveToward(bot, carry.x, carry.y, BOT_SPEED * preset.pressWeight * slotSpeed(bot.slot));
 }
 
 export function updateBots(
@@ -129,6 +284,7 @@ export function updateBots(
 
     const anchor = anchors[bot.slot] ?? anchors[0];
     if (!anchor) continue;
+    const speedMul = slotSpeed(bot.slot);
 
     if (possession.controllerId === bot.id) {
       handleWithBall(bot, ball, possession, teammates, opponents, formationId, time);
@@ -136,6 +292,14 @@ export function updateBots(
     }
 
     if (role === 'presser') {
+      if (
+        decisionReady(bot, time) &&
+        tryTackle(bot, ball, possession, players, time)
+      ) {
+        markDecision(bot, time);
+        continue;
+      }
+
       const nearBall =
         dist(bot.x, bot.y, ball.x, ball.y) <= KICK_RANGE &&
         isBallIdle(ball) &&
@@ -143,22 +307,24 @@ export function updateBots(
       if (nearBall) {
         handleWithBall(bot, ball, possession, teammates, opponents, formationId, time);
       } else {
-        moveToward(bot, point.x, point.y, BOT_SPEED * (0.9 + preset.pressWeight * 0.15));
+        const chase = projectedInterceptPoint(ball, bot, possession, players);
+        moveToward(bot, chase.x, chase.y, BOT_SPEED * (0.9 + preset.pressWeight * 0.15) * speedMul);
       }
       continue;
     }
 
     if (role === 'supporter') {
-      const supportX = (point.x + goalX) / 2;
-      const supportY = (point.y + PITCH_HEIGHT / 2) / 2;
-      moveToward(bot, supportX, supportY, BOT_SPEED * 0.85);
+      const offset = slotApproach(bot.slot);
+      const supportX = (point.x + goalX) / 2 + offset.x * 0.5;
+      const supportY = (point.y + PITCH_HEIGHT / 2) / 2 + offset.y * 0.5;
+      moveToward(bot, supportX, supportY, BOT_SPEED * 0.85 * speedMul);
       continue;
     }
 
     const line = preset.lineHeight;
     const holdX = anchor.x + (point.x - PITCH_WIDTH / 2) * line * 0.15;
     const holdY = anchor.y + (point.y - PITCH_HEIGHT / 2) * 0.08;
-    moveToward(bot, holdX, holdY, BOT_SPEED * 0.8);
+    moveToward(bot, holdX, holdY, BOT_SPEED * 0.8 * speedMul);
   }
 }
 

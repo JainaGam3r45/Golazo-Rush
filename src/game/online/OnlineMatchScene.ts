@@ -38,6 +38,9 @@ import { isFormationId, DEFAULT_FORMATION } from '../../lib/match/formations';
 import { validateDuration } from '../../lib/match/setup';
 
 const BALL_RADIUS = 12;
+/** Keep ball above players sharing the same Y (players use depth = y). */
+const BALL_DEPTH_OFFSET = 0.5;
+const POSSESSION_RING_COLOR = 0xffe566;
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16);
@@ -83,6 +86,7 @@ function emitMatchEnded(detail: MatchEndedDetail): void {
 type RemoteSprite = {
   visual: PlayerVisual;
   youLabel: Phaser.GameObjects.Text | null;
+  possessionRing: Phaser.GameObjects.Arc;
   side: 'home' | 'away';
   slot: number;
   kind: OnlinePlayerSnap['kind'];
@@ -240,13 +244,17 @@ export class OnlineMatchScene extends Phaser.Scene {
             const label =
               status === 'playing' || status === 'joined'
                 ? 'Espectando'
-                : status === 'connecting' || status === 'authenticating'
-                  ? 'Espectando · conectando'
-                  : `Espectando · ${status}`;
+                : status === 'reconnecting'
+                  ? 'Espectando · reconectando'
+                  : status === 'connecting' || status === 'authenticating'
+                    ? 'Espectando · conectando'
+                    : `Espectando · ${status}`;
             updateConnHud(label);
             this.statusText.setText(detail ? `${status}: ${detail}` : 'Espectando');
             if (status === 'playing' || status === 'joined') {
               emitHudStoppage('Espectando', 'Modo espectador: solo ves el partido, sin controles.');
+            } else if (status === 'reconnecting') {
+              emitHudStoppage('Reconectando', detail ?? 'Reconectando a la retransmisión…');
             } else if (status === 'error') {
               emitHudStoppage('Error de conexión', detail ?? 'No se pudo conectar al servidor.');
             }
@@ -257,13 +265,17 @@ export class OnlineMatchScene extends Phaser.Scene {
               ? '11v11 Online'
               : status === 'joined'
                 ? '11v11 Online · en sala'
-                : status === 'connecting' || status === 'authenticating'
-                  ? '11v11 Online · conectando'
-                  : `11v11 Online · ${status}`;
+                : status === 'reconnecting'
+                  ? '11v11 Online · reconectando'
+                  : status === 'connecting' || status === 'authenticating'
+                    ? '11v11 Online · conectando'
+                    : `11v11 Online · ${status}`;
           updateConnHud(label);
           this.statusText.setText(detail ? `${status}: ${detail}` : status);
           if (status === 'playing') {
             emitHudStoppage('En juego', 'En juego: controla tu jugador (servidor autoritativo).');
+          } else if (status === 'reconnecting') {
+            emitHudStoppage('Reconectando', detail ?? 'Reconectando al partido…');
           } else if (status === 'error') {
             emitHudStoppage('Error de conexión', detail ?? 'No se pudo conectar al servidor.');
           }
@@ -307,6 +319,7 @@ export class OnlineMatchScene extends Phaser.Scene {
       try {
         sprite.visual.destroy();
         sprite.youLabel?.destroy();
+        sprite.possessionRing.destroy();
       } catch {
         // scene may already be mid-destroy
       }
@@ -352,7 +365,12 @@ export class OnlineMatchScene extends Phaser.Scene {
     }
 
     this.ballGfx.setPosition(frame.ball.x, frame.ball.y);
+    this.ballGfx.setDepth(frame.ball.y + BALL_DEPTH_OFFSET);
     this.ballShadow.setPosition(frame.ball.x + 1, frame.ball.y + 11);
+
+    const controllerId = frame.ball.controllerId;
+    const ballControlled = frame.ball.state === 'controlled' && !!controllerId;
+    this.ballGfx.setAlpha(ballControlled ? 1 : 0.96);
 
     if (
       frame.score.home !== this.lastScore.home ||
@@ -409,7 +427,18 @@ export class OnlineMatchScene extends Phaser.Scene {
       }
 
       sprite.visual.sync(x, y, y, pose.vx, pose.vy);
-      if (sprite.youLabel) sprite.youLabel.setPosition(x, y - 30);
+      if (sprite.youLabel) {
+        sprite.youLabel.setPosition(x, y - 30);
+        sprite.youLabel.setDepth(y + 1);
+      }
+
+      const hasBall = !!controllerId && id === controllerId;
+      sprite.possessionRing.setPosition(x, y);
+      sprite.possessionRing.setDepth(y + 0.25);
+      sprite.possessionRing.setVisible(hasBall);
+      if (hasBall) {
+        sprite.possessionRing.setStrokeStyle(2.5, POSSESSION_RING_COLOR, ballControlled ? 0.95 : 0.7);
+      }
     }
   }
 
@@ -520,12 +549,19 @@ export class OnlineMatchScene extends Phaser.Scene {
           strokeThickness: 5,
         })
         .setOrigin(0.5)
-        .setDepth(4);
+        .setDepth(meta.y + 1);
     }
+
+    const possessionRing = this.add
+      .circle(meta.x, meta.y, width * 0.88, POSSESSION_RING_COLOR, 0)
+      .setStrokeStyle(2.5, POSSESSION_RING_COLOR, 0.9)
+      .setDepth(meta.y + 0.25)
+      .setVisible(false);
 
     this.sprites.set(meta.id, {
       visual,
       youLabel,
+      possessionRing,
       side: meta.side,
       slot: meta.slot,
       kind: meta.kind,
@@ -548,7 +584,7 @@ export class OnlineMatchScene extends Phaser.Scene {
     g.fillCircle(5, 2, 3);
     g.fillCircle(-5, 2, 3);
     this.ballGfx = this.add.container(PITCH_WIDTH / 2, PITCH_HEIGHT / 2, [g]);
-    this.ballGfx.setDepth(5);
+    this.ballGfx.setDepth(PITCH_HEIGHT / 2 + BALL_DEPTH_OFFSET);
   }
 
   private drawPitch(): void {

@@ -1,4 +1,4 @@
-import type { OnlineEntityPose, OnlineMatchSnap, OnlinePlayerSnap } from './onlineProtocol.ts';
+import type { OnlineBallSnap, OnlineEntityPose, OnlineMatchSnap, OnlinePlayerSnap } from './onlineProtocol.ts';
 
 export type Vec2 = { x: number; y: number };
 
@@ -32,6 +32,17 @@ export function extrapolatePose(pose: OnlineEntityPose, dtMs: number): OnlineEnt
   };
 }
 
+function withBallMeta(pose: OnlineEntityPose, meta: OnlineBallSnap): OnlineBallSnap {
+  return {
+    ...pose,
+    controllerId: meta.controllerId,
+    state: meta.state,
+  };
+}
+
+/** Hard cap: only two snaps are kept for interpolation (never grows). */
+export const MAX_SNAP_BUFFER = 2;
+
 export type SnapBuffer = {
   prev: OnlineMatchSnap | null;
   next: OnlineMatchSnap | null;
@@ -41,6 +52,7 @@ export function pushSnap(buffer: SnapBuffer, snap: OnlineMatchSnap): SnapBuffer 
   if (!buffer.next) {
     return { prev: snap, next: snap };
   }
+  // Drop anything older than prev/next — buffer stays bounded at MAX_SNAP_BUFFER.
   return { prev: buffer.next, next: snap };
 }
 
@@ -54,7 +66,7 @@ function indexPlayers(players: OnlinePlayerSnap[]): Map<string, OnlinePlayerSnap
 }
 
 export type InterpolatedFrame = {
-  ball: OnlineEntityPose;
+  ball: OnlineBallSnap;
   players: Map<string, OnlineEntityPose & { meta: OnlinePlayerSnap }>;
   score: { home: number; away: number };
   phase: string;
@@ -115,7 +127,8 @@ export function sampleInterpolatedFrame(
   }
 
   return {
-    ball: lerpPose(prev.ball, next.ball, alpha),
+    // Possession meta is discrete — take the newer snap, not a lerp.
+    ball: withBallMeta(lerpPose(prev.ball, next.ball, alpha), next.ball),
     players,
     score: next.score,
     phase: next.phase,
@@ -140,10 +153,10 @@ function frameFromSnap(
         : { x: p.x, y: p.y, vx: p.vx, vy: p.vy };
     players.set(p.id, { ...pose, meta: p });
   }
-  const ball =
+  const pose =
     extrapolateMs > 0 ? extrapolatePose(snap.ball, extrapolateMs) : { ...snap.ball };
   return {
-    ball,
+    ball: withBallMeta(pose, snap.ball),
     players,
     score: snap.score,
     phase: snap.phase,

@@ -44,10 +44,71 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
   /** @type {Map<string, MatchSession>} */
   const matchSessions = new Map();
 
+  /** Keep sim alive briefly when the WS room empties mid-match so clients can rejoin. */
+  const EMPTY_ROOM_GRACE_MS = 40_000;
+  /** Skip snapshot send when the socket already has this much buffered. */
+  const SNAP_BACKPRESSURE_BYTES = 256 * 1024;
+  /** Min interval between room-wide probeState broadcasts. */
+  const PROBE_STATE_THROTTLE_MS = 500;
+
+  /** @type {Map<string, ReturnType<typeof setTimeout>>} */
+  const emptyRoomGraceTimers = new Map();
+  /** @type {Map<string, number>} */
+  const lastProbeStateAt = new Map();
+
   let shuttingDown = false;
   let heartbeatTimer = null;
   let tickTimer = null;
   let snapshotTimer = null;
+
+  function clearEmptyRoomGrace(roomId) {
+    const timer = emptyRoomGraceTimers.get(roomId);
+    if (timer) {
+      clearTimeout(timer);
+      emptyRoomGraceTimers.delete(roomId);
+    }
+  }
+
+  function scheduleEmptyRoomGrace(roomId) {
+    clearEmptyRoomGrace(roomId);
+    const timer = setTimeout(() => {
+      emptyRoomGraceTimers.delete(roomId);
+      const session = matchSessions.get(roomId);
+      if (!session) return;
+      // Someone rejoined into a live WS room — keep the sim.
+      if (rooms.get(roomId)?.connections?.size) return;
+      matchSessions.delete(roomId);
+      host.stop(roomId);
+      lastProbeStateAt.delete(roomId);
+      log.info('match_grace_expired', { roomId, graceMs: EMPTY_ROOM_GRACE_MS });
+    }, EMPTY_ROOM_GRACE_MS);
+    if (timer.unref) timer.unref();
+    emptyRoomGraceTimers.set(roomId, timer);
+    log.info('match_grace_armed', { roomId, graceMs: EMPTY_ROOM_GRACE_MS });
+  }
+
+  function sendWithBackpressure(ws, obj, opts = {}) {
+    if (ws.readyState !== ws.OPEN) return false;
+    const skippable = opts.skippable === true;
+    const buffered = typeof ws.bufferedAmount === 'number' ? ws.bufferedAmount : 0;
+    if (skippable && buffered > SNAP_BACKPRESSURE_BYTES) {
+      return false;
+    }
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+
+  function broadcastProbeState(room, seq, excludeSocket = null) {
+    if (!room) return;
+    const now = Date.now();
+    const last = lastProbeStateAt.get(room.roomId) ?? 0;
+    if (now - last < PROBE_STATE_THROTTLE_MS) return;
+    lastProbeStateAt.set(room.roomId, now);
+    for (const peer of room.connections.values()) {
+      if (excludeSocket && peer.socket === excludeSocket) continue;
+      send(peer.socket, { t: 'probeState', seq, clients: room.connections.size });
+    }
+  }
 
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -325,14 +386,15 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
             send(ws, { t: 'peerJoined' });
           }
         }
+        clearEmptyRoomGrace(room.roomId);
         send(ws, { t: 'probeState', seq: 0, clients: peers });
 
-        // Late spectate: if match already running, push current snapshot immediately.
-        if (role === 'spectator') {
-          const session = matchSessions.get(room.roomId);
-          if (session?.started) {
-            const snap = host.snapshot(room.roomId);
-            if (snap) send(ws, { t: 'matchSnapshot', ...snap });
+        // Late join / rejoin: if match already running, push current snapshot immediately.
+        const liveSession = matchSessions.get(room.roomId);
+        if (liveSession?.started) {
+          const snap = host.snapshot(room.roomId);
+          if (snap) send(ws, { t: 'matchSnapshot', ...snap });
+          if (role === 'spectator') {
             send(ws, { t: 'matchSpectating', roomId: room.roomId });
           }
         }
@@ -391,9 +453,9 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         const room = rooms.get(meta.roomId);
         if (!room) return;
         if (msg.t === 'probeInput') {
-          for (const peer of room.connections.values()) {
-            send(peer.socket, { t: 'probeState', seq, clients: room.connections.size });
-          }
+          // Ack the sender every time; throttle fanout to peers.
+          send(ws, { t: 'probeState', seq, clients: room.connections.size });
+          broadcastProbeState(room, seq, ws);
         }
         const session = matchSessions.get(meta.roomId);
         if (session?.started && meta.userId) {
@@ -546,6 +608,7 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
             });
           }
         }
+        clearEmptyRoomGrace(meta.roomId);
         send(ws, {
           t: 'matchJoined',
           roomId: meta.roomId,
@@ -553,6 +616,11 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
           fieldSlot,
           playerId: meta.userId,
         });
+        // Rejoin within grace: push latest snap so the client resumes without waiting a tick.
+        if (session.started) {
+          const snap = host.snapshot(meta.roomId);
+          if (snap) send(ws, { t: 'matchSnapshot', ...snap });
+        }
         return;
       }
       default:
@@ -571,21 +639,30 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         if (room) {
           for (const peer of room.connections.values()) {
             send(peer.socket, { t: 'peerLeft' });
-            send(peer.socket, { t: 'probeState', seq: 0, clients: room.connections.size });
           }
+          broadcastProbeState(room, 0);
         }
       } else {
-        matchSessions.delete(meta.roomId);
-        host.stop(meta.roomId);
-        log.debug('room_removed', { roomId: meta.roomId });
+        const session = matchSessions.get(meta.roomId);
+        const midMatch =
+          session?.started && !session.finishedNotified;
+        if (midMatch) {
+          // Keep matchSession + host alive so the same userId can matchJoin within grace.
+          scheduleEmptyRoomGrace(meta.roomId);
+          log.debug('room_empty_grace', { roomId: meta.roomId });
+        } else {
+          clearEmptyRoomGrace(meta.roomId);
+          matchSessions.delete(meta.roomId);
+          host.stop(meta.roomId);
+          lastProbeStateAt.delete(meta.roomId);
+          log.debug('room_removed', { roomId: meta.roomId });
+        }
       }
     }
   }
 
   function send(ws, obj) {
-    if (ws.readyState === ws.OPEN) {
-      ws.send(JSON.stringify(obj));
-    }
+    sendWithBackpressure(ws, obj, { skippable: false });
   }
 
   function startLoops() {
@@ -633,7 +710,7 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
         const room = rooms.get(roomId);
         if (!room) continue;
         for (const peer of room.connections.values()) {
-          send(peer.socket, { t: 'matchSnapshot', ...snap });
+          sendWithBackpressure(peer.socket, { t: 'matchSnapshot', ...snap }, { skippable: true });
         }
 
         if (typeof host.consumeFinished === 'function') {
@@ -669,6 +746,9 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
     if (tickTimer) clearInterval(tickTimer);
     if (snapshotTimer) clearInterval(snapshotTimer);
     heartbeatTimer = tickTimer = snapshotTimer = null;
+    for (const roomId of emptyRoomGraceTimers.keys()) {
+      clearEmptyRoomGrace(roomId);
+    }
   }
 
   /**
@@ -713,6 +793,7 @@ export async function createGameServer({ config, log, authVerifier, matchHost, p
     rooms.clear();
     matchSessions.clear();
     socketMeta.clear();
+    lastProbeStateAt.clear();
     log.info('shutdown_complete');
   }
 

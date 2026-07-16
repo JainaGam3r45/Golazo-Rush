@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/match.test.ts tests/possession.test.ts"
+    "test": "node --experimental-strip-types --test tests/match.test.ts tests/possession.test.ts tests/bots.test.ts"
   },
   "engines": {
     "node": ">=22.12.0"

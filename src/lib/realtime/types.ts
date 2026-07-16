@@ -6,7 +6,8 @@ export type RealtimeEventName =
   | 'match_finished'
   | 'room_updated'
   | 'room_starting'
-  | 'room_chat_message';
+  | 'room_chat_message'
+  | 'direct_message';
 
 export type RankingUpdatedPayload = {
   teamId: string;

@@ -8,6 +8,7 @@ import {
 } from '../../src/lib/match/onlineInput.ts';
 import { emptyButtons } from '../../src/lib/match/onlineProtocol.ts';
 import {
+  MAX_SNAP_BUFFER,
   clamp01,
   extrapolatePose,
   lerp,
@@ -100,19 +101,43 @@ describe('online interpolation', () => {
     assert.deepEqual(far, { x: 100, y: 0 });
   });
 
+  it('keeps interp buffer capped at two snaps', () => {
+    assert.equal(MAX_SNAP_BUFFER, 2);
+    const base = {
+      tick: 0,
+      phase: 'playing',
+      clockMs: 0,
+      durationSeconds: 900,
+      half: 1 as const,
+      score: { home: 0, away: 0 },
+      ball: { x: 0, y: 0, vx: 0, vy: 0, controllerId: null, state: null },
+      players: [],
+      events: [],
+      receivedAt: 0,
+    };
+    let buffer = pushSnap({ prev: null, next: null }, { ...base, tick: 1, receivedAt: 1 });
+    buffer = pushSnap(buffer, { ...base, tick: 2, receivedAt: 2 });
+    buffer = pushSnap(buffer, { ...base, tick: 3, receivedAt: 3 });
+    buffer = pushSnap(buffer, { ...base, tick: 4, receivedAt: 4 });
+    assert.equal(buffer.prev?.tick, 3);
+    assert.equal(buffer.next?.tick, 4);
+  });
+
   it('samples between two snaps', () => {
     const snapA = {
       tick: 1,
       phase: 'playing',
       clockMs: 1000,
+      durationSeconds: 900,
+      half: 1 as const,
       score: { home: 0, away: 0 },
-      ball: { x: 0, y: 0, vx: 0, vy: 0 },
+      ball: { x: 0, y: 0, vx: 0, vy: 0, controllerId: null, state: null },
       players: [
         {
           id: 'p1',
-          side: 'home',
+          side: 'home' as const,
           slot: 0,
-          kind: 'human',
+          kind: 'human' as const,
           userId: 'u1',
           x: 0,
           y: 0,
@@ -126,7 +151,14 @@ describe('online interpolation', () => {
     const snapB = {
       ...snapA,
       tick: 2,
-      ball: { x: 100, y: 0, vx: 0, vy: 0 },
+      ball: {
+        x: 100,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        controllerId: 'p1',
+        state: 'controlled',
+      },
       players: [{ ...snapA.players[0], x: 100, y: 0 }],
       receivedAt: 1100,
     };
@@ -135,6 +167,8 @@ describe('online interpolation', () => {
     const frame = sampleInterpolatedFrame(buffer, 1150, 100);
     assert.ok(frame);
     assert.ok(frame.ball.x > 0 && frame.ball.x < 100);
+    assert.equal(frame.ball.controllerId, 'p1');
+    assert.equal(frame.ball.state, 'controlled');
   });
 });
 
@@ -162,6 +196,30 @@ describe('online protocol parsing', () => {
     assert.equal(snap.score.away, 2);
     assert.equal(snap.players[0].side, 'away');
     assert.equal(snap.receivedAt, 123);
+    assert.equal(snap.ball.controllerId, null);
+    assert.equal(snap.ball.state, null);
+  });
+
+  it('parses ball controllerId and state from wire', () => {
+    const msg = parseServerMessage({
+      t: 'matchSnapshot',
+      tick: 4,
+      ball: {
+        x: 100,
+        y: 200,
+        vx: 0,
+        vy: 0,
+        state: 'controlled',
+        controllerId: 'home:3',
+      },
+      players: [],
+      score: { home: 0, away: 0 },
+    });
+    const snap = parseMatchSnap(msg!, 50);
+    assert.ok(snap);
+    assert.equal(snap.ball.controllerId, 'home:3');
+    assert.equal(snap.ball.state, 'controlled');
+    assert.equal(snap.ball.x, 100);
   });
 
   it('parses matchSnapshot stub without poses', () => {

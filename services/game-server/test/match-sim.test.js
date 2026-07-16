@@ -144,6 +144,90 @@ describe('game-sim match host', () => {
     b.close();
   });
 
+  it('keeps match session during empty-room grace and rebinds on rejoin', async () => {
+    const a = await connect(ctx.wsUrl);
+    const b = await connect(ctx.wsUrl);
+    a.send(JSON.stringify({ t: 'join', roomId: 'sim-grace', token: 'test:grace-home' }));
+    await onceMessage(a, (m) => m.t === 'joined');
+    b.send(JSON.stringify({ t: 'join', roomId: 'sim-grace', token: 'test:grace-away' }));
+    await onceMessage(b, (m) => m.t === 'joined');
+
+    a.send(
+      JSON.stringify({
+        t: 'matchJoin',
+        side: 'home',
+        humans: [
+          { userId: 'grace-home', side: 'home', fieldSlot: 0 },
+          { userId: 'grace-away', side: 'away', fieldSlot: 0 },
+        ],
+        durationSeconds: 900,
+      }),
+    );
+    await onceMessage(a, (m) => m.t === 'matchJoined');
+    b.send(
+      JSON.stringify({
+        t: 'matchJoin',
+        side: 'away',
+        humans: [
+          { userId: 'grace-home', side: 'home', fieldSlot: 0 },
+          { userId: 'grace-away', side: 'away', fieldSlot: 0 },
+        ],
+      }),
+    );
+    await onceMessage(b, (m) => m.t === 'matchJoined');
+    await onceMessage(a, (m) => m.t === 'matchSnapshot' && Array.isArray(m.players), 4000);
+
+    const closedA = new Promise((r) => a.once('close', r));
+    const closedB = new Promise((r) => b.once('close', r));
+    a.close();
+    b.close();
+    await closedA;
+    await closedB;
+    await new Promise((r) => setTimeout(r, 40));
+
+    assert.equal(ctx.game.rooms.roomCount(), 0);
+    assert.ok(ctx.game.matchSessions.has('sim-grace'), 'match session survives empty WS room');
+
+    const rejoin = await connect(ctx.wsUrl);
+    rejoin.send(JSON.stringify({ t: 'join', roomId: 'sim-grace', token: 'test:grace-home' }));
+    await onceMessage(rejoin, (m) => m.t === 'joined');
+    // Live match should push a snapshot on join even before matchJoin.
+    await onceMessage(rejoin, (m) => m.t === 'matchSnapshot', 4000);
+    rejoin.send(
+      JSON.stringify({
+        t: 'matchJoin',
+        side: 'home',
+        fieldSlot: 0,
+        humans: [
+          { userId: 'grace-home', side: 'home', fieldSlot: 0 },
+          { userId: 'grace-away', side: 'away', fieldSlot: 0 },
+        ],
+      }),
+    );
+    await onceMessage(rejoin, (m) => m.t === 'matchJoined');
+    assert.ok(ctx.game.matchSessions.get('sim-grace')?.started);
+    rejoin.close();
+  });
+
+  it('compacts wire snapshot floats', async () => {
+    const host = createGameSimMatchHost(createMatch);
+    host.start(
+      'wire-compact',
+      [{ userId: 'u1', side: 'home', fieldSlot: 0 }],
+      { durationSeconds: 900 },
+    );
+    host.tick(50);
+    const snap = host.snapshot('wire-compact');
+    assert.ok(snap);
+    assert.equal(snap.ball.x, Math.round(snap.ball.x * 10) / 10);
+    assert.equal(snap.ball.vx, Math.round(snap.ball.vx));
+    for (const p of snap.players) {
+      assert.equal(p.x, Math.round(p.x * 10) / 10);
+      assert.equal(p.vx, Math.round(p.vx));
+    }
+    host.stop('wire-compact');
+  });
+
   it('persists when short match finishes', async () => {
     const a = await connect(ctx.wsUrl);
     const b = await connect(ctx.wsUrl);

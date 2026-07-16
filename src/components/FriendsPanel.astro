@@ -242,9 +242,20 @@ const { compact = false } = Astro.props;
     sendDirectMessage,
     sendFriendRequest,
   } from '../lib/friends/friendsApi';
-  import { friendDisplayLabel, roomInviteText, type FriendPeer } from '../lib/friends/types';
+  import {
+    friendDisplayLabel,
+    roomInviteText,
+    type DirectMessage,
+    type FriendPeer,
+  } from '../lib/friends/types';
   import { CHANNELS } from '../lib/realtime/channels';
-  import { connect, onPresenceJoin, onPresenceLeave, subscribe } from '../lib/realtime/client';
+  import {
+    connect,
+    onEvent,
+    onPresenceJoin,
+    onPresenceLeave,
+    subscribe,
+  } from '../lib/realtime/client';
 
   function bootFriendsPanel(root: HTMLElement) {
     const onlineIds = new Set<string>();
@@ -258,6 +269,8 @@ const { compact = false } = Astro.props;
     let lastAuthUserId: string | null | undefined = undefined;
     let presenceRenderTimer: number | null = null;
     const presenceUnsubs: Array<() => void> = [];
+    const dmUnsubs: Array<() => void> = [];
+    const seenDmIds = new Set<string>();
 
     const errorEl = root.querySelector<HTMLElement>('[data-friends-error]');
     const okEl = root.querySelector<HTMLElement>('[data-friends-ok]');
@@ -362,12 +375,29 @@ const { compact = false } = Astro.props;
           invite.textContent = 'Invitar';
           invite.addEventListener('click', async () => {
             const text = roomInviteText(inviteCode!);
+            let copied = false;
             try {
               await navigator.clipboard.writeText(text);
-              setOk(`Invitación copiada para ${peerLabel(peer)}`);
+              copied = true;
             } catch {
-              setOk(text);
+              // clipboard may be blocked; still try DM
             }
+            const result = await sendDirectMessage(peer.userId, text);
+            if (!result.ok) {
+              setError(result.error.message);
+              setOk(
+                copied
+                  ? `Invitación copiada para ${peerLabel(peer)} (no se pudo enviar por mensaje)`
+                  : null,
+              );
+              return;
+            }
+            setError(null);
+            setOk(
+              copied
+                ? `Invitación enviada y copiada para ${peerLabel(peer)}`
+                : `Invitación enviada a ${peerLabel(peer)}`,
+            );
           });
           actions.append(invite);
         }
@@ -523,11 +553,71 @@ const { compact = false } = Astro.props;
         presenceRenderTimer = null;
       }
       for (const unsub of presenceUnsubs.splice(0)) unsub();
+      clearDmRealtime();
       presenceBound = false;
+    }
+
+    function clearDmRealtime() {
+      for (const unsub of dmUnsubs.splice(0)) unsub();
+    }
+
+    function appendDmMessage(msg: DirectMessage) {
+      if (!dmList || !msg?.id) return;
+      if (seenDmIds.has(msg.id)) return;
+      seenDmIds.add(msg.id);
+      if (seenDmIds.size > 200) {
+        const oldest = seenDmIds.values().next().value;
+        if (oldest !== undefined) seenDmIds.delete(oldest);
+      }
+      const me = getAuthState().user?.id;
+      const li = document.createElement('li');
+      const who =
+        msg.senderId === me
+          ? 'Tú'
+          : friendDisplayLabel({
+              displayName: msg.displayName,
+              username: msg.username,
+              userId: msg.senderId,
+            });
+      const meta = document.createElement('span');
+      meta.style.color = 'var(--accent)';
+      meta.style.fontWeight = '600';
+      meta.textContent = `${who}: `;
+      li.append(meta, document.createTextNode(msg.body));
+      dmList.appendChild(li);
+      const extras = dmList.querySelectorAll('li');
+      for (let i = 0; i < extras.length - 80; i += 1) {
+        extras[i]?.remove();
+      }
+      dmList.scrollTop = dmList.scrollHeight;
+    }
+
+    async function bindDmRealtime(peerId: string) {
+      clearDmRealtime();
+      const me = getAuthState().user?.id;
+      if (!me) return;
+      try {
+        await connect();
+        const channel = CHANNELS.dm(me, peerId);
+        await subscribe(channel);
+        dmUnsubs.push(
+          onEvent('direct_message', (payload) => {
+            if (!dmPeer || dmPeer.userId !== peerId) return;
+            const senderId = String(payload.senderId ?? '');
+            const recipientId = String(payload.recipientId ?? '');
+            if (senderId !== me && recipientId !== me) return;
+            if (senderId !== peerId && recipientId !== peerId) return;
+            appendDmMessage(payload as unknown as DirectMessage);
+          }),
+        );
+      } catch {
+        // history still works without live updates
+      }
     }
 
     async function openDm(peer: FriendPeer) {
       dmPeer = peer;
+      seenDmIds.clear();
       if (dmWrap) dmWrap.hidden = false;
       if (dmTitle) dmTitle.textContent = `Chat con ${peerLabel(peer)}`;
       if (dmError) {
@@ -535,6 +625,7 @@ const { compact = false } = Astro.props;
         dmError.textContent = '';
       }
       if (dmList) dmList.replaceChildren();
+      void bindDmRealtime(peer.userId);
       const result = await listDirectMessages(peer.userId);
       if (!result.ok) {
         if (dmError) {
@@ -543,27 +634,16 @@ const { compact = false } = Astro.props;
         }
         return;
       }
-      if (!dmList) return;
-      const me = getAuthState().user?.id;
+      if (!dmList || dmPeer?.userId !== peer.userId) return;
       for (const msg of result.data) {
-        const li = document.createElement('li');
-        const who = msg.senderId === me ? 'Tú' : friendDisplayLabel({
-          displayName: msg.displayName,
-          username: msg.username,
-          userId: msg.senderId,
-        });
-        const meta = document.createElement('span');
-        meta.style.color = 'var(--accent)';
-        meta.style.fontWeight = '600';
-        meta.textContent = `${who}: `;
-        li.append(meta, document.createTextNode(msg.body));
-        dmList.appendChild(li);
+        appendDmMessage(msg);
       }
-      dmList.scrollTop = dmList.scrollHeight;
     }
 
     function closeDm() {
+      clearDmRealtime();
       dmPeer = null;
+      seenDmIds.clear();
       if (dmWrap) dmWrap.hidden = true;
     }
 
@@ -594,7 +674,8 @@ const { compact = false } = Astro.props;
         dmError.hidden = true;
         dmError.textContent = '';
       }
-      const result = await sendDirectMessage(dmPeer.userId, body);
+      const peer = dmPeer;
+      const result = await sendDirectMessage(peer.userId, body);
       if (!result.ok) {
         if (dmError) {
           dmError.hidden = false;
@@ -603,7 +684,7 @@ const { compact = false } = Astro.props;
         return;
       }
       if (input) input.value = '';
-      await openDm(dmPeer);
+      if (result.data) appendDmMessage(result.data);
     });
 
     window.addEventListener('golazo:room-invite-code', ((event: CustomEvent<{ code: string | null }>) => {

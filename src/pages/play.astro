@@ -192,7 +192,9 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       extras[i]?.remove();
     }
     list.scrollTop = list.scrollHeight;
-    if (!chatOpen) {
+    // Lobby list is always visible in room state — don't desync the drawer badge.
+    const lobbyChatVisible = shell.getState() === 'room';
+    if (!chatOpen && !lobbyChatVisible) {
       unreadChat += 1;
       updateChatBadge();
     }
@@ -721,10 +723,20 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
       if (modeEl && status) {
         if (spectating) {
           if (status === 'playing' || status === 'joined') modeEl.textContent = 'Espectando';
+          else if (status === 'reconnecting') modeEl.textContent = 'Espectando · reconectando';
           else if (status === 'error') modeEl.textContent = 'Espectando · error';
         } else if (status === 'playing') modeEl.textContent = '11v11 Online';
         else if (status === 'joined') modeEl.textContent = '11v11 Online · en sala';
+        else if (status === 'reconnecting') modeEl.textContent = '11v11 Online · reconectando';
         else if (status === 'error') modeEl.textContent = '11v11 Online · error';
+      }
+      // First WS closes try short reconnects — do not hard-eject on reconnecting.
+      if (status === 'reconnecting') {
+        setStoppageState(
+          'Reconectando',
+          event.detail?.detail ? String(event.detail.detail) : 'Reconectando al partido…',
+        );
+        return;
       }
       if (status === 'error' || status === 'closed') {
         if (event.detail?.detail) {
@@ -756,6 +768,8 @@ const teamNames = Object.fromEntries(teams.map((team) => [team.id, team.name]));
         if (mapped === 'room') {
           shell.setMatchMode('online');
           shell.setState('room');
+          unreadChat = 0;
+          updateChatBadge();
         } else if (mapped === 'connectingMatch' && shell.getState() !== 'match') {
           shell.setState('connectingMatch');
         } else if (mapped === 'recoverableError' && shell.getState() === 'hub') {

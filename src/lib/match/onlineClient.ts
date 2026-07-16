@@ -141,6 +141,10 @@ export function createOnlineGameClient(
   let connectLock: Promise<void> | null = null;
   let authRetryUsed = false;
   let socketGeneration = 0;
+  let networkReconnectAttempts = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  const MAX_NETWORK_RECONNECTS = 2;
+  const RECONNECT_BACKOFF_MS = [350, 900];
 
   const pingIntervalMs = options.pingIntervalMs ?? 2000;
   const inputHz = options.inputHz ?? 20;
@@ -225,6 +229,51 @@ export function createOnlineGameClient(
       clearInterval(inputTimer);
       inputTimer = null;
     }
+  }
+
+  function clearReconnectTimer() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function scheduleNetworkReconnect(detail?: string) {
+    if (closedByUser || connectLock) return;
+    if (networkReconnectAttempts >= MAX_NETWORK_RECONNECTS) {
+      setStatus('closed', detail ?? 'Conexión cerrada');
+      return;
+    }
+
+    const attempt = networkReconnectAttempts;
+    networkReconnectAttempts += 1;
+    const delay = RECONNECT_BACKOFF_MS[Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1)] ?? 900;
+    setStatus('reconnecting', detail ?? `Reconectando (${networkReconnectAttempts}/${MAX_NETWORK_RECONNECTS})…`);
+
+    clearReconnectTimer();
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      void (async () => {
+        if (closedByUser) return;
+        try {
+          // Keep authRetryUsed as-is across network reconnects; only one auth refresh per connect cycle.
+          await tearDownSocket(false);
+          matchJoinSent = false;
+          sawPoseSnap = false;
+          const token = await resolveToken(false);
+          await openSocket(token);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'No se pudo reconectar al servidor de partida';
+          if (networkReconnectAttempts < MAX_NETWORK_RECONNECTS) {
+            scheduleNetworkReconnect(message);
+            return;
+          }
+          setStatus('error', message);
+          handlers.onError?.(message);
+        }
+      })();
+    }, delay);
   }
 
   function startLoops() {
@@ -367,11 +416,14 @@ export function createOnlineGameClient(
           setStatus('closed');
           return;
         }
-        if (status !== 'error') setStatus('closed', 'Conexión cerrada');
         if (!settled) {
           settled = true;
           reject(new Error('WebSocket closed before open'));
+          return;
         }
+        // Unexpected close after a live session: short reconnect window (aligns with server grace).
+        if (status === 'error') return;
+        scheduleNetworkReconnect('Conexión cerrada');
       };
     });
   }
@@ -414,6 +466,7 @@ export function createOnlineGameClient(
     }
 
     if (msg.t === 'joined' || msg.t === 'joinOk' || msg.t === 'join_ok') {
+      networkReconnectAttempts = 0;
       setStatus('joined');
       handlers.onJoined?.(msg);
       maybeMatchJoin();
@@ -421,12 +474,14 @@ export function createOnlineGameClient(
     }
 
     if (msg.t === 'matchSpectating') {
+      networkReconnectAttempts = 0;
       if (status !== 'playing') setStatus('playing');
       handlers.onMatchJoined?.(msg);
       return;
     }
 
     if (msg.t === 'matchJoined') {
+      networkReconnectAttempts = 0;
       handlers.onMatchJoined?.(msg);
       if (status !== 'playing') setStatus('playing');
       return;
@@ -487,8 +542,10 @@ export function createOnlineGameClient(
     if (connectLock) return connectLock;
 
     connectLock = (async () => {
+      clearReconnectTimer();
       await tearDownSocket(false);
       authRetryUsed = false;
+      networkReconnectAttempts = 0;
       matchJoinSent = false;
       sawPoseSnap = false;
 
@@ -503,6 +560,7 @@ export function createOnlineGameClient(
 
   function disconnect() {
     closedByUser = true;
+    clearReconnectTimer();
     socketGeneration += 1;
     void tearDownSocket(true);
     setStatus('closed');

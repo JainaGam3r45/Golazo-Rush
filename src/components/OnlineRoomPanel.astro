@@ -30,6 +30,7 @@ const { teams } = Astro.props;
     <p class="online-room__muted online-room__guest-note">
       Tras entrar volverás a <strong>/play</strong> para seguir con la sala.
     </p>
+    <p class="online-room__error" data-online-guest-error hidden role="alert"></p>
   </div>
 
   <div class="online-room__panel" data-online-view="recoverableError" hidden>
@@ -378,7 +379,10 @@ const { teams } = Astro.props;
     type RoomSlot,
   } from '../lib/match/roomTypes';
   import { deriveOnlineUiState, needsAbandonConfirm, type OnlineUiState } from '../lib/match/onlineUiState';
-  import { persistReturnTo } from '../lib/auth/redirect';
+  import { leaveRoomUserMessage, resolveLeaveRoomOutcome } from '../lib/match/roomRules';
+  import { persistReturnTo, withReturnTo } from '../lib/auth/redirect';
+  import { decideDeepLinkJoin } from '../lib/match/deepLinkJoin';
+  import { isValidRoomCode, normalizeRoomCode } from '../lib/match/roomRules';
   import { CHANNELS } from '../lib/realtime/channels';
   import {
     subscribe,
@@ -390,9 +394,17 @@ const { teams } = Astro.props;
   } from '../lib/realtime/client';
 
   function wireOnlineRoom() {
-    persistReturnTo('/play');
+    const initialParams = new URLSearchParams(window.location.search);
+    const deepLinkCode = normalizeRoomCode(initialParams.get('room') || initialParams.get('code') || '');
+    const returnPath = deepLinkCode ? `/play?room=${encodeURIComponent(deepLinkCode)}` : '/play';
+    persistReturnTo(returnPath);
     for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-online-auth-login], [data-online-auth-register]')) {
-      link.addEventListener('click', () => persistReturnTo('/play'));
+      link.addEventListener('click', () => persistReturnTo(returnPath));
+      if (deepLinkCode) {
+        const href = link.getAttribute('href') || '/login';
+        const base = href.split('?')[0] || href;
+        link.setAttribute('href', withReturnTo(base, returnPath));
+      }
     }
     const root = document.querySelector<HTMLElement>('[data-online-room]');
     if (!root || root.dataset.wired === '1') return;
@@ -419,6 +431,7 @@ const { teams } = Astro.props;
     let touchTimer: number | null = null;
     let countdownTimer: number | null = null;
     let uiState: OnlineUiState = 'hydratingSession';
+    let deepLinkJoinTried = false;
     const seenChatKeys = new Set<string>();
 
     function ensureLineupEditor() {
@@ -623,13 +636,16 @@ const { teams } = Astro.props;
       );
     }
 
-    /** Spectators connect as viewers once the match is live (lobby start or late join). */
-    function maybeLaunchLiveSpectate(snapshot: RoomSnapshot) {
+    /**
+     * Recovering members (players or spectators) reconnect to a live match.
+     * Players need rematchJoin; spectators use viewer-only role.
+     */
+    function maybeLaunchLiveMatch(snapshot: RoomSnapshot) {
       if (matchActive || matchConnecting) return;
       const me = getAuthState().user?.id;
       if (!me) return;
       const mine = snapshot.players.find((p) => p.userId === me);
-      if (!mine || mine.role !== 'spectator') return;
+      if (!mine) return;
       if (snapshot.status !== 'playing' && snapshot.status !== 'starting') return;
       launchOnlineMatch(snapshot, mine);
     }
@@ -784,7 +800,7 @@ const { teams } = Astro.props;
           room = payload as unknown as RoomSnapshot;
           renderSlots();
           renderConfig();
-          maybeLaunchLiveSpectate(room);
+          maybeLaunchLiveMatch(room);
         }),
       );
       roomUnsubs.push(
@@ -925,7 +941,7 @@ const { teams } = Astro.props;
       renderSlots();
       renderConfig();
       renderUi();
-      maybeLaunchLiveSpectate(next);
+      maybeLaunchLiveMatch(next);
     }
 
     async function checkActiveRoom() {
@@ -949,6 +965,98 @@ const { teams } = Astro.props;
       renderUi();
     }
 
+    function clearDeepLinkFromUrl() {
+      if (!deepLinkCode) return;
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('room') && !url.searchParams.has('code')) return;
+      url.searchParams.delete('room');
+      url.searchParams.delete('code');
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, '', next || '/play');
+    }
+
+    async function tryDeepLinkJoin() {
+      const auth = getAuthState();
+      const decision = decideDeepLinkJoin({
+        code: deepLinkCode || null,
+        codeValid: Boolean(deepLinkCode) && isValidRoomCode(deepLinkCode),
+        sessionReady: auth.sessionReady && !auth.loading,
+        hasUser: Boolean(auth.user),
+        hasToken: Boolean(auth.accessToken),
+        alreadyTried: deepLinkJoinTried,
+        busy: Boolean(busyAction) || checkingActive,
+        inLobby,
+        pendingRoomCode: pendingActive?.code ?? null,
+      });
+
+      if (decision.action === 'wait') return;
+
+      if (decision.action === 'guest') {
+        deepLinkJoinTried = true;
+        persistReturnTo(`/play?room=${encodeURIComponent(deepLinkCode)}`);
+        const guestMsg = deepLinkCode
+          ? `Inicia sesión para unirte a la sala ${deepLinkCode}.`
+          : 'Inicia sesión para unirte a esta sala.';
+        setError(root.querySelector('[data-online-guest-error]'), guestMsg);
+        setError(root.querySelector('[data-online-entry-error]'), guestMsg);
+        renderUi();
+        return;
+      }
+
+      if (decision.action === 'blocked') {
+        deepLinkJoinTried = true;
+        if (decision.reason === 'invalid_code') {
+          const msg = 'El código del enlace no es válido.';
+          setError(root.querySelector('[data-online-guest-error]'), msg);
+          setError(root.querySelector('[data-online-entry-error]'), msg);
+          renderUi();
+        } else if (decision.reason === 'other_room') {
+          setError(
+            root.querySelector('[data-online-entry-error]'),
+            'Ya estás en otra sala. Reanúdala o abandónala antes de unirte con este enlace.',
+          );
+          renderUi();
+        }
+        return;
+      }
+
+      deepLinkJoinTried = true;
+
+      if (decision.action === 'resume' && pendingActive) {
+        clearDeepLinkFromUrl();
+        await enterLobby(pendingActive);
+        return;
+      }
+
+      if (decision.action !== 'join') return;
+
+      busyAction = 'join';
+      setError(root.querySelector('[data-online-entry-error]'), null);
+      renderUi();
+      const result = await joinPrivateRoom({
+        code: deepLinkCode,
+        teamId: myTeamId,
+        formationId: myFormation,
+        lineup: myLineup,
+      });
+      busyAction = null;
+      if (!result.ok) {
+        if (result.error.code === 'ALREADY_IN_ROOM') {
+          await checkActiveRoom();
+          if (pendingActive?.code === deepLinkCode) {
+            clearDeepLinkFromUrl();
+            await enterLobby(pendingActive);
+            return;
+          }
+        }
+        setError(root.querySelector('[data-online-entry-error]'), result.error.message);
+        renderUi();
+        return;
+      }
+      clearDeepLinkFromUrl();
+      await enterLobby(result.data.room);
+    }
+
     async function syncSessionGate() {
       await awaitAuthReady();
       await ensureAccessToken();
@@ -959,6 +1067,9 @@ const { teams } = Astro.props;
       } else {
         pendingActive = null;
         renderUi();
+      }
+      if (deepLinkCode) {
+        await tryDeepLinkJoin();
       }
     }
 
@@ -1043,11 +1154,23 @@ const { teams } = Astro.props;
         const ok = window.confirm('¿Abandonar el partido en curso?');
         if (!ok) return;
       }
+      const me = getAuthState().user?.id;
+      const mine = target.players.find((p) => p.userId === me);
+      const activeBefore = roomPlayers(target).length;
+      const leavePlan = resolveLeaveRoomOutcome({
+        role: mine?.role === 'spectator' ? 'spectator' : 'player',
+        status: target.status,
+        remainingPlayersAfterLeave: Math.max(0, activeBefore - (mine?.role === 'spectator' ? 0 : 1)),
+        leaverIsHost: Boolean(me && target.hostUserId === me),
+      });
+
       if (fromLobby && room) {
         await leavePrivateRoom(room.id);
       } else {
         await leaveActivePrivateRoom();
       }
+      const msg = leaveRoomUserMessage(leavePlan.outcome);
+      setError(root.querySelector('[data-online-entry-error]'), msg);
       resetOnlineLocal();
       renderUi();
     }
@@ -1217,6 +1340,13 @@ const { teams } = Astro.props;
         renderUi();
         return;
       }
+      if (status === 'reconnecting') {
+        // Keep matchActive so resume/launch gates stay correct during short reconnects.
+        matchConnecting = false;
+        matchActive = true;
+        renderUi();
+        return;
+      }
       if (status === 'error' || status === 'closed') {
         matchConnecting = false;
         matchActive = false;
@@ -1241,12 +1371,9 @@ const { teams } = Astro.props;
     });
 
     void hydrateSession().then(() => {
-      const params = new URLSearchParams(window.location.search);
-      const roomCode = (params.get('room') || params.get('code') || '').trim().toUpperCase();
-      if (roomCode) {
+      if (deepLinkCode) {
         const codeInput = root.querySelector<HTMLInputElement>('[data-online-code]');
-        if (codeInput) codeInput.value = roomCode.slice(0, 6);
-        // Deep-link into a room: hydrate online gate once ready.
+        if (codeInput) codeInput.value = deepLinkCode.slice(0, 6);
         void syncSessionGate();
       } else {
         renderUi();
